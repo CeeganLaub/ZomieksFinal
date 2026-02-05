@@ -11,7 +11,7 @@ import {
   createSavedReplySchema,
   createAutoTriggerSchema,
   createNoteSchema,
-} from '@kiekz/shared/schemas';
+} from '@kiekz/shared';
 
 const router = Router();
 

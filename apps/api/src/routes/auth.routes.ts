@@ -8,7 +8,7 @@ import {
   registerSchema, 
   forgotPasswordSchema, 
   resetPasswordSchema 
-} from '@kiekz/shared/schemas';
+} from '@kiekz/shared';
 import { z } from 'zod';
 
 const router = Router();

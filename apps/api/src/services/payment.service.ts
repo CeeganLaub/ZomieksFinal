@@ -1,7 +1,6 @@
 import crypto from 'crypto';
 import { env } from '@/config/env.js';
-import { calculateOrderFees } from '@kiekz/shared/utils';
-import { PAYFAST_FREQUENCY } from '@kiekz/shared/constants';
+import { calculateOrderFees, PAYFAST_FREQUENCY } from '@kiekz/shared';
 
 interface PayFastPaymentParams {
   paymentId: string;

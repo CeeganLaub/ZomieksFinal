@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { authenticate } from '@/middleware/auth.js';
 import { prisma } from '@/lib/prisma.js';
-import { calculateOrderFees } from '@kiekz/shared/utils';
+import { calculateOrderFees } from '@kiekz/shared';
 
 const router = Router();
 

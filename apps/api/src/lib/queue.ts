@@ -1,8 +1,14 @@
 import { Queue, Worker, Job } from 'bullmq';
-import { redis } from '@/lib/redis.js';
+import Redis from 'ioredis';
+import { env } from '@/config/env.js';
 import { logger } from '@/lib/logger.js';
 
-const connection = { connection: redis };
+// BullMQ requires maxRetriesPerRequest: null
+const bullmqConnection = new Redis(env.REDIS_URL, {
+  maxRetriesPerRequest: null,
+});
+
+const connection = { connection: bullmqConnection };
 
 // Queue definitions
 export const escrowReleaseQueue = new Queue('escrow-release', connection);

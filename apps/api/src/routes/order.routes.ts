@@ -2,8 +2,7 @@ import { Router } from 'express';
 import { authenticate } from '@/middleware/auth.js';
 import { prisma } from '@/lib/prisma.js';
 import { validate } from '@/middleware/validate.js';
-import { createOrderSchema, orderDeliverySchema, orderRevisionSchema } from '@kiekz/shared/schemas';
-import { calculateOrderFees, generateOrderNumber, calculateDeliveryDueDate } from '@kiekz/shared/utils';
+import { createOrderSchema, orderDeliverySchema, orderRevisionSchema, calculateOrderFees, generateOrderNumber, calculateDeliveryDueDate } from '@kiekz/shared';
 
 const router = Router();
 

@@ -6,7 +6,7 @@ import { redis } from '@/lib/redis.js';
 import { env } from '@/config/env.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { JwtPayload } from '@/middleware/auth.js';
-import type { RegisterInput, LoginInput } from '@kiekz/shared/schemas';
+import type { RegisterInput, LoginInput } from '@kiekz/shared';
 
 const SALT_ROUNDS = 12;
 
