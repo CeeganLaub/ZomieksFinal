@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { authenticate, optionalAuth } from '@/middleware/auth.js';
 import { prisma } from '@/lib/prisma.js';
 import { validate } from '@/middleware/validate.js';
-import { updateProfileSchema, sellerOnboardingSchema } from '@kiekz/shared';
+import { updateProfileSchema, sellerOnboardingSchema } from '@zomieks/shared';
 
 const router = Router();
 

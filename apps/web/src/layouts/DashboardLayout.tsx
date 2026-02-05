@@ -51,7 +51,7 @@ export default function DashboardLayout({ isSeller = false }: Props) {
         <div className="flex h-16 items-center justify-between px-6">
           <div className="flex items-center space-x-4">
             <Link to="/" className="text-2xl font-bold text-primary">
-              Kiekz
+              Zomieks
             </Link>
             {user?.isSeller && (
               <div className="hidden md:flex items-center space-x-2 ml-8">

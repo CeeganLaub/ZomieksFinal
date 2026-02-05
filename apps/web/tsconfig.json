@@ -18,8 +18,8 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
-      "@kiekz/shared": ["../../packages/shared/src"],
-      "@kiekz/shared/*": ["../../packages/shared/src/*"]
+      "@zomieks/shared": ["../../packages/shared/src"],
+      "@zomieks/shared/*": ["../../packages/shared/src/*"]
     }
   },
   "include": ["src"],

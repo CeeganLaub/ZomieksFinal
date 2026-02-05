@@ -4,7 +4,37 @@ import { api } from '../lib/api';
 import { Button } from '../components/ui/Button';
 import { Card, CardContent } from '../components/ui/Card';
 import { MagnifyingGlassIcon, StarIcon } from '@heroicons/react/24/solid';
+import { 
+  ShieldCheckIcon, 
+  ClockIcon, 
+  CurrencyDollarIcon,
+  UserGroupIcon,
+  CheckBadgeIcon,
+  SparklesIcon,
+  ArrowRightIcon,
+  PlayIcon,
+} from '@heroicons/react/24/outline';
 import { useState } from 'react';
+import { motion } from 'framer-motion';
+
+// Animation variants
+const fadeInUp = {
+  hidden: { opacity: 0, y: 20 },
+  visible: { opacity: 1, y: 0 },
+};
+
+const staggerContainer = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.1 },
+  },
+};
+
+const scaleIn = {
+  hidden: { opacity: 0, scale: 0.8 },
+  visible: { opacity: 1, scale: 1 },
+};
 
 // Category icon mapping
 const categoryIcons: Record<string, string> = {
@@ -16,6 +46,21 @@ const categoryIcons: Record<string, string> = {
   'music': '🎵',
   'briefcase': '💼',
 };
+
+// Stats data
+const stats = [
+  { value: '50K+', label: 'Active Users', icon: UserGroupIcon },
+  { value: '100K+', label: 'Projects Completed', icon: CheckBadgeIcon },
+  { value: '4.9/5', label: 'Average Rating', icon: StarIcon },
+  { value: '24/7', label: 'Support', icon: ClockIcon },
+];
+
+// Trust badges
+const trustBadges = [
+  { icon: ShieldCheckIcon, title: 'Secure Payments', desc: 'SSL encrypted transactions' },
+  { icon: CurrencyDollarIcon, title: 'Money-Back Guarantee', desc: 'Full refund if not satisfied' },
+  { icon: ClockIcon, title: 'Fast Delivery', desc: 'Most orders delivered in 24h' },
+];
 
 export default function HomePage() {
   const navigate = useNavigate();
@@ -39,216 +84,594 @@ export default function HomePage() {
   };
 
   return (
-    <div>
+    <div className="overflow-hidden">
       {/* Hero Section */}
-      <section className="bg-gradient-to-r from-primary/10 via-primary/5 to-background py-20">
-        <div className="container text-center">
-          <h1 className="text-4xl md:text-6xl font-bold mb-6">
-            Find the perfect <span className="text-primary">freelance</span> services
-          </h1>
-          <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-            Connect with South Africa's top freelancers for your next project
-          </p>
-          
-          {/* Search bar */}
-          <form onSubmit={handleSearch} className="max-w-2xl mx-auto">
-            <div className="relative">
-              <MagnifyingGlassIcon className="absolute left-4 top-1/2 -translate-y-1/2 h-6 w-6 text-muted-foreground" />
-              <input
-                type="search"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder='Try "logo design" or "website development"'
-                className="w-full h-14 pl-12 pr-32 rounded-full border-2 border-primary/20 bg-background text-lg focus:outline-none focus:border-primary"
-              />
-              <Button type="submit" className="absolute right-2 top-1/2 -translate-y-1/2 h-10 px-6 rounded-full">
-                Search
-              </Button>
-            </div>
-          </form>
+      <section className="relative min-h-[85vh] flex items-center bg-gradient-to-br from-primary/5 via-background to-primary/10 overflow-hidden">
+        {/* Animated background elements */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <motion.div
+            className="absolute top-20 left-10 w-72 h-72 bg-primary/10 rounded-full blur-3xl"
+            animate={{ x: [0, 30, 0], y: [0, -20, 0] }}
+            transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+          />
+          <motion.div
+            className="absolute bottom-20 right-10 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl"
+            animate={{ x: [0, -30, 0], y: [0, 20, 0] }}
+            transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
+          />
+          <motion.div
+            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-gradient-to-r from-primary/5 to-purple-500/5 rounded-full blur-3xl"
+            animate={{ scale: [1, 1.1, 1], rotate: [0, 180, 360] }}
+            transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+          />
+        </div>
 
-          {/* Popular tags */}
-          <div className="mt-6 flex flex-wrap justify-center gap-2">
-            <span className="text-sm text-muted-foreground">Popular:</span>
-            {['Logo Design', 'Website', 'Video Editing', 'Social Media'].map((tag) => (
-              <Link 
-                key={tag}
-                to={`/services?search=${encodeURIComponent(tag)}`}
-                className="text-sm px-3 py-1 rounded-full bg-muted hover:bg-muted/80"
+        <div className="container relative z-10">
+          <div className="max-w-4xl mx-auto text-center">
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6 }}
+            >
+              <motion.div
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-sm font-medium mb-6"
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.2 }}
               >
-                {tag}
-              </Link>
-            ))}
+                <SparklesIcon className="h-4 w-4" />
+                South Africa's #1 Freelance Marketplace
+              </motion.div>
+              
+              <h1 className="text-5xl md:text-7xl font-bold mb-6 leading-tight">
+                Find the perfect{' '}
+                <span className="relative">
+                  <span className="text-primary">freelance</span>
+                  <motion.svg
+                    className="absolute -bottom-2 left-0 w-full"
+                    viewBox="0 0 300 12"
+                    initial={{ pathLength: 0 }}
+                    animate={{ pathLength: 1 }}
+                    transition={{ delay: 0.5, duration: 0.8 }}
+                  >
+                    <motion.path
+                      d="M2 8 C50 2, 100 12, 150 6 C200 0, 250 10, 298 4"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                      fill="none"
+                      className="text-primary"
+                      strokeLinecap="round"
+                    />
+                  </motion.svg>
+                </span>
+                <br />
+                services for your business
+              </h1>
+              
+              <motion.p
+                className="text-xl md:text-2xl text-muted-foreground mb-10 max-w-2xl mx-auto"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.3 }}
+              >
+                Connect with talented South African freelancers and get your projects done faster
+              </motion.p>
+            </motion.div>
+            
+            {/* Search bar */}
+            <motion.form
+              onSubmit={handleSearch}
+              className="max-w-2xl mx-auto mb-8"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+            >
+              <div className="relative group">
+                <div className="absolute -inset-1 bg-gradient-to-r from-primary via-purple-500 to-primary rounded-full opacity-30 blur group-hover:opacity-50 transition duration-300" />
+                <div className="relative flex items-center bg-background rounded-full border-2 border-transparent">
+                  <MagnifyingGlassIcon className="absolute left-5 h-6 w-6 text-muted-foreground" />
+                  <input
+                    type="search"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder='Try "logo design" or "website development"'
+                    className="w-full h-16 pl-14 pr-36 rounded-full bg-transparent text-lg focus:outline-none placeholder:text-muted-foreground/70"
+                  />
+                  <Button 
+                    type="submit" 
+                    size="lg"
+                    className="absolute right-2 h-12 px-8 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105"
+                  >
+                    Search
+                  </Button>
+                </div>
+              </div>
+            </motion.form>
+
+            {/* Popular tags */}
+            <motion.div
+              className="flex flex-wrap justify-center gap-3"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.5 }}
+            >
+              <span className="text-sm text-muted-foreground">Popular:</span>
+              {['Logo Design', 'Website Development', 'Video Editing', 'Social Media', 'Copywriting'].map((tag, i) => (
+                <motion.div
+                  key={tag}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.5 + i * 0.1 }}
+                >
+                  <Link 
+                    to={`/services?search=${encodeURIComponent(tag)}`}
+                    className="text-sm px-4 py-2 rounded-full bg-background border hover:border-primary hover:text-primary transition-all duration-200 hover:shadow-md"
+                  >
+                    {tag}
+                  </Link>
+                </motion.div>
+              ))}
+            </motion.div>
           </div>
+        </div>
+
+        {/* Scroll indicator */}
+        <motion.div
+          className="absolute bottom-8 left-1/2 -translate-x-1/2"
+          animate={{ y: [0, 10, 0] }}
+          transition={{ duration: 2, repeat: Infinity }}
+        >
+          <div className="w-6 h-10 rounded-full border-2 border-muted-foreground/30 flex justify-center pt-2">
+            <motion.div
+              className="w-1.5 h-3 bg-muted-foreground/30 rounded-full"
+              animate={{ y: [0, 8, 0], opacity: [1, 0.5, 1] }}
+              transition={{ duration: 2, repeat: Infinity }}
+            />
+          </div>
+        </motion.div>
+      </section>
+
+      {/* Trust Badges */}
+      <section className="py-12 bg-muted/30 border-y">
+        <div className="container">
+          <motion.div
+            className="grid grid-cols-1 md:grid-cols-3 gap-8"
+            variants={staggerContainer}
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+          >
+            {trustBadges.map((badge, i) => (
+              <motion.div
+                key={i}
+                className="flex items-center gap-4 justify-center md:justify-start"
+                variants={fadeInUp}
+              >
+                <div className="p-3 rounded-xl bg-primary/10">
+                  <badge.icon className="h-6 w-6 text-primary" />
+                </div>
+                <div>
+                  <h3 className="font-semibold">{badge.title}</h3>
+                  <p className="text-sm text-muted-foreground">{badge.desc}</p>
+                </div>
+              </motion.div>
+            ))}
+          </motion.div>
         </div>
       </section>
 
       {/* Categories */}
-      <section className="container py-16">
-        <h2 className="text-2xl font-bold mb-8">Browse by Category</h2>
-        {categoriesLoading ? (
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
-            {[...Array(7)].map((_, i) => (
-              <div key={i} className="p-6 rounded-xl border animate-pulse">
-                <div className="w-10 h-10 bg-muted rounded-full mx-auto mb-3"></div>
-                <div className="h-4 bg-muted rounded mx-auto w-20"></div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
-            {categories?.data?.categories?.map((cat: any) => (
-              <Link
-                key={cat.id}
-                to={`/services?category=${cat.slug}`}
-                className="p-6 rounded-xl border hover:border-primary hover:shadow-lg transition-all text-center group"
-              >
-                <div className="text-4xl mb-3">{categoryIcons[cat.icon] || '📦'}</div>
-                <h3 className="font-medium group-hover:text-primary text-sm">{cat.name}</h3>
-              </Link>
-            ))}
-          </div>
-        )}
-      </section>
-
-      {/* Featured Services */}
-      <section className="bg-muted/30 py-16">
-        <div className="container">
-          <div className="flex justify-between items-center mb-8">
-            <h2 className="text-2xl font-bold">Featured Services</h2>
-            <Link to="/services" className="text-primary hover:underline">
-              View all
-            </Link>
-          </div>
+      <section className="container py-20">
+        <motion.div
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true }}
+          variants={staggerContainer}
+        >
+          <motion.div className="text-center mb-12" variants={fadeInUp}>
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">Explore Popular Categories</h2>
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+              Find the right freelancer for any project, big or small
+            </p>
+          </motion.div>
           
-          {servicesLoading ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              {[...Array(4)].map((_, i) => (
-                <Card key={i} className="overflow-hidden animate-pulse">
-                  <div className="aspect-video bg-muted"></div>
-                  <CardContent className="p-4">
-                    <div className="flex items-center space-x-2 mb-2">
-                      <div className="h-6 w-6 rounded-full bg-muted"></div>
-                      <div className="h-3 bg-muted rounded w-20"></div>
-                    </div>
-                    <div className="h-4 bg-muted rounded mb-2"></div>
-                    <div className="h-4 bg-muted rounded w-3/4 mb-2"></div>
-                    <div className="h-4 bg-muted rounded w-16"></div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          ) : featured?.data?.services?.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              {featured?.data?.services?.map((service: any) => (
-                <Link key={service.id} to={`/services/${service.seller?.username}/${service.slug}`}>
-                  <Card className="overflow-hidden hover:shadow-lg transition-shadow h-full">
-                    <div className="aspect-video bg-muted relative">
-                      {service.images?.[0] ? (
-                        <img 
-                          src={service.images[0]} 
-                          alt={service.title}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-muted-foreground">
-                          No Image
-                        </div>
-                      )}
-                    </div>
-                    <CardContent className="p-4">
-                      <div className="flex items-center space-x-2 mb-2">
-                        <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-medium">
-                          {service.seller?.username?.charAt(0).toUpperCase()}
-                        </div>
-                        <span className="text-sm text-muted-foreground">
-                          {service.seller?.sellerProfile?.displayName || service.seller?.username}
-                        </span>
-                      </div>
-                      <h3 className="font-medium line-clamp-2 mb-2">{service.title}</h3>
-                      <div className="flex items-center space-x-1 mb-2">
-                        <StarIcon className="h-4 w-4 text-yellow-500" />
-                        <span className="text-sm font-medium">
-                          {service.rating?.toFixed(1) || 'New'}
-                        </span>
-                        <span className="text-sm text-muted-foreground">
-                          ({service.reviewCount || 0})
-                        </span>
-                      </div>
-                      <div className="text-sm">
-                        <span className="text-muted-foreground">From </span>
-                        <span className="font-bold">
-                          R{service.packages?.[0]?.price?.toLocaleString() || '0'}
-                        </span>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </Link>
+          {categoriesLoading ? (
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
+              {[...Array(7)].map((_, i) => (
+                <div key={i} className="p-6 rounded-xl border animate-pulse">
+                  <div className="w-12 h-12 bg-muted rounded-full mx-auto mb-3"></div>
+                  <div className="h-4 bg-muted rounded mx-auto w-20"></div>
+                </div>
               ))}
             </div>
           ) : (
-            <div className="text-center py-12 text-muted-foreground">
-              <p>No services available yet. Be the first to offer your skills!</p>
-              <Link to="/become-seller" className="text-primary hover:underline mt-2 inline-block">
-                Become a Seller
+            <motion.div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4" variants={staggerContainer}>
+              {categories?.data?.categories?.map((cat: any) => (
+                <motion.div key={cat.id} variants={scaleIn}>
+                  <Link
+                    to={`/services?category=${cat.slug}`}
+                    className="group block p-6 rounded-2xl border bg-background hover:border-primary hover:shadow-xl transition-all duration-300 text-center relative overflow-hidden"
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                    <motion.div 
+                      className="text-5xl mb-4 relative z-10"
+                      whileHover={{ scale: 1.2, rotate: [0, -10, 10, 0] }}
+                      transition={{ duration: 0.3 }}
+                    >
+                      {categoryIcons[cat.icon] || '📦'}
+                    </motion.div>
+                    <h3 className="font-medium group-hover:text-primary transition-colors text-sm relative z-10">{cat.name}</h3>
+                  </Link>
+                </motion.div>
+              ))}
+            </motion.div>
+          )}
+        </motion.div>
+      </section>
+
+      {/* Featured Services */}
+      <section className="bg-gradient-to-b from-muted/30 to-background py-20">
+        <div className="container">
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={staggerContainer}
+          >
+            <motion.div className="flex justify-between items-end mb-12" variants={fadeInUp}>
+              <div>
+                <h2 className="text-3xl md:text-4xl font-bold mb-2">Featured Services</h2>
+                <p className="text-muted-foreground">Top-rated services by our best freelancers</p>
+              </div>
+              <Link 
+                to="/services" 
+                className="hidden md:flex items-center gap-2 text-primary hover:gap-3 transition-all font-medium"
+              >
+                View all services
+                <ArrowRightIcon className="h-5 w-5" />
+              </Link>
+            </motion.div>
+          
+            {servicesLoading ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                {[...Array(4)].map((_, i) => (
+                  <Card key={i} className="overflow-hidden animate-pulse">
+                    <div className="aspect-video bg-muted"></div>
+                    <CardContent className="p-4">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <div className="h-8 w-8 rounded-full bg-muted"></div>
+                        <div className="h-3 bg-muted rounded w-24"></div>
+                      </div>
+                      <div className="h-4 bg-muted rounded mb-2"></div>
+                      <div className="h-4 bg-muted rounded w-3/4 mb-2"></div>
+                      <div className="h-5 bg-muted rounded w-20"></div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : featured?.data?.services?.length > 0 ? (
+              <motion.div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6" variants={staggerContainer}>
+                {featured?.data?.services?.map((service: any) => (
+                  <motion.div key={service.id} variants={fadeInUp}>
+                    <Link to={`/services/${service.seller?.username}/${service.slug}`}>
+                      <Card className="group overflow-hidden hover:shadow-2xl transition-all duration-300 h-full border-2 border-transparent hover:border-primary/20">
+                        <div className="aspect-video bg-muted relative overflow-hidden">
+                          {service.images?.[0] ? (
+                            <img 
+                              src={service.images[0]} 
+                              alt={service.title}
+                              className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-muted-foreground bg-gradient-to-br from-muted to-muted/50">
+                              <SparklesIcon className="h-12 w-12 opacity-50" />
+                            </div>
+                          )}
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                          <motion.div
+                            className="absolute bottom-3 right-3 bg-background/90 backdrop-blur-sm px-3 py-1.5 rounded-full text-sm font-semibold shadow-lg"
+                            initial={{ opacity: 0, y: 10 }}
+                            whileHover={{ scale: 1.05 }}
+                          >
+                            From R{service.packages?.[0]?.price?.toLocaleString() || '0'}
+                          </motion.div>
+                        </div>
+                        <CardContent className="p-4">
+                          <div className="flex items-center space-x-3 mb-3">
+                            <div className="h-10 w-10 rounded-full bg-gradient-to-br from-primary to-purple-500 flex items-center justify-center text-white text-sm font-bold shadow-lg">
+                              {service.seller?.username?.charAt(0).toUpperCase()}
+                            </div>
+                            <div>
+                              <span className="text-sm font-medium block">
+                                {service.seller?.sellerProfile?.displayName || service.seller?.username}
+                              </span>
+                              <span className="text-xs text-muted-foreground">
+                                Level {service.seller?.sellerProfile?.level || 1} Seller
+                              </span>
+                            </div>
+                          </div>
+                          <h3 className="font-semibold line-clamp-2 mb-3 group-hover:text-primary transition-colors">
+                            {service.title}
+                          </h3>
+                          <div className="flex items-center space-x-2">
+                            <div className="flex items-center space-x-1 bg-yellow-50 px-2 py-1 rounded-full">
+                              <StarIcon className="h-4 w-4 text-yellow-500" />
+                              <span className="text-sm font-semibold text-yellow-700">
+                                {service.rating?.toFixed(1) || 'New'}
+                              </span>
+                            </div>
+                            <span className="text-sm text-muted-foreground">
+                              ({service.reviewCount || 0} reviews)
+                            </span>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </Link>
+                  </motion.div>
+                ))}
+              </motion.div>
+            ) : (
+              <motion.div 
+                className="text-center py-16 bg-muted/30 rounded-2xl"
+                variants={fadeInUp}
+              >
+                <SparklesIcon className="h-16 w-16 text-muted-foreground/50 mx-auto mb-4" />
+                <p className="text-muted-foreground mb-4 text-lg">No services available yet. Be the first to offer your skills!</p>
+                <Link to="/become-seller">
+                  <Button size="lg">Become a Seller</Button>
+                </Link>
+              </motion.div>
+            )}
+
+            <div className="text-center mt-8 md:hidden">
+              <Link to="/services">
+                <Button variant="outline" size="lg">
+                  View all services
+                  <ArrowRightIcon className="h-5 w-5 ml-2" />
+                </Button>
               </Link>
             </div>
-          )}
+          </motion.div>
+        </div>
+      </section>
+
+      {/* Stats Section */}
+      <section className="py-20 bg-primary text-primary-foreground relative overflow-hidden">
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-0 left-0 w-64 h-64 bg-white/5 rounded-full blur-3xl" />
+          <div className="absolute bottom-0 right-0 w-96 h-96 bg-white/5 rounded-full blur-3xl" />
+        </div>
+        <div className="container relative z-10">
+          <motion.div
+            className="grid grid-cols-2 md:grid-cols-4 gap-8"
+            variants={staggerContainer}
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+          >
+            {stats.map((stat, i) => (
+              <motion.div key={i} className="text-center" variants={scaleIn}>
+                <stat.icon className="h-8 w-8 mx-auto mb-3 opacity-80" />
+                <div className="text-4xl md:text-5xl font-bold mb-2">{stat.value}</div>
+                <div className="text-sm md:text-base opacity-80">{stat.label}</div>
+              </motion.div>
+            ))}
+          </motion.div>
         </div>
       </section>
 
       {/* How it works */}
-      <section className="container py-16">
-        <h2 className="text-2xl font-bold text-center mb-12">How it Works</h2>
-        <div className="grid md:grid-cols-3 gap-8">
-          {[
-            { 
-              step: '1', 
-              title: 'Find the perfect service', 
-              desc: 'Browse through our categories or search for what you need' 
-            },
-            { 
-              step: '2', 
-              title: 'Place your order', 
-              desc: 'Choose a package and make a secure payment' 
-            },
-            { 
-              step: '3', 
-              title: 'Get your delivery', 
-              desc: 'Receive your completed work and leave a review' 
-            },
-          ].map((item) => (
-            <div key={item.step} className="text-center">
-              <div className="w-16 h-16 rounded-full bg-primary text-primary-foreground text-2xl font-bold flex items-center justify-center mx-auto mb-4">
-                {item.step}
-              </div>
-              <h3 className="text-lg font-semibold mb-2">{item.title}</h3>
-              <p className="text-muted-foreground">{item.desc}</p>
-            </div>
-          ))}
+      <section className="container py-20">
+        <motion.div
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true }}
+          variants={staggerContainer}
+        >
+          <motion.div className="text-center mb-16" variants={fadeInUp}>
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">How Zomieks Works</h2>
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+              Get your project done in three simple steps
+            </p>
+          </motion.div>
+          
+          <div className="grid md:grid-cols-3 gap-8 relative">
+            {/* Connecting line */}
+            <div className="hidden md:block absolute top-16 left-1/4 right-1/4 h-0.5 bg-gradient-to-r from-primary/50 via-primary to-primary/50" />
+            
+            {[
+              { 
+                step: '1', 
+                title: 'Find the perfect service', 
+                desc: 'Browse through thousands of services or search for exactly what you need. Compare freelancers, prices, and reviews.',
+                icon: MagnifyingGlassIcon,
+              },
+              { 
+                step: '2', 
+                title: 'Place your order', 
+                desc: 'Choose a package that fits your budget and timeline. Make a secure payment with PayFast or OZOW.',
+                icon: CurrencyDollarIcon,
+              },
+              { 
+                step: '3', 
+                title: 'Get your delivery', 
+                desc: 'Receive your completed work and request revisions if needed. Release payment when you\'re satisfied.',
+                icon: CheckBadgeIcon,
+              },
+            ].map((item) => (
+              <motion.div 
+                key={item.step} 
+                className="text-center relative"
+                variants={fadeInUp}
+              >
+                <motion.div 
+                  className="w-20 h-20 rounded-full bg-gradient-to-br from-primary to-purple-600 text-primary-foreground text-2xl font-bold flex items-center justify-center mx-auto mb-6 shadow-xl relative z-10"
+                  whileHover={{ scale: 1.1, rotate: 5 }}
+                  transition={{ type: "spring", stiffness: 300 }}
+                >
+                  <item.icon className="h-8 w-8" />
+                </motion.div>
+                <h3 className="text-xl font-bold mb-3">{item.title}</h3>
+                <p className="text-muted-foreground max-w-xs mx-auto">{item.desc}</p>
+              </motion.div>
+            ))}
+          </div>
+        </motion.div>
+      </section>
+
+      {/* Testimonials Placeholder */}
+      <section className="py-20 bg-muted/30">
+        <div className="container">
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={staggerContainer}
+          >
+            <motion.div className="text-center mb-12" variants={fadeInUp}>
+              <h2 className="text-3xl md:text-4xl font-bold mb-4">Loved by Thousands</h2>
+              <p className="text-lg text-muted-foreground">See what our community has to say</p>
+            </motion.div>
+
+            <motion.div className="grid md:grid-cols-3 gap-6" variants={staggerContainer}>
+              {[
+                { name: 'Sarah M.', role: 'Business Owner', text: 'Found an amazing designer who created my brand identity. The process was smooth and the results exceeded my expectations!' },
+                { name: 'John D.', role: 'Startup Founder', text: 'As a startup, we needed quality work within budget. Zomieks connected us with talented developers who delivered brilliantly.' },
+                { name: 'Thabo K.', role: 'Marketing Manager', text: 'The freelancers here are professional and skilled. Our social media presence has improved dramatically since using Zomieks.' },
+              ].map((testimonial, i) => (
+                <motion.div key={i} variants={fadeInUp}>
+                  <Card className="h-full p-6 hover:shadow-lg transition-shadow">
+                    <div className="flex items-center gap-1 mb-4">
+                      {[...Array(5)].map((_, j) => (
+                        <StarIcon key={j} className="h-5 w-5 text-yellow-400" />
+                      ))}
+                    </div>
+                    <p className="text-muted-foreground mb-6 italic">"{testimonial.text}"</p>
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-purple-500 flex items-center justify-center text-white font-bold">
+                        {testimonial.name.charAt(0)}
+                      </div>
+                      <div>
+                        <div className="font-semibold">{testimonial.name}</div>
+                        <div className="text-sm text-muted-foreground">{testimonial.role}</div>
+                      </div>
+                    </div>
+                  </Card>
+                </motion.div>
+              ))}
+            </motion.div>
+          </motion.div>
         </div>
       </section>
 
       {/* CTA */}
-      <section className="bg-primary text-primary-foreground py-16">
-        <div className="container text-center">
-          <h2 className="text-3xl font-bold mb-4">Ready to get started?</h2>
-          <p className="text-lg opacity-90 mb-8">
-            Join thousands of freelancers and businesses on Kiekz
-          </p>
-          <div className="flex justify-center gap-4">
-            <Link to="/register">
-              <Button size="lg" variant="secondary">
-                Join Now
-              </Button>
-            </Link>
-            <Link to="/services">
-              <Button size="lg" variant="outline" className="border-primary-foreground text-primary-foreground hover:bg-primary-foreground hover:text-primary">
-                Browse Services
-              </Button>
-            </Link>
-          </div>
+      <section className="relative py-24 overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-primary via-primary to-purple-700" />
+        <div className="absolute inset-0 opacity-30">
+          <div className="absolute top-0 left-0 w-96 h-96 bg-white/10 rounded-full blur-3xl" />
+          <div className="absolute bottom-0 right-0 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl" />
         </div>
+        
+        <div className="container relative z-10">
+          <motion.div
+            className="text-center text-primary-foreground"
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={staggerContainer}
+          >
+            <motion.h2 
+              className="text-4xl md:text-5xl font-bold mb-6"
+              variants={fadeInUp}
+            >
+              Ready to get started?
+            </motion.h2>
+            <motion.p 
+              className="text-xl opacity-90 mb-10 max-w-2xl mx-auto"
+              variants={fadeInUp}
+            >
+              Join thousands of freelancers and businesses on Zomieks. 
+              Start your journey today!
+            </motion.p>
+            <motion.div 
+              className="flex flex-col sm:flex-row justify-center gap-4"
+              variants={fadeInUp}
+            >
+              <Link to="/register">
+                <Button 
+                  size="lg" 
+                  variant="secondary"
+                  className="text-lg px-8 py-6 shadow-xl hover:shadow-2xl hover:scale-105 transition-all duration-300"
+                >
+                  Join for Free
+                  <ArrowRightIcon className="h-5 w-5 ml-2" />
+                </Button>
+              </Link>
+              <Link to="/services">
+                <Button 
+                  size="lg" 
+                  variant="outline" 
+                  className="text-lg px-8 py-6 border-white/30 text-white hover:bg-white/10 hover:scale-105 transition-all duration-300"
+                >
+                  <PlayIcon className="h-5 w-5 mr-2" />
+                  Browse Services
+                </Button>
+              </Link>
+            </motion.div>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* Become a Seller CTA */}
+      <section className="container py-20">
+        <motion.div
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true }}
+          variants={fadeInUp}
+        >
+          <Card className="overflow-hidden border-0 shadow-2xl">
+            <div className="grid md:grid-cols-2 gap-8">
+              <div className="p-8 md:p-12 flex flex-col justify-center">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-green-100 text-green-700 text-sm font-medium mb-4 w-fit">
+                  <CurrencyDollarIcon className="h-4 w-4" />
+                  Earn money
+                </div>
+                <h2 className="text-3xl md:text-4xl font-bold mb-4">
+                  Turn your skills into income
+                </h2>
+                <p className="text-lg text-muted-foreground mb-6">
+                  Join our community of freelancers and start earning. Set your own rates, work on your terms, and grow your client base.
+                </p>
+                <ul className="space-y-3 mb-8">
+                  {['Set your own prices', 'Work from anywhere', 'Get paid securely', 'Build your reputation'].map((item, i) => (
+                    <li key={i} className="flex items-center gap-2">
+                      <CheckBadgeIcon className="h-5 w-5 text-green-500" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+                <Link to="/become-seller">
+                  <Button size="lg" className="w-fit">
+                    Become a Seller
+                    <ArrowRightIcon className="h-5 w-5 ml-2" />
+                  </Button>
+                </Link>
+              </div>
+              <div className="relative h-64 md:h-auto bg-gradient-to-br from-primary/20 via-purple-500/20 to-primary/10">
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <motion.div
+                    className="text-9xl"
+                    animate={{ y: [0, -10, 0], rotate: [0, 5, 0, -5, 0] }}
+                    transition={{ duration: 4, repeat: Infinity }}
+                  >
+                    💼
+                  </motion.div>
+                </div>
+              </div>
+            </div>
+          </Card>
+        </motion.div>
       </section>
     </div>
   );

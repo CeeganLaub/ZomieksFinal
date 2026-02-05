@@ -1,5 +1,5 @@
 {
-  "name": "kiekz",
+  "name": "zomieks",
   "version": "1.0.0",
   "private": true,
   "workspaces": [
@@ -11,12 +11,16 @@
     "build": "turbo run build",
     "lint": "turbo run lint",
     "test": "turbo run test",
-    "dev:web": "npm run dev --workspace=@kiekz/web",
-    "dev:api": "npm run dev --workspace=@kiekz/api",
-    "db:generate": "npm run db:generate --workspace=@kiekz/api",
-    "db:push": "npm run db:push --workspace=@kiekz/api",
-    "db:migrate": "npm run db:migrate --workspace=@kiekz/api",
-    "db:studio": "npm run db:studio --workspace=@kiekz/api"
+    "dev:web": "npm run dev --workspace=@zomieks/web",
+    "dev:api": "npm run dev --workspace=@zomieks/api",
+    "dev:worker": "npm run dev --workspace=apps/api-worker",
+    "deploy:worker": "npm run deploy --workspace=apps/api-worker",
+    "db:generate": "npm run db:generate --workspace=@zomieks/api",
+    "db:push": "npm run db:push --workspace=@zomieks/api",
+    "db:migrate": "npm run db:migrate --workspace=@zomieks/api",
+    "db:studio": "npm run db:studio --workspace=@zomieks/api",
+    "db:generate:d1": "npm run generate --workspace=packages/db",
+    "db:migrate:d1": "npm run migrate --workspace=apps/api-worker"
   },
   "devDependencies": {
     "turbo": "^2.3.0",

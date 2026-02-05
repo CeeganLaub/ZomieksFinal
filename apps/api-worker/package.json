@@ -1,0 +1,30 @@
+{
+  "name": "@zomieks/api-worker",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail",
+    "migrate": "wrangler d1 migrations apply zomieks-db --local",
+    "migrate:prod": "wrangler d1 migrations apply zomieks-db",
+    "seed": "wrangler d1 execute zomieks-db --local --file=../../packages/db/seed.sql",
+    "seed:prod": "wrangler d1 execute zomieks-db --file=../../packages/db/seed.sql",
+    "db:create": "wrangler d1 create zomieks-db"
+  },
+  "dependencies": {
+    "@paralleldrive/cuid2": "^2.2.2",
+    "@zomieks/db": "workspace:*",
+    "@zomieks/shared": "workspace:*",
+    "drizzle-orm": "^0.38.0",
+    "hono": "^4.6.0",
+    "jose": "^5.9.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241127.0",
+    "typescript": "^5.7.0",
+    "wrangler": "^3.91.0"
+  }
+}

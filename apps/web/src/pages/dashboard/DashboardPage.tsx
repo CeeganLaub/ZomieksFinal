@@ -10,7 +10,7 @@ import {
   CreditCardIcon,
   ArrowRightIcon,
 } from '@heroicons/react/24/outline';
-import { formatCurrency, formatDate } from '../../lib/utils';
+import { formatCurrency } from '../../lib/utils';
 
 export default function DashboardPage() {
   const { user } = useAuthStore();
@@ -38,7 +38,7 @@ export default function DashboardPage() {
           <CardContent className="py-6">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-lg font-semibold mb-1">Start selling on Kiekz</h2>
+                <h2 className="text-lg font-semibold mb-1">Start selling on Zomieks</h2>
                 <p className="text-muted-foreground">Share your skills and start earning today</p>
               </div>
               <Link to="/become-seller">

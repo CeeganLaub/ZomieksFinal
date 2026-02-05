@@ -93,6 +93,22 @@ app.use((_req, res) => {
 // Socket.io handlers
 setupSocketHandlers(io);
 
+// Schedule recurring jobs
+import('@/services/payout.service.js').then(({ schedulePayoutProcessing }) => {
+  schedulePayoutProcessing().catch(err => logger.error('Failed to schedule payouts:', err));
+});
+
+// Schedule CRM inactivity check (every hour)
+import('@/lib/queue.js').then(({ notificationQueue }) => {
+  notificationQueue.add(
+    'crm-inactivity-check',
+    {},
+    {
+      repeat: { pattern: '0 * * * *' }, // Every hour
+    }
+  ).catch(err => logger.error('Failed to schedule CRM inactivity check:', err));
+});
+
 // Graceful shutdown
 const shutdown = async () => {
   logger.info('Shutting down gracefully...');

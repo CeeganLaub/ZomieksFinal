@@ -173,7 +173,7 @@ async function main() {
   // Create users
   const adminUser = await prisma.user.create({
     data: {
-      email: 'admin@kiekz.co.za',
+      email: 'admin@zomieks.co.za',
       username: 'admin',
       passwordHash,
       firstName: 'Admin',
@@ -686,7 +686,7 @@ I have helped over 50 businesses grow their social media presence and increase e
 
   console.log('\n🎉 Seed completed successfully!\n');
   console.log('Test accounts:');
-  console.log('  Admin:  admin@kiekz.co.za / Password123');
+  console.log('  Admin:  admin@zomieks.co.za / Password123');
   console.log('  Seller: john@example.com / Password123');
   console.log('  Seller: sarah@example.com / Password123');
   console.log('  Buyer:  buyer@example.com / Password123');

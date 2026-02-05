@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { authenticate } from '@/middleware/auth.js';
 import { prisma } from '@/lib/prisma.js';
 import { env } from '@/config/env.js';
-import { calculateOrderFees } from '@kiekz/shared';
+import { calculateOrderFees } from '@zomieks/shared';
 import { createPayFastPayment, createOzowPayment } from '@/services/payment.service.js';
 
 const router = Router();

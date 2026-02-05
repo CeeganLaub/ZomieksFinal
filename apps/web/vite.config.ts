@@ -10,8 +10,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
       manifest: {
-        name: 'Kiekz - Freelance Marketplace',
-        short_name: 'Kiekz',
+        name: 'Zomieks - Freelance Marketplace',
+        short_name: 'Zomieks',
         description: 'Find and hire talented freelancers or sell your services',
         theme_color: '#10B981',
         background_color: '#ffffff',
@@ -50,7 +50,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
-      '@kiekz/shared': path.resolve(__dirname, '../../packages/shared/src'),
+      '@zomieks/shared': path.resolve(__dirname, '../../packages/shared/src'),
     },
   },
   server: {

@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { authenticate } from '@/middleware/auth.js';
 import { prisma } from '@/lib/prisma.js';
 import { validate } from '@/middleware/validate.js';
-import { createOrderSchema, orderDeliverySchema, orderRevisionSchema, calculateOrderFees, generateOrderNumber, calculateDeliveryDueDate } from '@kiekz/shared';
+import { createOrderSchema, orderDeliverySchema, orderRevisionSchema, calculateOrderFees, generateOrderNumber, calculateDeliveryDueDate } from '@zomieks/shared';
 
 const router = Router();
 
@@ -417,6 +417,131 @@ router.post('/:id/cancel', authenticate, async (req, res, next) => {
     });
 
     res.json({ success: true, data: { order: updated } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Raise a dispute (buyer or seller)
+router.post('/:id/dispute', authenticate, async (req, res, next) => {
+  try {
+    const { reason, description } = req.body;
+    
+    if (!reason || !description) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: 'Reason and description are required' },
+      });
+    }
+    
+    const order = await prisma.order.findFirst({
+      where: {
+        id: req.params.id,
+        OR: [
+          { buyerId: req.user!.id },
+          { sellerId: req.user!.id },
+        ],
+        status: { in: ['IN_PROGRESS', 'DELIVERED', 'REVISION_REQUESTED'] },
+      },
+      include: { escrowHolds: true },
+    });
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Order not found or cannot raise dispute' },
+      });
+    }
+    
+    // Check if dispute already exists
+    const existingDispute = await prisma.dispute.findFirst({
+      where: { orderId: order.id, status: 'OPEN' }
+    });
+    
+    if (existingDispute) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'DISPUTE_EXISTS', message: 'A dispute is already open for this order' },
+      });
+    }
+    
+    const isBuyer = order.buyerId === req.user!.id;
+
+    const [dispute] = await prisma.$transaction([
+      prisma.dispute.create({
+        data: {
+          orderId: order.id,
+          raisedById: req.user!.id,
+          reason,
+          description,
+          status: 'OPEN',
+        },
+      }),
+      prisma.order.update({
+        where: { id: order.id },
+        data: {
+          status: 'DISPUTED',
+        },
+      }),
+      // Put escrow on hold (update status to DISPUTED)
+      ...order.escrowHolds.map(hold => 
+        prisma.escrowHold.update({
+          where: { id: hold.id },
+          data: { status: 'DISPUTED' }
+        })
+      ),
+    ]);
+    
+    // Notify the other party
+    const { notificationQueue } = await import('@/lib/queue.js');
+    await notificationQueue.add('notification', {
+      userId: isBuyer ? order.sellerId : order.buyerId,
+      type: 'DISPUTE_RAISED',
+      title: 'Dispute Raised',
+      message: `A dispute has been raised for order #${order.orderNumber}`,
+      data: { orderId: order.id, disputeId: dispute.id }
+    });
+
+    res.status(201).json({ success: true, data: { dispute } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get dispute details
+router.get('/:id/dispute', authenticate, async (req, res, next) => {
+  try {
+    const order = await prisma.order.findFirst({
+      where: {
+        id: req.params.id,
+        OR: [
+          { buyerId: req.user!.id },
+          { sellerId: req.user!.id },
+        ],
+      },
+    });
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Order not found' },
+      });
+    }
+    
+    const dispute = await prisma.dispute.findFirst({
+      where: { orderId: order.id },
+      include: {
+        raisedBy: {
+          select: { id: true, username: true, firstName: true, lastName: true }
+        },
+        resolvedBy: {
+          select: { id: true, username: true, firstName: true, lastName: true }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    res.json({ success: true, data: { dispute } });
   } catch (error) {
     next(error);
   }

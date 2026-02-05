@@ -15,6 +15,10 @@
     "test": {
       "dependsOn": ["^build"]
     },
+    "deploy": {
+      "dependsOn": ["^build"],
+      "cache": false
+    },
     "db:generate": {
       "cache": false
     },
@@ -22,6 +26,12 @@
       "cache": false
     },
     "db:migrate": {
+      "cache": false
+    },
+    "generate": {
+      "cache": false
+    },
+    "migrate": {
       "cache": false
     }
   }

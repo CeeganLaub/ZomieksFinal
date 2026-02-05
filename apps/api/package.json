@@ -1,5 +1,5 @@
 {
-  "name": "@kiekz/api",
+  "name": "@zomieks/api",
   "version": "1.0.0",
   "private": true,
   "type": "module",
@@ -16,7 +16,7 @@
     "db:seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
-    "@kiekz/shared": "*",
+    "@zomieks/shared": "*",
     "@prisma/client": "^6.2.0",
     "axios": "^1.7.0",
     "bcryptjs": "^2.4.3",

@@ -11,7 +11,7 @@ import {
   createSavedReplySchema,
   createAutoTriggerSchema,
   createNoteSchema,
-} from '@kiekz/shared';
+} from '@zomieks/shared';
 
 const router = Router();
 
@@ -217,6 +217,14 @@ router.post(
         },
       });
 
+      // Process auto-triggers for new conversation (async, don't block response)
+      import('@/services/crm.service.js').then(({ processAutoTriggers }) => {
+        processAutoTriggers(sellerId, 'NEW_CONVERSATION', {
+          conversationId: conversation!.id,
+          messageContent: initialMessage,
+        }).catch(console.error);
+      });
+
       res.status(201).json({
         success: true,
         data: { conversation, message },
@@ -281,6 +289,17 @@ router.patch(
           performedBy: req.user!.id,
         },
       });
+
+      // Process stage change auto-triggers if stage was changed
+      if (updateData.pipelineStageId && updateData.pipelineStageId !== conversation.pipelineStageId) {
+        import('@/services/crm.service.js').then(({ processAutoTriggers }) => {
+          processAutoTriggers(req.user!.id, 'STAGE_CHANGE', {
+            conversationId: conversation.id,
+            newStageId: updateData.pipelineStageId,
+            oldStageId: conversation.pipelineStageId || undefined,
+          }).catch(console.error);
+        });
+      }
 
       res.json({ success: true, data: { conversation: updated } });
     } catch (error) {

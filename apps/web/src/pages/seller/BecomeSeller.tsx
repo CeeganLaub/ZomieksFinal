@@ -51,7 +51,7 @@ export default function BecomeSeller() {
     },
     onSuccess: async () => {
       await refreshUser();
-      toast.success('Welcome to Kiekz as a seller!');
+      toast.success('Welcome to Zomieks as a seller!');
       navigate('/seller');
     },
     onError: (error: any) => {
@@ -77,7 +77,7 @@ export default function BecomeSeller() {
       <div className="max-w-2xl mx-auto">
         <Card>
           <CardHeader>
-            <CardTitle className="text-2xl">Start Selling on Kiekz</CardTitle>
+            <CardTitle className="text-2xl">Start Selling on Zomieks</CardTitle>
             <CardDescription>
               Join our community of talented freelancers and start earning
             </CardDescription>
@@ -85,7 +85,7 @@ export default function BecomeSeller() {
           <CardContent>
             <div className="space-y-6">
               <div>
-                <h3 className="font-semibold mb-4">Why sell on Kiekz?</h3>
+                <h3 className="font-semibold mb-4">Why sell on Zomieks?</h3>
                 <ul className="space-y-3">
                   {benefits.map((benefit, index) => (
                     <li key={index} className="flex items-center space-x-3">

@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { env } from '@/config/env.js';
 import { prisma } from '@/lib/prisma.js';
+import { redis } from '@/lib/redis.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { Role } from '@prisma/client';
 
@@ -46,6 +47,12 @@ export const authenticate = async (
     
     if (decoded.type !== 'access') {
       throw new AppError(401, 'INVALID_TOKEN', 'Invalid token type');
+    }
+    
+    // Check if user has been logged out of all sessions (blacklist)
+    const isBlacklisted = await redis.get(`blacklist:user:${decoded.userId}`);
+    if (isBlacklisted) {
+      throw new AppError(401, 'SESSION_INVALIDATED', 'Session has been invalidated. Please login again.');
     }
     
     const user = await prisma.user.findUnique({

@@ -1,4 +1,4 @@
-// Shared types, schemas, and utilities for Kiekz platform
+// Shared types, schemas, and utilities for Zomieks platform
 export * from './types';
 export * from './schemas';
 export * from './constants';

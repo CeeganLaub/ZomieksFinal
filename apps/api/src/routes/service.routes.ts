@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { authenticate, optionalAuth, requireSeller } from '@/middleware/auth.js';
 import { prisma } from '@/lib/prisma.js';
 import { validate } from '@/middleware/validate.js';
-import { createServiceSchema, servicePackageSchema, subscriptionTierSchema, slugify } from '@kiekz/shared';
+import { createServiceSchema, servicePackageSchema, subscriptionTierSchema, slugify } from '@zomieks/shared';
 import { z } from 'zod';
 
 const router = Router();

@@ -145,6 +145,19 @@ export function setupSocketHandlers(io: SocketServer) {
         // Emit delivery confirmation to sender
         socket.emit('message:delivered', { messageId: message.id });
         
+        // Update lead score and process auto-triggers (async, don't block)
+        import('@/services/crm.service.js').then(({ updateLeadScore, processAutoTriggers }) => {
+          updateLeadScore(conversationId).catch(err => logger.error('Lead score update failed:', err));
+          
+          // Process keyword triggers if message is from buyer
+          if (conversation.buyerId === userId) {
+            processAutoTriggers(conversation.sellerId, 'KEYWORD', {
+              conversationId,
+              messageContent: content,
+            }).catch(err => logger.error('Auto-trigger processing failed:', err));
+          }
+        });
+        
       } catch (error) {
         logger.error('Error sending message:', error);
         socket.emit('error', { message: 'Failed to send message' });

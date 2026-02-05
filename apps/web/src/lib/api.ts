@@ -1,7 +1,14 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8787';
 
 interface RequestOptions extends RequestInit {
   params?: Record<string, string | number | boolean | undefined>;
+}
+
+interface ApiResponse<T> {
+  success: boolean;
+  data?: T;
+  error?: { message: string; details?: any };
+  meta?: { page?: number; limit?: number; total?: number };
 }
 
 function getAuthToken(): string | null {
@@ -15,6 +22,17 @@ function getAuthToken(): string | null {
     // Ignore parsing errors
   }
   return null;
+}
+
+function setAuthToken(token: string): void {
+  try {
+    const storage = localStorage.getItem('auth-storage');
+    const parsed = storage ? JSON.parse(storage) : { state: {} };
+    parsed.state.token = token;
+    localStorage.setItem('auth-storage', JSON.stringify(parsed));
+  } catch {
+    // Ignore errors
+  }
 }
 
 class ApiClient {
@@ -102,6 +120,35 @@ class ApiClient {
   delete<T>(endpoint: string, options?: RequestOptions): Promise<T> {
     return this.request<T>(endpoint, { ...options, method: 'DELETE' });
   }
+
+  // File upload helper
+  async upload(endpoint: string, file: File, category: string): Promise<{ key: string; url: string }> {
+    // First, get upload URL
+    const init = await this.post<ApiResponse<{ uploadId: string; key: string; uploadUrl: string }>>('/uploads/init', {
+      filename: file.name,
+      contentType: file.type,
+      size: file.size,
+      category,
+    });
+
+    if (!init.data) throw new Error('Failed to initialize upload');
+
+    // Upload file
+    const token = getAuthToken();
+    const response = await fetch(`${this.baseUrl}${init.data.uploadUrl}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': file.type,
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: file,
+    });
+
+    const result = await response.json();
+    if (!result.success) throw new Error(result.error?.message || 'Upload failed');
+
+    return { key: result.data.key, url: result.data.url };
+  }
 }
 
 export class ApiError extends Error {
@@ -117,3 +164,200 @@ export class ApiError extends Error {
 }
 
 export const api = new ApiClient(`${API_URL}/api/v1`);
+
+// Auth API
+export const authApi = {
+  register: (data: { email: string; username: string; password: string; firstName?: string; lastName?: string }) =>
+    api.post<ApiResponse<{ user: any; token: string; refreshToken: string }>>('/auth/register', data),
+  
+  login: (data: { email: string; password: string }) =>
+    api.post<ApiResponse<{ user: any; token: string; refreshToken: string }>>('/auth/login', data),
+  
+  logout: () => api.post<ApiResponse<null>>('/auth/logout'),
+  
+  me: () => api.get<ApiResponse<{ user: any }>>('/auth/me'),
+  
+  refresh: (refreshToken: string) =>
+    api.post<ApiResponse<{ token: string; refreshToken: string }>>('/auth/refresh', { refreshToken }),
+  
+  forgotPassword: (email: string) => api.post<ApiResponse<null>>('/auth/forgot-password', { email }),
+  
+  resetPassword: (token: string, password: string) =>
+    api.post<ApiResponse<null>>('/auth/reset-password', { token, password }),
+};
+
+// Services API
+export const servicesApi = {
+  list: (params?: { category?: string; search?: string; minPrice?: number; maxPrice?: number; page?: number; limit?: number }) =>
+    api.get<ApiResponse<any[]>>('/services', { params }),
+  
+  get: (username: string, slug: string) =>
+    api.get<ApiResponse<any>>(`/services/${username}/${slug}`),
+  
+  create: (data: any) => api.post<ApiResponse<{ id: string }>>('/services', data),
+  
+  update: (id: string, data: any) => api.patch<ApiResponse<null>>(`/services/${id}`, data),
+  
+  delete: (id: string) => api.delete<ApiResponse<null>>(`/services/${id}`),
+  
+  publish: (id: string) => api.post<ApiResponse<null>>(`/services/${id}/publish`),
+  
+  addPackage: (id: string, data: any) => api.post<ApiResponse<{ id: string }>>(`/services/${id}/packages`, data),
+  
+  categories: () => api.get<ApiResponse<any[]>>('/services/meta/categories'),
+  
+  stats: () => api.get<ApiResponse<any>>('/services/meta/stats'),
+};
+
+// Orders API
+export const ordersApi = {
+  buying: (params?: { status?: string; page?: number; limit?: number }) =>
+    api.get<ApiResponse<any[]>>('/orders/buying', { params }),
+  
+  selling: (params?: { status?: string; page?: number; limit?: number }) =>
+    api.get<ApiResponse<any[]>>('/orders/selling', { params }),
+  
+  get: (id: string) => api.get<ApiResponse<any>>(`/orders/${id}`),
+  
+  create: (data: { serviceId: string; packageId: string; requirements?: string }) =>
+    api.post<ApiResponse<{ orderId: string; orderNumber: string }>>('/orders', data),
+  
+  deliver: (id: string, data: { message: string; attachments?: string[] }) =>
+    api.post<ApiResponse<null>>(`/orders/${id}/deliver`, data),
+  
+  requestRevision: (id: string, reason: string) =>
+    api.post<ApiResponse<null>>(`/orders/${id}/revision`, { reason }),
+  
+  accept: (id: string) => api.post<ApiResponse<null>>(`/orders/${id}/accept`),
+  
+  review: (id: string, data: { rating: number; comment?: string }) =>
+    api.post<ApiResponse<null>>(`/orders/${id}/review`, data),
+  
+  cancel: (id: string, reason?: string) =>
+    api.post<ApiResponse<null>>(`/orders/${id}/cancel`, { reason }),
+};
+
+// Users API
+export const usersApi = {
+  profile: (username: string) => api.get<ApiResponse<any>>(`/users/${username}`),
+  
+  updateProfile: (data: any) => api.patch<ApiResponse<{ user: any }>>('/users/profile', data),
+  
+  becomeSeller: (data: any) => api.post<ApiResponse<{ user: any }>>('/users/become-seller', data),
+  
+  favorites: () => api.get<ApiResponse<any[]>>('/users/favorites'),
+  
+  addFavorite: (serviceId: string) => api.post<ApiResponse<null>>(`/users/favorites/${serviceId}`),
+  
+  removeFavorite: (serviceId: string) => api.delete<ApiResponse<null>>(`/users/favorites/${serviceId}`),
+};
+
+// Conversations API
+export const conversationsApi = {
+  list: (params?: { status?: string; starred?: boolean; page?: number; limit?: number }) =>
+    api.get<ApiResponse<{ conversations: any[]; unreadTotal: number }>>('/conversations', { params }),
+  
+  get: (id: string, params?: { page?: number; limit?: number }) =>
+    api.get<ApiResponse<{ conversation: any; messages: any[]; notes?: any[] }>>(`/conversations/${id}`, { params }),
+  
+  start: (data: { participantId: string; orderId?: string; content?: string }) =>
+    api.post<ApiResponse<{ conversationId: string }>>('/conversations/start', data),
+  
+  sendMessage: (id: string, data: { content: string; attachments?: string[]; offerDetails?: any }) =>
+    api.post<ApiResponse<{ messageId: string }>>(`/conversations/${id}/messages`, data),
+  
+  toggleStar: (id: string) => api.patch<ApiResponse<{ isStarred: boolean }>>(`/conversations/${id}/star`),
+  
+  updateLabels: (id: string, labels: string[]) =>
+    api.patch<ApiResponse<null>>(`/conversations/${id}/labels`, { labels }),
+  
+  addNote: (id: string, content: string) =>
+    api.post<ApiResponse<{ id: string }>>(`/conversations/${id}/notes`, { content }),
+  
+  // CRM
+  savedReplies: () => api.get<ApiResponse<any[]>>('/conversations/crm/saved-replies'),
+  createSavedReply: (data: { title: string; content: string; shortcut?: string }) =>
+    api.post<ApiResponse<{ id: string }>>('/conversations/crm/saved-replies', data),
+  
+  labels: () => api.get<ApiResponse<any[]>>('/conversations/crm/labels'),
+  createLabel: (data: { name: string; color: string }) =>
+    api.post<ApiResponse<{ id: string }>>('/conversations/crm/labels', data),
+  
+  pipeline: () => api.get<ApiResponse<any[]>>('/conversations/crm/pipeline'),
+};
+
+// Payments API
+export const paymentsApi = {
+  createPayment: (data: { orderId: string; provider?: 'PAYFAST' | 'OZOW' }) =>
+    api.post<ApiResponse<{ transactionId: string; paymentUrl: string }>>('/payments/create', data),
+  
+  transactions: (params?: { type?: string; page?: number; limit?: number }) =>
+    api.get<ApiResponse<any[]>>('/payments/transactions', { params }),
+  
+  balance: () => api.get<ApiResponse<any>>('/payments/balance'),
+  
+  escrow: () => api.get<ApiResponse<any[]>>('/payments/escrow'),
+  
+  withdraw: (data: { amount: number; bankDetailsId?: string }) =>
+    api.post<ApiResponse<{ payoutId: string }>>('/payments/withdraw', data),
+  
+  payouts: (params?: { page?: number; limit?: number }) =>
+    api.get<ApiResponse<any[]>>('/payments/payouts', { params }),
+  
+  bankDetails: () => api.get<ApiResponse<any[]>>('/payments/bank-details'),
+  
+  addBankDetails: (data: any) =>
+    api.post<ApiResponse<{ id: string }>>('/payments/bank-details', data),
+  
+  setDefaultBank: (id: string) =>
+    api.patch<ApiResponse<null>>(`/payments/bank-details/${id}/default`),
+  
+  deleteBankDetails: (id: string) =>
+    api.delete<ApiResponse<null>>(`/payments/bank-details/${id}`),
+  
+  earnings: (period?: string) =>
+    api.get<ApiResponse<any>>('/payments/earnings', { params: period ? { period } : undefined }),
+};
+
+// Subscriptions API
+export const subscriptionsApi = {
+  tiers: () => api.get<ApiResponse<any[]>>('/subscriptions/tiers'),
+  
+  current: () => api.get<ApiResponse<any | null>>('/subscriptions/current'),
+  
+  subscribe: (data: { tierId: string; billingCycle?: 'MONTHLY' | 'QUARTERLY' | 'YEARLY' }) =>
+    api.post<ApiResponse<{ subscriptionId: string; paymentUrl: string }>>('/subscriptions/subscribe', data),
+  
+  cancel: (data?: { reason?: string; feedback?: string }) =>
+    api.post<ApiResponse<{ cancelledAt: string; accessUntil: string }>>('/subscriptions/cancel', data),
+  
+  reactivate: () => api.post<ApiResponse<null>>('/subscriptions/reactivate'),
+  
+  history: (params?: { page?: number; limit?: number }) =>
+    api.get<ApiResponse<any[]>>('/subscriptions/history', { params }),
+  
+  usage: () => api.get<ApiResponse<any>>('/subscriptions/usage'),
+};
+
+// Uploads helper
+export const uploadsApi = {
+  upload: (file: File, category: 'avatar' | 'service' | 'portfolio' | 'delivery' | 'message' | 'document') =>
+    api.upload('/uploads', file, category),
+  
+  uploadAvatar: async (file: File) => {
+    const token = getAuthToken();
+    const response = await fetch(`${API_URL}/api/v1/uploads/avatar`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': file.type,
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: file,
+    });
+    const data = await response.json();
+    if (!data.success) throw new Error(data.error?.message || 'Upload failed');
+    return data.data as { key: string; url: string };
+  },
+};
+
+export { setAuthToken, getAuthToken };

@@ -1,0 +1,122 @@
+name = "zomieks-api"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Account settings (replace with your actual values)
+# account_id = "your-account-id"
+
+[build]
+command = "npm run build"
+
+# Development settings
+[dev]
+port = 8787
+local_protocol = "http"
+
+# Environment variables (secrets should be set via wrangler secret put)
+[vars]
+ENVIRONMENT = "development"
+APP_URL = "http://localhost:5173"
+CDN_URL = ""
+PAYFAST_SANDBOX = "true"
+OZOW_TEST_MODE = "true"
+
+# D1 Database
+[[d1_databases]]
+binding = "DB"
+database_name = "zomieks-db"
+database_id = "" # Replace with actual database ID after creation
+migrations_dir = "../../packages/db/migrations"
+
+# KV Namespaces
+[[kv_namespaces]]
+binding = "CACHE"
+id = "" # Replace with actual KV namespace ID
+preview_id = "" # For wrangler dev
+
+[[kv_namespaces]]
+binding = "SESSIONS"
+id = ""
+preview_id = ""
+
+[[kv_namespaces]]
+binding = "RATE_LIMIT"
+id = ""
+preview_id = ""
+
+# R2 Storage
+[[r2_buckets]]
+binding = "UPLOADS"
+bucket_name = "zomieks-uploads"
+preview_bucket_name = "zomieks-uploads-dev"
+
+# Queues
+[[queues.producers]]
+queue = "escrow-queue"
+binding = "ESCROW_QUEUE"
+
+[[queues.producers]]
+queue = "notification-queue"
+binding = "NOTIFICATION_QUEUE"
+
+[[queues.producers]]
+queue = "email-queue"
+binding = "EMAIL_QUEUE"
+
+# Queue consumers (processed in separate workers or same worker)
+[[queues.consumers]]
+queue = "escrow-queue"
+max_batch_size = 10
+max_batch_timeout = 30
+
+[[queues.consumers]]
+queue = "notification-queue"
+max_batch_size = 50
+max_batch_timeout = 10
+
+[[queues.consumers]]
+queue = "email-queue"
+max_batch_size = 20
+max_batch_timeout = 30
+
+# Durable Objects
+[[durable_objects.bindings]]
+name = "CHAT_ROOMS"
+class_name = "ChatRoom"
+
+[[durable_objects.bindings]]
+name = "PRESENCE"
+class_name = "Presence"
+
+[[durable_objects.bindings]]
+name = "CRM_NOTIFICATIONS"
+class_name = "CrmNotifications"
+
+# Durable Object migrations
+[[migrations]]
+tag = "v1"
+new_classes = ["ChatRoom", "Presence", "CrmNotifications"]
+
+# Routes (production)
+# routes = [
+#   { pattern = "api.zomieks.com/*", zone_name = "zomieks.com" }
+# ]
+
+# Production environment
+[env.production]
+vars = { ENVIRONMENT = "production", APP_URL = "https://zomieks.com", PAYFAST_SANDBOX = "false", OZOW_TEST_MODE = "false" }
+
+# Staging environment  
+[env.staging]
+vars = { ENVIRONMENT = "staging", APP_URL = "https://staging.zomieks.com", PAYFAST_SANDBOX = "true", OZOW_TEST_MODE = "true" }
+
+# Secrets (set via: wrangler secret put SECRET_NAME)
+# Required secrets:
+# - JWT_SECRET
+# - PAYFAST_MERCHANT_ID
+# - PAYFAST_MERCHANT_KEY
+# - PAYFAST_PASSPHRASE
+# - OZOW_SITE_CODE
+# - OZOW_PRIVATE_KEY
+# - MAILCHANNELS_API_KEY (optional, for email)
