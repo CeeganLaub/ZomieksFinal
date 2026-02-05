@@ -1,20 +1,42 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import { Button } from '../components/ui/Button';
 import { Card, CardContent } from '../components/ui/Card';
 import { MagnifyingGlassIcon, StarIcon } from '@heroicons/react/24/solid';
+import { useState } from 'react';
+
+// Category icon mapping
+const categoryIcons: Record<string, string> = {
+  'palette': '🎨',
+  'code': '💻',
+  'megaphone': '📢',
+  'pencil': '✏️',
+  'video': '🎬',
+  'music': '🎵',
+  'briefcase': '💼',
+};
 
 export default function HomePage() {
-  const { data: categories } = useQuery({
+  const navigate = useNavigate();
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const { data: categories, isLoading: categoriesLoading } = useQuery({
     queryKey: ['categories'],
-    queryFn: () => api.get<any>('/services/categories'),
+    queryFn: () => api.get<any>('/services/meta/categories'),
   });
 
-  const { data: featured } = useQuery({
+  const { data: featured, isLoading: servicesLoading } = useQuery({
     queryKey: ['services', 'featured'],
-    queryFn: () => api.get<any>('/services', { params: { featured: true, limit: 8 } }),
+    queryFn: () => api.get<any>('/services', { params: { limit: 8, sortBy: 'rating' } }),
   });
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      navigate(`/services?search=${encodeURIComponent(searchQuery)}`);
+    }
+  };
 
   return (
     <div>
@@ -29,19 +51,21 @@ export default function HomePage() {
           </p>
           
           {/* Search bar */}
-          <div className="max-w-2xl mx-auto">
+          <form onSubmit={handleSearch} className="max-w-2xl mx-auto">
             <div className="relative">
               <MagnifyingGlassIcon className="absolute left-4 top-1/2 -translate-y-1/2 h-6 w-6 text-muted-foreground" />
               <input
                 type="search"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder='Try "logo design" or "website development"'
                 className="w-full h-14 pl-12 pr-32 rounded-full border-2 border-primary/20 bg-background text-lg focus:outline-none focus:border-primary"
               />
-              <Button className="absolute right-2 top-1/2 -translate-y-1/2 h-10 px-6 rounded-full">
+              <Button type="submit" className="absolute right-2 top-1/2 -translate-y-1/2 h-10 px-6 rounded-full">
                 Search
               </Button>
             </div>
-          </div>
+          </form>
 
           {/* Popular tags */}
           <div className="mt-6 flex flex-wrap justify-center gap-2">
@@ -62,18 +86,29 @@ export default function HomePage() {
       {/* Categories */}
       <section className="container py-16">
         <h2 className="text-2xl font-bold mb-8">Browse by Category</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-          {categories?.data?.categories?.slice(0, 12).map((cat: any) => (
-            <Link
-              key={cat.id}
-              to={`/services?category=${cat.slug}`}
-              className="p-6 rounded-xl border hover:border-primary hover:shadow-lg transition-all text-center group"
-            >
-              <div className="text-4xl mb-3">{cat.icon || '📦'}</div>
-              <h3 className="font-medium group-hover:text-primary">{cat.name}</h3>
-            </Link>
-          ))}
-        </div>
+        {categoriesLoading ? (
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
+            {[...Array(7)].map((_, i) => (
+              <div key={i} className="p-6 rounded-xl border animate-pulse">
+                <div className="w-10 h-10 bg-muted rounded-full mx-auto mb-3"></div>
+                <div className="h-4 bg-muted rounded mx-auto w-20"></div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
+            {categories?.data?.categories?.map((cat: any) => (
+              <Link
+                key={cat.id}
+                to={`/services?category=${cat.slug}`}
+                className="p-6 rounded-xl border hover:border-primary hover:shadow-lg transition-all text-center group"
+              >
+                <div className="text-4xl mb-3">{categoryIcons[cat.icon] || '📦'}</div>
+                <h3 className="font-medium group-hover:text-primary text-sm">{cat.name}</h3>
+              </Link>
+            ))}
+          </div>
+        )}
       </section>
 
       {/* Featured Services */}
@@ -86,51 +121,79 @@ export default function HomePage() {
             </Link>
           </div>
           
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {featured?.data?.services?.map((service: any) => (
-              <Link key={service.id} to={`/services/${service.slug}`}>
-                <Card className="overflow-hidden hover:shadow-lg transition-shadow h-full">
-                  <div className="aspect-video bg-muted relative">
-                    {service.images?.[0] && (
-                      <img 
-                        src={service.images[0]} 
-                        alt={service.title}
-                        className="w-full h-full object-cover"
-                      />
-                    )}
-                  </div>
+          {servicesLoading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {[...Array(4)].map((_, i) => (
+                <Card key={i} className="overflow-hidden animate-pulse">
+                  <div className="aspect-video bg-muted"></div>
                   <CardContent className="p-4">
                     <div className="flex items-center space-x-2 mb-2">
-                      <img 
-                        src={service.seller?.avatar || '/placeholder-avatar.png'} 
-                        alt=""
-                        className="h-6 w-6 rounded-full"
-                      />
-                      <span className="text-sm text-muted-foreground">
-                        {service.seller?.sellerProfile?.displayName || service.seller?.username}
-                      </span>
+                      <div className="h-6 w-6 rounded-full bg-muted"></div>
+                      <div className="h-3 bg-muted rounded w-20"></div>
                     </div>
-                    <h3 className="font-medium line-clamp-2 mb-2">{service.title}</h3>
-                    <div className="flex items-center space-x-1 mb-2">
-                      <StarIcon className="h-4 w-4 text-yellow-500" />
-                      <span className="text-sm font-medium">
-                        {service.rating?.toFixed(1) || 'New'}
-                      </span>
-                      <span className="text-sm text-muted-foreground">
-                        ({service.reviewCount || 0})
-                      </span>
-                    </div>
-                    <div className="text-sm">
-                      <span className="text-muted-foreground">From </span>
-                      <span className="font-bold">
-                        R{service.packages?.[0]?.price?.toLocaleString() || service.startingPrice?.toLocaleString()}
-                      </span>
-                    </div>
+                    <div className="h-4 bg-muted rounded mb-2"></div>
+                    <div className="h-4 bg-muted rounded w-3/4 mb-2"></div>
+                    <div className="h-4 bg-muted rounded w-16"></div>
                   </CardContent>
                 </Card>
+              ))}
+            </div>
+          ) : featured?.data?.services?.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {featured?.data?.services?.map((service: any) => (
+                <Link key={service.id} to={`/services/${service.seller?.username}/${service.slug}`}>
+                  <Card className="overflow-hidden hover:shadow-lg transition-shadow h-full">
+                    <div className="aspect-video bg-muted relative">
+                      {service.images?.[0] ? (
+                        <img 
+                          src={service.images[0]} 
+                          alt={service.title}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+                          No Image
+                        </div>
+                      )}
+                    </div>
+                    <CardContent className="p-4">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-medium">
+                          {service.seller?.username?.charAt(0).toUpperCase()}
+                        </div>
+                        <span className="text-sm text-muted-foreground">
+                          {service.seller?.sellerProfile?.displayName || service.seller?.username}
+                        </span>
+                      </div>
+                      <h3 className="font-medium line-clamp-2 mb-2">{service.title}</h3>
+                      <div className="flex items-center space-x-1 mb-2">
+                        <StarIcon className="h-4 w-4 text-yellow-500" />
+                        <span className="text-sm font-medium">
+                          {service.rating?.toFixed(1) || 'New'}
+                        </span>
+                        <span className="text-sm text-muted-foreground">
+                          ({service.reviewCount || 0})
+                        </span>
+                      </div>
+                      <div className="text-sm">
+                        <span className="text-muted-foreground">From </span>
+                        <span className="font-bold">
+                          R{service.packages?.[0]?.price?.toLocaleString() || '0'}
+                        </span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-12 text-muted-foreground">
+              <p>No services available yet. Be the first to offer your skills!</p>
+              <Link to="/become-seller" className="text-primary hover:underline mt-2 inline-block">
+                Become a Seller
               </Link>
-            ))}
-          </div>
+            </div>
+          )}
         </div>
       </section>
 

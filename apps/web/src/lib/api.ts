@@ -4,6 +4,19 @@ interface RequestOptions extends RequestInit {
   params?: Record<string, string | number | boolean | undefined>;
 }
 
+function getAuthToken(): string | null {
+  try {
+    const storage = localStorage.getItem('auth-storage');
+    if (storage) {
+      const parsed = JSON.parse(storage);
+      return parsed.state?.token || null;
+    }
+  } catch {
+    // Ignore parsing errors
+  }
+  return null;
+}
+
 class ApiClient {
   private baseUrl: string;
 
@@ -29,13 +42,20 @@ class ApiClient {
       }
     }
 
+    const token = getAuthToken();
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...(fetchOptions.headers as Record<string, string>),
+    };
+    
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
     const response = await fetch(url, {
       ...fetchOptions,
       credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-        ...fetchOptions.headers,
-      },
+      headers,
     });
 
     const data = await response.json();

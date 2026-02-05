@@ -12,10 +12,18 @@ interface User {
   avatar?: string;
   isSeller: boolean;
   isAdmin: boolean;
+  sellerProfile?: {
+    displayName: string;
+    professionalTitle: string;
+    rating: number;
+    reviewCount: number;
+    isVerified: boolean;
+  };
 }
 
 interface AuthState {
   user: User | null;
+  token: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
   
@@ -25,6 +33,8 @@ interface AuthState {
   register: (data: RegisterData) => Promise<void>;
   logout: () => Promise<void>;
   setUser: (user: User | null) => void;
+  setAuth: (user: User, token: string) => void;
+  clearAuth: () => void;
   refreshUser: () => Promise<void>;
 }
 
@@ -40,10 +50,16 @@ export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
       user: null,
+      token: null,
       isLoading: true,
       isAuthenticated: false,
 
       initialize: async () => {
+        const { token } = get();
+        if (!token) {
+          set({ isLoading: false });
+          return;
+        }
         try {
           const response = await api.get<{ success: boolean; data: { user: User } }>('/auth/me');
           set({ 
@@ -53,22 +69,30 @@ export const useAuthStore = create<AuthState>()(
           });
           socketClient.connect();
         } catch {
-          set({ user: null, isAuthenticated: false, isLoading: false });
+          set({ user: null, token: null, isAuthenticated: false, isLoading: false });
         }
       },
 
       login: async (email, password) => {
-        const response = await api.post<{ success: boolean; data: { user: User } }>('/auth/login', { 
+        const response = await api.post<{ success: boolean; data: { user: User; accessToken: string } }>('/auth/login', { 
           email, 
           password 
         });
-        set({ user: response.data.user, isAuthenticated: true });
+        set({ 
+          user: response.data.user, 
+          token: response.data.accessToken,
+          isAuthenticated: true 
+        });
         socketClient.connect();
       },
 
       register: async (data) => {
-        const response = await api.post<{ success: boolean; data: { user: User } }>('/auth/register', data);
-        set({ user: response.data.user, isAuthenticated: true });
+        const response = await api.post<{ success: boolean; data: { user: User; accessToken: string } }>('/auth/register', data);
+        set({ 
+          user: response.data.user, 
+          token: response.data.accessToken,
+          isAuthenticated: true 
+        });
         socketClient.connect();
       },
 
@@ -76,25 +100,39 @@ export const useAuthStore = create<AuthState>()(
         try {
           await api.post('/auth/logout');
         } finally {
-          set({ user: null, isAuthenticated: false });
+          set({ user: null, token: null, isAuthenticated: false });
           socketClient.disconnect();
         }
       },
 
       setUser: (user) => set({ user, isAuthenticated: !!user }),
+      
+      setAuth: (user, token) => {
+        set({ user, token, isAuthenticated: true });
+        socketClient.connect();
+      },
+      
+      clearAuth: () => {
+        set({ user: null, token: null, isAuthenticated: false });
+        socketClient.disconnect();
+      },
 
       refreshUser: async () => {
         try {
           const response = await api.get<{ success: boolean; data: { user: User } }>('/auth/me');
           set({ user: response.data.user });
         } catch {
-          set({ user: null, isAuthenticated: false });
+          set({ user: null, token: null, isAuthenticated: false });
         }
       },
     }),
     {
       name: 'auth-storage',
-      partialize: (state) => ({ user: state.user, isAuthenticated: state.isAuthenticated }),
+      partialize: (state) => ({ 
+        user: state.user, 
+        token: state.token,
+        isAuthenticated: state.isAuthenticated 
+      }),
     }
   )
 );

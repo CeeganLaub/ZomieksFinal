@@ -66,7 +66,7 @@ function App() {
         <Route element={<MainLayout />}>
           <Route path="/" element={<HomePage />} />
           <Route path="/services" element={<ServicesPage />} />
-          <Route path="/services/:slug" element={<ServicePage />} />
+          <Route path="/services/:username/:slug" element={<ServicePage />} />
           <Route path="/sellers/:username" element={<SellerPage />} />
         </Route>
 

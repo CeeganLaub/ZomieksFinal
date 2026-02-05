@@ -11,15 +11,16 @@ import { formatCurrency, formatDate } from '../lib/utils';
 import { toast } from 'sonner';
 
 export default function ServicePage() {
-  const { slug } = useParams();
+  const { username, slug } = useParams();
   const navigate = useNavigate();
-  const { user, isAuthenticated } = useAuthStore();
+  const { isAuthenticated } = useAuthStore();
   const [selectedPackage, setSelectedPackage] = useState(0);
   const [showSubscription, setShowSubscription] = useState(false);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['service', slug],
-    queryFn: () => api.get<any>(`/services/${slug}`),
+    queryKey: ['service', username, slug],
+    queryFn: () => api.get<any>(`/services/${username}/${slug}`),
+    enabled: !!username && !!slug,
   });
 
   const createOrder = useMutation({
@@ -62,7 +63,7 @@ export default function ServicePage() {
 
   const handleOrder = () => {
     if (!isAuthenticated) {
-      navigate('/login', { state: { from: `/services/${slug}` } });
+      navigate('/login', { state: { from: `/services/${username}/${slug}` } });
       return;
     }
 
@@ -82,11 +83,9 @@ export default function ServicePage() {
             <h1 className="text-2xl md:text-3xl font-bold mb-4">{service.title}</h1>
             <div className="flex items-center space-x-4">
               <Link to={`/sellers/${service.seller.username}`} className="flex items-center space-x-3">
-                <img 
-                  src={service.seller.avatar || '/placeholder-avatar.png'} 
-                  alt=""
-                  className="h-10 w-10 rounded-full"
-                />
+                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-lg font-medium">
+                  {service.seller.firstName?.charAt(0) || service.seller.username?.charAt(0).toUpperCase()}
+                </div>
                 <div>
                   <div className="font-medium">{service.seller.sellerProfile?.displayName || service.seller.username}</div>
                   <div className="text-sm text-muted-foreground">
@@ -132,11 +131,9 @@ export default function ServicePage() {
             </CardHeader>
             <CardContent>
               <div className="flex items-start space-x-4">
-                <img 
-                  src={service.seller.avatar || '/placeholder-avatar.png'} 
-                  alt=""
-                  className="h-20 w-20 rounded-full"
-                />
+                <div className="h-20 w-20 rounded-full bg-primary/10 flex items-center justify-center text-2xl font-medium shrink-0">
+                  {service.seller.firstName?.charAt(0) || service.seller.username?.charAt(0).toUpperCase()}
+                </div>
                 <div className="flex-1">
                   <Link 
                     to={`/sellers/${service.seller.username}`}
@@ -144,7 +141,7 @@ export default function ServicePage() {
                   >
                     {service.seller.sellerProfile?.displayName || service.seller.username}
                   </Link>
-                  <p className="text-muted-foreground">{service.seller.sellerProfile?.tagline}</p>
+                  <p className="text-muted-foreground">{service.seller.sellerProfile?.professionalTitle}</p>
                   <div className="flex items-center space-x-4 mt-2 text-sm">
                     <div className="flex items-center space-x-1">
                       <StarIcon className="h-4 w-4 text-yellow-500" />
@@ -154,7 +151,7 @@ export default function ServicePage() {
                       {service.seller.sellerProfile?.completedOrders || 0} orders completed
                     </div>
                   </div>
-                  <p className="mt-3 text-sm">{service.seller.sellerProfile?.bio}</p>
+                  <p className="mt-3 text-sm">{service.seller.sellerProfile?.description}</p>
                 </div>
               </div>
               <Button variant="outline" className="mt-4 w-full">
@@ -167,7 +164,7 @@ export default function ServicePage() {
           {/* Reviews */}
           <div>
             <h2 className="text-xl font-bold mb-4">Reviews</h2>
-            {service.reviews?.length === 0 ? (
+            {!service.reviews || service.reviews?.length === 0 ? (
               <p className="text-muted-foreground">No reviews yet</p>
             ) : (
               <div className="space-y-4">
@@ -175,15 +172,13 @@ export default function ServicePage() {
                   <Card key={review.id}>
                     <CardContent className="pt-4">
                       <div className="flex items-start space-x-3">
-                        <img 
-                          src={review.buyer.avatar || '/placeholder-avatar.png'} 
-                          alt=""
-                          className="h-10 w-10 rounded-full"
-                        />
+                        <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center text-sm font-medium shrink-0">
+                          {review.buyer?.username?.charAt(0).toUpperCase() || 'U'}
+                        </div>
                         <div className="flex-1">
                           <div className="flex items-center justify-between">
                             <div>
-                              <span className="font-medium">{review.buyer.username}</span>
+                              <span className="font-medium">{review.buyer?.username || 'Anonymous'}</span>
                               <div className="flex items-center space-x-1 mt-0.5">
                                 {[...Array(5)].map((_, i) => (
                                   <StarIcon 

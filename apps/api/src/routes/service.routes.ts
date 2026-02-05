@@ -140,6 +140,26 @@ router.get('/', optionalAuth, async (req, res, next) => {
   }
 });
 
+// Get categories (MUST be before /:username/:slug to avoid route conflict)
+router.get('/meta/categories', async (_req, res, next) => {
+  try {
+    const categories = await prisma.category.findMany({
+      where: { isActive: true, parentId: null },
+      include: {
+        children: {
+          where: { isActive: true },
+          orderBy: { order: 'asc' },
+        },
+      },
+      orderBy: { order: 'asc' },
+    });
+
+    res.json({ success: true, data: { categories } });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Get single service (PDP)
 router.get('/:username/:slug', optionalAuth, async (req, res, next) => {
   try {
@@ -345,25 +365,5 @@ router.post(
     }
   }
 );
-
-// Get categories
-router.get('/meta/categories', async (_req, res, next) => {
-  try {
-    const categories = await prisma.category.findMany({
-      where: { isActive: true, parentId: null },
-      include: {
-        children: {
-          where: { isActive: true },
-          orderBy: { order: 'asc' },
-        },
-      },
-      orderBy: { order: 'asc' },
-    });
-
-    res.json({ success: true, data: { categories } });
-  } catch (error) {
-    next(error);
-  }
-});
 
 export default router;

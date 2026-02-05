@@ -29,7 +29,7 @@ export default function ServicesPage() {
 
   const { data: categories } = useQuery({
     queryKey: ['categories'],
-    queryFn: () => api.get<any>('/services/categories'),
+    queryFn: () => api.get<any>('/services/meta/categories'),
   });
 
   const updateFilter = (key: string, value: string) => {
@@ -216,24 +216,26 @@ export default function ServicesPage() {
             <>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {data?.data?.services?.map((service: any) => (
-                  <Link key={service.id} to={`/services/${service.slug}`}>
+                  <Link key={service.id} to={`/services/${service.seller?.username}/${service.slug}`}>
                     <Card className="overflow-hidden hover:shadow-lg transition-shadow h-full">
                       <div className="aspect-video bg-muted relative">
-                        {service.images?.[0] && (
+                        {service.images?.[0] ? (
                           <img 
                             src={service.images[0]} 
                             alt={service.title}
                             className="w-full h-full object-cover"
                           />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+                            No Image
+                          </div>
                         )}
                       </div>
                       <CardContent className="p-4">
                         <div className="flex items-center space-x-2 mb-2">
-                          <img 
-                            src={service.seller?.avatar || '/placeholder-avatar.png'} 
-                            alt=""
-                            className="h-6 w-6 rounded-full"
-                          />
+                          <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-medium">
+                            {service.seller?.username?.charAt(0).toUpperCase()}
+                          </div>
                           <span className="text-sm text-muted-foreground">
                             {service.seller?.sellerProfile?.displayName || service.seller?.username}
                           </span>
@@ -253,7 +255,7 @@ export default function ServicesPage() {
                         </div>
                         <div className="text-sm">
                           <span className="text-muted-foreground">From </span>
-                          <span className="font-bold">{formatCurrency(service.startingPrice)}</span>
+                          <span className="font-bold">{formatCurrency(service.packages?.[0]?.price || 0)}</span>
                         </div>
                       </CardContent>
                     </Card>
