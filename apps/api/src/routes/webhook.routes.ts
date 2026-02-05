@@ -1,0 +1,266 @@
+import { Router } from 'express';
+import { prisma } from '@/lib/prisma.js';
+import { env } from '@/config/env.js';
+import { validatePayFastSignature, PAYFAST_IPS, validateOzowHash } from '@/services/payment.service.js';
+import { processEscrowHold, scheduleEscrowRelease } from '@/services/escrow.service.js';
+import { sendNotification } from '@/services/notification.service.js';
+
+const router = Router();
+
+// PayFast ITN (Instant Transaction Notification)
+router.post('/payfast', async (req, res) => {
+  try {
+    // Verify source IP in production
+    if (!env.PAYFAST_SANDBOX) {
+      const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+      const ip = Array.isArray(clientIp) ? clientIp[0] : clientIp?.split(',')[0];
+      
+      if (!ip || !PAYFAST_IPS.includes(ip.trim())) {
+        console.error('PayFast webhook: Invalid source IP', ip);
+        return res.status(403).send('Invalid source');
+      }
+    }
+
+    const data = req.body;
+
+    // Validate signature
+    if (!validatePayFastSignature({ ...data }, env.PAYFAST_PASSPHRASE)) {
+      console.error('PayFast webhook: Invalid signature');
+      return res.status(400).send('Invalid signature');
+    }
+
+    const paymentId = data.m_payment_id;
+    const paymentStatus = data.payment_status;
+    const grossAmount = parseFloat(data.amount_gross);
+    const feeAmount = parseFloat(data.amount_fee);
+    const netAmount = parseFloat(data.amount_net);
+    const pfPaymentId = data.pf_payment_id;
+
+    // Check if this is an order or subscription
+    const order = await prisma.order.findUnique({ where: { id: paymentId } });
+    
+    if (order) {
+      // Handle order payment
+      if (paymentStatus === 'COMPLETE') {
+        await prisma.$transaction(async (tx) => {
+          // Update order status
+          await tx.order.update({
+            where: { id: order.id },
+            data: { status: 'IN_PROGRESS', paidAt: new Date() },
+          });
+
+          // Create transaction record
+          const transaction = await tx.transaction.create({
+            data: {
+              orderId: order.id,
+              gateway: 'PAYFAST',
+              type: 'PAYMENT',
+              status: 'COMPLETED',
+              grossAmount,
+              gatewayFee: feeAmount,
+              netAmount,
+              gatewayReference: pfPaymentId,
+              gatewayResponse: data,
+            },
+          });
+
+          // Create escrow hold
+          await processEscrowHold(tx, transaction.id, order);
+
+          // Notify seller
+          await sendNotification({
+            userId: order.sellerId,
+            type: 'ORDER_PLACED',
+            title: 'New Order',
+            message: `You have a new order #${order.orderNumber}`,
+            data: { orderId: order.id },
+          });
+        });
+      } else if (paymentStatus === 'CANCELLED' || paymentStatus === 'FAILED') {
+        await prisma.order.update({
+          where: { id: order.id },
+          data: { status: 'CANCELLED' },
+        });
+      }
+    }
+
+    res.status(200).send('OK');
+  } catch (error) {
+    console.error('PayFast webhook error:', error);
+    res.status(500).send('Error');
+  }
+});
+
+// PayFast subscription ITN
+router.post('/payfast/subscription', async (req, res) => {
+  try {
+    // Verify source IP in production
+    if (!env.PAYFAST_SANDBOX) {
+      const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+      const ip = Array.isArray(clientIp) ? clientIp[0] : clientIp?.split(',')[0];
+      
+      if (!ip || !PAYFAST_IPS.includes(ip.trim())) {
+        return res.status(403).send('Invalid source');
+      }
+    }
+
+    const data = req.body;
+
+    if (!validatePayFastSignature({ ...data }, env.PAYFAST_PASSPHRASE)) {
+      return res.status(400).send('Invalid signature');
+    }
+
+    const subscriptionId = data.m_payment_id;
+    const token = data.token;
+    const paymentStatus = data.payment_status;
+    const grossAmount = parseFloat(data.amount_gross);
+    const pfPaymentId = data.pf_payment_id;
+
+    const subscription = await prisma.subscription.findUnique({
+      where: { id: subscriptionId },
+      include: { tier: true },
+    });
+
+    if (!subscription) {
+      return res.status(404).send('Subscription not found');
+    }
+
+    if (paymentStatus === 'COMPLETE') {
+      // Store token for future cancellations
+      if (token && !subscription.payFastToken) {
+        await prisma.subscription.update({
+          where: { id: subscription.id },
+          data: { payFastToken: token },
+        });
+      }
+
+      // Record payment
+      await prisma.subscriptionPayment.create({
+        data: {
+          subscriptionId: subscription.id,
+          amount: grossAmount,
+          status: 'COMPLETED',
+          gateway: 'PAYFAST',
+          gatewayReference: pfPaymentId,
+          paidAt: new Date(),
+        },
+      });
+
+      // Update subscription status if first payment
+      if (subscription.status === 'PENDING') {
+        await prisma.subscription.update({
+          where: { id: subscription.id },
+          data: { status: 'ACTIVE' },
+        });
+
+        await sendNotification({
+          userId: subscription.buyerId,
+          type: 'SUBSCRIPTION_STARTED',
+          title: 'Subscription Started',
+          message: 'Your subscription is now active',
+          data: { subscriptionId: subscription.id },
+        });
+      } else {
+        // Renewal payment - extend period
+        const newPeriodEnd = new Date(subscription.currentPeriodEnd);
+        switch (subscription.tier.interval) {
+          case 'MONTHLY':
+            newPeriodEnd.setMonth(newPeriodEnd.getMonth() + 1);
+            break;
+          case 'QUARTERLY':
+            newPeriodEnd.setMonth(newPeriodEnd.getMonth() + 3);
+            break;
+          case 'YEARLY':
+            newPeriodEnd.setFullYear(newPeriodEnd.getFullYear() + 1);
+            break;
+        }
+
+        await prisma.subscription.update({
+          where: { id: subscription.id },
+          data: {
+            currentPeriodEnd: newPeriodEnd,
+            nextBillingDate: newPeriodEnd,
+          },
+        });
+      }
+    } else if (paymentStatus === 'CANCELLED') {
+      await prisma.subscription.update({
+        where: { id: subscription.id },
+        data: { status: 'CANCELLED', cancelledAt: new Date() },
+      });
+    }
+
+    res.status(200).send('OK');
+  } catch (error) {
+    console.error('PayFast subscription webhook error:', error);
+    res.status(500).send('Error');
+  }
+});
+
+// OZOW webhook
+router.post('/ozow', async (req, res) => {
+  try {
+    const data = req.body;
+
+    // Validate hash
+    if (!validateOzowHash(data)) {
+      console.error('OZOW webhook: Invalid hash');
+      return res.status(400).json({ error: 'Invalid hash' });
+    }
+
+    const transactionReference = data.TransactionReference;
+    const status = data.Status;
+    const amount = parseFloat(data.Amount);
+    const transactionId = data.TransactionId;
+
+    const order = await prisma.order.findUnique({ where: { id: transactionReference } });
+
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    if (status === 'Complete') {
+      await prisma.$transaction(async (tx) => {
+        await tx.order.update({
+          where: { id: order.id },
+          data: { status: 'IN_PROGRESS', paidAt: new Date() },
+        });
+
+        const transaction = await tx.transaction.create({
+          data: {
+            orderId: order.id,
+            gateway: 'OZOW',
+            type: 'PAYMENT',
+            status: 'COMPLETED',
+            grossAmount: amount,
+            netAmount: amount,
+            gatewayReference: transactionId,
+            gatewayResponse: data,
+          },
+        });
+
+        await processEscrowHold(tx, transaction.id, order);
+
+        await sendNotification({
+          userId: order.sellerId,
+          type: 'ORDER_PLACED',
+          title: 'New Order',
+          message: `You have a new order #${order.orderNumber}`,
+          data: { orderId: order.id },
+        });
+      });
+    } else if (status === 'Cancelled' || status === 'Error' || status === 'Abandoned') {
+      await prisma.order.update({
+        where: { id: order.id },
+        data: { status: 'CANCELLED' },
+      });
+    }
+
+    res.status(200).json({ success: true });
+  } catch (error) {
+    console.error('OZOW webhook error:', error);
+    res.status(500).json({ error: 'Error' });
+  }
+});
+
+export default router;

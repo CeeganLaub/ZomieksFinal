@@ -1,0 +1,156 @@
+import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
+import { api } from '../../lib/api';
+import { useAuthStore } from '../../stores/auth.store';
+import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
+import { Button } from '../../components/ui/Button';
+import { 
+  ShoppingBagIcon, 
+  ChatBubbleLeftRightIcon, 
+  CreditCardIcon,
+  ArrowRightIcon,
+} from '@heroicons/react/24/outline';
+import { formatCurrency, formatDate } from '../../lib/utils';
+
+export default function DashboardPage() {
+  const { user } = useAuthStore();
+
+  const { data: orders } = useQuery({
+    queryKey: ['orders', 'recent'],
+    queryFn: () => api.get<any>('/orders/buying', { params: { limit: 5 } }),
+  });
+
+  const activeOrders = orders?.data?.orders?.filter((o: any) => 
+    ['IN_PROGRESS', 'DELIVERED', 'REVISION_REQUESTED'].includes(o.status)
+  ) || [];
+
+  return (
+    <div className="space-y-6">
+      {/* Welcome header */}
+      <div>
+        <h1 className="text-2xl font-bold">Welcome back, {user?.firstName || user?.username}!</h1>
+        <p className="text-muted-foreground">Here's what's happening with your account</p>
+      </div>
+
+      {/* Become seller CTA */}
+      {!user?.isSeller && (
+        <Card className="bg-gradient-to-r from-primary/10 to-primary/5 border-primary/20">
+          <CardContent className="py-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold mb-1">Start selling on Kiekz</h2>
+                <p className="text-muted-foreground">Share your skills and start earning today</p>
+              </div>
+              <Link to="/become-seller">
+                <Button>
+                  Become a Seller
+                  <ArrowRightIcon className="h-4 w-4 ml-2" />
+                </Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Stats cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center space-x-4">
+              <div className="p-3 rounded-full bg-primary/10">
+                <ShoppingBagIcon className="h-6 w-6 text-primary" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Active Orders</p>
+                <p className="text-2xl font-bold">{activeOrders.length}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center space-x-4">
+              <div className="p-3 rounded-full bg-blue-500/10">
+                <ChatBubbleLeftRightIcon className="h-6 w-6 text-blue-500" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Unread Messages</p>
+                <p className="text-2xl font-bold">0</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center space-x-4">
+              <div className="p-3 rounded-full bg-purple-500/10">
+                <CreditCardIcon className="h-6 w-6 text-purple-500" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Active Subscriptions</p>
+                <p className="text-2xl font-bold">0</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Recent orders */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle>Recent Orders</CardTitle>
+          <Link to="/orders" className="text-sm text-primary hover:underline">
+            View all
+          </Link>
+        </CardHeader>
+        <CardContent>
+          {orders?.data?.orders?.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-muted-foreground mb-4">You haven't placed any orders yet</p>
+              <Link to="/services">
+                <Button>Browse Services</Button>
+              </Link>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {orders?.data?.orders?.slice(0, 5).map((order: any) => (
+                <Link 
+                  key={order.id} 
+                  to={`/orders/${order.id}`}
+                  className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50 transition-colors"
+                >
+                  <div className="flex items-center space-x-4">
+                    <img 
+                      src={order.service?.images?.[0] || '/placeholder.png'} 
+                      alt="" 
+                      className="h-12 w-12 rounded object-cover"
+                    />
+                    <div>
+                      <p className="font-medium">{order.service?.title}</p>
+                      <p className="text-sm text-muted-foreground">
+                        Order #{order.orderNumber}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-medium">{formatCurrency(order.totalAmount)}</p>
+                    <span className={`text-xs px-2 py-1 rounded-full ${
+                      order.status === 'COMPLETED' ? 'bg-green-100 text-green-700' :
+                      order.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-700' :
+                      order.status === 'DELIVERED' ? 'bg-purple-100 text-purple-700' :
+                      'bg-muted text-muted-foreground'
+                    }`}>
+                      {order.status.replace('_', ' ')}
+                    </span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

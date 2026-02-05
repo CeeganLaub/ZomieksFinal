@@ -1,0 +1,29 @@
+{
+  "name": "kiekz",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "dev:web": "npm run dev --workspace=@kiekz/web",
+    "dev:api": "npm run dev --workspace=@kiekz/api",
+    "db:generate": "npm run db:generate --workspace=@kiekz/api",
+    "db:push": "npm run db:push --workspace=@kiekz/api",
+    "db:migrate": "npm run db:migrate --workspace=@kiekz/api",
+    "db:studio": "npm run db:studio --workspace=@kiekz/api"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.0",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "packageManager": "npm@10.2.0"
+}
