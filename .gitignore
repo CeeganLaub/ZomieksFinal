@@ -43,6 +43,10 @@ prisma/migrations/*.db
 *.local
 apps/web/node_modules/.vite/
 
+# Wrangler
+.wrangler/
+.dev.vars
+
 # Generated
 .prisma/
 
