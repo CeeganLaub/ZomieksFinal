@@ -8,3 +8,4 @@ export { default as subscriptions } from './subscriptions';
 export { default as uploads } from './uploads';
 export { default as webhooks } from './webhooks';
 export { default as admin } from './admin';
+export { default as config } from './config';

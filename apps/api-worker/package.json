@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev",
+    "dev": "wrangler dev --local",
     "deploy": "wrangler deploy",
     "tail": "wrangler tail",
     "migrate": "wrangler d1 migrations apply zomieks-db --local",
@@ -15,8 +15,8 @@
   },
   "dependencies": {
     "@paralleldrive/cuid2": "^2.2.2",
-    "@zomieks/db": "workspace:*",
-    "@zomieks/shared": "workspace:*",
+    "@zomieks/db": "*",
+    "@zomieks/shared": "*",
     "drizzle-orm": "^0.38.0",
     "hono": "^4.6.0",
     "jose": "^5.9.0",

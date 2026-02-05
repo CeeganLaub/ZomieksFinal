@@ -6,9 +6,6 @@ compatibility_flags = ["nodejs_compat"]
 # Account settings (replace with your actual values)
 # account_id = "your-account-id"
 
-[build]
-command = "npm run build"
-
 # Development settings
 [dev]
 port = 8787
@@ -26,24 +23,21 @@ OZOW_TEST_MODE = "true"
 [[d1_databases]]
 binding = "DB"
 database_name = "zomieks-db"
-database_id = "" # Replace with actual database ID after creation
+database_id = "local-dev-placeholder"
 migrations_dir = "../../packages/db/migrations"
 
-# KV Namespaces
+# KV Namespaces (for local dev, IDs are placeholders - wrangler dev --local uses local storage)
 [[kv_namespaces]]
 binding = "CACHE"
-id = "" # Replace with actual KV namespace ID
-preview_id = "" # For wrangler dev
+id = "cache-placeholder"
 
 [[kv_namespaces]]
 binding = "SESSIONS"
-id = ""
-preview_id = ""
+id = "sessions-placeholder"
 
 [[kv_namespaces]]
 binding = "RATE_LIMIT"
-id = ""
-preview_id = ""
+id = "ratelimit-placeholder"
 
 # R2 Storage
 [[r2_buckets]]

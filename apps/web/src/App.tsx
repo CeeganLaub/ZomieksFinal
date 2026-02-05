@@ -7,6 +7,7 @@ import { useEffect } from 'react';
 import MainLayout from './layouts/MainLayout';
 import AuthLayout from './layouts/AuthLayout';
 import DashboardLayout from './layouts/DashboardLayout';
+import AdminLayout from './layouts/AdminLayout';
 
 // Public pages
 import HomePage from './pages/HomePage';
@@ -39,9 +40,15 @@ import CRMPage from './pages/seller/CRMPage';
 import EarningsPage from './pages/seller/EarningsPage';
 import BecomeSeller from './pages/seller/BecomeSeller';
 
+// Admin pages
+import AdminDashboardPage from './pages/admin/AdminDashboardPage';
+import FeesPage from './pages/admin/FeesPage';
+import ConfigurationPage from './pages/admin/ConfigurationPage';
+
 // Components
 import ProtectedRoute from './components/ProtectedRoute';
 import SellerRoute from './components/SellerRoute';
+import AdminRoute from './components/AdminRoute';
 
 function App() {
   const { initialize, isLoading } = useAuthStore();
@@ -99,6 +106,13 @@ function App() {
           <Route path="/seller/orders" element={<SellerOrdersPage />} />
           <Route path="/seller/crm" element={<CRMPage />} />
           <Route path="/seller/earnings" element={<EarningsPage />} />
+        </Route>
+
+        {/* Admin routes */}
+        <Route element={<AdminRoute><AdminLayout /></AdminRoute>}>
+          <Route path="/admin" element={<AdminDashboardPage />} />
+          <Route path="/admin/fees" element={<FeesPage />} />
+          <Route path="/admin/configuration" element={<ConfigurationPage />} />
         </Route>
       </Routes>
     </>

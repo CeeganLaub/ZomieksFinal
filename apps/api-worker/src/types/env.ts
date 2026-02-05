@@ -34,6 +34,10 @@ export interface Env {
   FRONTEND_URL: string;
   API_URL: string;
   NODE_ENV: string;
+  
+  // Optional payment config
+  PAYFAST_SANDBOX?: string;
+  OZOW_TEST_MODE?: string;
 }
 
 // Extend Hono context

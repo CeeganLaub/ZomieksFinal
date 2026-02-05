@@ -14,10 +14,6 @@ const app = new Hono<{ Bindings: Env }>();
 
 app.use('*', authMiddleware);
 
-// Fee calculation constants
-const BUYER_FEE_RATE = 0.03; // 3%
-const SELLER_FEE_RATE = 0.08; // 8%
-
 // Schemas
 const createPaymentSchema = z.object({
   orderId: z.string(),
@@ -33,10 +29,10 @@ const withdrawSchema = z.object({
 
 const bankDetailsSchema = z.object({
   bankName: z.string().min(2).max(100),
-  accountType: z.enum(['SAVINGS', 'CHEQUE', 'TRANSMISSION']),
+  accountType: z.enum(['SAVINGS', 'CURRENT', 'TRANSMISSION']),
   accountNumber: z.string().min(6).max(20),
   branchCode: z.string().min(4).max(6),
-  accountHolderName: z.string().min(2).max(100),
+  accountHolder: z.string().min(2).max(100),
 });
 
 // Helper: Generate PayFast payment URL
@@ -63,7 +59,7 @@ function generatePayFastUrl(env: Env, data: {
     email_address: data.buyerEmail,
   });
   
-  const sandbox = env.PAYFAST_SANDBOX === 'true';
+  const sandbox = env.PAYFAST_SANDBOX === 'true' || env.NODE_ENV !== 'production';
   const baseUrl = sandbox 
     ? 'https://sandbox.payfast.co.za/eng/process'
     : 'https://www.payfast.co.za/eng/process';
@@ -132,39 +128,39 @@ app.post('/create', requireAuth, validate(createPaymentSchema), async (c) => {
     }, 404);
   }
   
-  if (order.paymentStatus !== 'PENDING') {
+  if (order.status !== 'PENDING_PAYMENT') {
     return c.json({
       success: false,
       error: { message: 'Order already paid or cancelled' },
     }, 400);
   }
   
-  // Create transaction
+  // Create transaction - use grossAmount (new) with fallback to totalAmount (legacy)
+  const chargeAmount = order.grossAmount ?? order.totalAmount ?? 0;
   const transactionId = createId();
-  const now = new Date().toISOString();
-  const totalAmount = order.totalAmount;
   
   await db.insert(transactions).values({
-    id: transactionId,
+    id: transactionId, // Use generated ID for Ozow reference
+    orderId: order.id,
     userId: user.id,
     type: 'PAYMENT',
-    amount: totalAmount,
+    grossAmount: chargeAmount,
+    amount: chargeAmount, // legacy field
+    gateway: body.provider,
+    gatewayMethod: 'UNKNOWN',
     currency: 'ZAR',
     status: 'PENDING',
-    provider: body.provider,
-    metadata: {
+    rawPayload: {
       orderId: order.id,
       orderNumber: order.orderNumber,
     },
-    createdAt: now,
-    updatedAt: now,
   });
   
   // Generate payment URL
-  const baseUrl = env.APP_URL || 'https://zomieks.com';
+  const baseUrl = env.FRONTEND_URL || 'https://zomieks.com';
   const returnUrl = body.returnUrl || `${baseUrl}/orders/${order.orderNumber}/success`;
   const cancelUrl = body.cancelUrl || `${baseUrl}/orders/${order.orderNumber}/cancel`;
-  const notifyUrl = `${baseUrl}/api/v1/webhooks/payments/${body.provider.toLowerCase()}`;
+  const notifyUrl = `${env.API_URL || baseUrl}/api/v1/webhooks/payments/${body.provider.toLowerCase()}`;
   
   let paymentUrl: string;
   
@@ -173,8 +169,8 @@ app.post('/create', requireAuth, validate(createPaymentSchema), async (c) => {
       merchantId: env.PAYFAST_MERCHANT_ID,
       merchantKey: env.PAYFAST_MERCHANT_KEY,
       orderId: order.id,
-      amount: totalAmount,
-      itemName: order.service?.title || `Order ${order.orderNumber}`,
+      amount: chargeAmount,
+      itemName: (order as any).service?.title || `Order ${order.orderNumber}`,
       buyerEmail: user.email,
       returnUrl,
       cancelUrl,
@@ -183,7 +179,7 @@ app.post('/create', requireAuth, validate(createPaymentSchema), async (c) => {
   } else {
     paymentUrl = await generateOzowPaymentRequest(env, {
       transactionId,
-      amount: totalAmount,
+      amount: chargeAmount,
       bankRef: order.orderNumber,
       isTest: env.OZOW_TEST_MODE === 'true',
       successUrl: returnUrl,
@@ -213,8 +209,8 @@ app.get('/transactions', requireAuth, async (c) => {
   const offset = (page - 1) * limit;
   
   let whereConditions: any[] = [eq(transactions.userId, user.id)];
-  if (type) {
-    whereConditions.push(eq(transactions.type, type));
+  if (type && ['PAYMENT', 'REFUND', 'PAYOUT', 'ADJUSTMENT'].includes(type)) {
+    whereConditions.push(eq(transactions.type, type as 'PAYMENT' | 'REFUND' | 'PAYOUT' | 'ADJUSTMENT'));
   }
   
   const txList = await db.query.transactions.findMany({
@@ -229,11 +225,10 @@ app.get('/transactions', requireAuth, async (c) => {
     data: txList.map(tx => ({
       id: tx.id,
       type: tx.type,
-      amount: tx.amount / 100,
+      amount: (tx.grossAmount ?? tx.amount ?? 0) / 100,
       currency: tx.currency,
       status: tx.status,
-      provider: tx.provider,
-      description: tx.description,
+      gateway: tx.gateway,
       createdAt: tx.createdAt,
     })),
     meta: { page, limit },
@@ -378,7 +373,7 @@ app.post('/withdraw', requireAuth, requireSeller, validate(withdrawSchema), asyn
     bankDetailsSnapshot: {
       bankName: bankDetail.bankName,
       accountNumber: bankDetail.accountNumber.slice(-4),
-      accountHolderName: bankDetail.accountHolderName,
+      accountHolder: bankDetail.accountHolder,
     },
     createdAt: now,
     updatedAt: now,
@@ -451,7 +446,7 @@ app.get('/bank-details', requireAuth, requireSeller, async (c) => {
       accountType: d.accountType,
       accountNumber: `****${d.accountNumber.slice(-4)}`,
       branchCode: d.branchCode,
-      accountHolderName: d.accountHolderName,
+      accountHolder: d.accountHolder,
       isDefault: d.isDefault,
       isVerified: d.isVerified,
     })),
@@ -486,10 +481,8 @@ app.post('/bank-details', requireAuth, requireSeller, validate(bankDetailsSchema
     accountType: body.accountType,
     accountNumber: body.accountNumber,
     branchCode: body.branchCode,
-    accountHolderName: body.accountHolderName,
+    accountHolder: body.accountHolder,
     isDefault: isFirst,
-    createdAt: now,
-    updatedAt: now,
   });
   
   return c.json({
@@ -607,7 +600,7 @@ app.get('/earnings', requireAuth, requireSeller, async (c) => {
   const [orderStats] = await db
     .select({
       count: sql<number>`COUNT(*)`,
-      revenue: sql<number>`COALESCE(SUM(${orders.sellerAmount}), 0)`,
+      revenue: sql<number>`COALESCE(SUM(${orders.sellerPayoutAmount}), 0)`,
     })
     .from(orders)
     .where(and(

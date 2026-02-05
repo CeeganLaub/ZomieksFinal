@@ -16,6 +16,7 @@ import subscriptionRoutes from './routes/subscriptions';
 import uploadRoutes from './routes/uploads';
 import webhookRoutes from './routes/webhooks';
 import adminRoutes from './routes/admin';
+import configRoutes from './routes/config';
 
 // Durable Objects
 export { ChatRoom } from './durable-objects/ChatRoom';
@@ -32,12 +33,18 @@ app.use('*', logger());
 app.use('*', secureHeaders());
 app.use('*', cors({
   origin: (origin, c) => {
+    // Allow Codespaces and local development
+    if (!origin) return '*';
+    if (origin.includes('github.dev') || origin.includes('app.github.dev')) return origin;
+    if (origin.includes('localhost')) return origin;
+    if (origin.includes('zomieks.com') || origin.includes('zomieks.co.za')) return origin;
     const allowed = [
       c.env.FRONTEND_URL,
+      c.env.APP_URL,
       'http://localhost:5173',
       'http://localhost:3000',
     ];
-    return allowed.includes(origin) ? origin : '';
+    return allowed.includes(origin) ? origin : origin; // Allow all for now
   },
   credentials: true,
   allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -51,6 +58,15 @@ app.use('*', async (c, next) => {
   c.set('db', db);
   await next();
 });
+
+// Root endpoint
+app.get('/', (c) => c.json({ 
+  name: 'Zomieks API',
+  version: '1.0.0',
+  status: 'ok',
+  docs: '/api/v1',
+  health: '/health',
+}));
 
 // Health check
 app.get('/health', (c) => c.json({ status: 'ok', timestamp: new Date().toISOString() }));
@@ -67,6 +83,7 @@ v1.route('/subscriptions', subscriptionRoutes);
 v1.route('/uploads', uploadRoutes);
 v1.route('/webhooks', webhookRoutes);
 v1.route('/admin', adminRoutes);
+v1.route('/admin/settings', configRoutes);
 
 app.route('/api/v1', v1);
 

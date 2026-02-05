@@ -1,21 +1,30 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { eq, and, desc, or } from 'drizzle-orm';
-import { orders, services, servicePackages, users, transactions, escrowHolds, orderDeliveries, orderRevisions, conversations, reviews } from '@zomieks/db';
+import { orders, services, servicePackages, users, transactions, escrowHolds, orderDeliveries, orderRevisions, conversations, reviews, sellerPayouts } from '@zomieks/db';
 import { createId } from '@paralleldrive/cuid2';
 import type { Env } from '../types';
 import { authMiddleware, requireAuth } from '../middleware/auth';
 import { validate, getValidatedBody } from '../middleware/validation';
+import { calculateFees, DEFAULT_FEE_POLICY, formatAmount, getPayoutAvailableAt, type Gateway, type PaymentMethod, type FeeCalcOutput } from '../services/fee-engine';
 
 const app = new Hono<{ Bindings: Env }>();
 
 app.use('*', authMiddleware);
 
 // Schemas
+const quoteSchema = z.object({
+  baseAmount: z.number().min(5000, 'Minimum order is R50'),
+  gateway: z.enum(['PAYFAST', 'OZOW']),
+  method: z.enum(['CARD', 'EFT', 'UNKNOWN']).default('UNKNOWN'),
+});
+
 const createOrderSchema = z.object({
   serviceId: z.string(),
   packageId: z.string(),
   requirements: z.string().optional(),
+  gateway: z.enum(['PAYFAST', 'OZOW']).default('PAYFAST'),
+  method: z.enum(['CARD', 'EFT', 'UNKNOWN']).default('UNKNOWN'),
 });
 
 const deliverySchema = z.object({
@@ -45,34 +54,30 @@ function generateOrderNumber(): string {
   const prefix = 'ZOM';
   const timestamp = Date.now().toString(36).toUpperCase();
   const random = Math.random().toString(36).substring(2, 6).toUpperCase();
-  return `${prefix}-${timestamp}-${random}`;
+  return `${prefix}-${random}-${timestamp}`;
 }
 
-// Helper: Calculate fees
-function calculateFees(baseAmount: number) {
-  const buyerFeeRate = 0.03; // 3%
-  const sellerFeeRate = 0.08; // 8%
-  
-  const buyerFee = Math.round(baseAmount * buyerFeeRate);
-  const sellerFee = Math.round(baseAmount * sellerFeeRate);
-  const totalAmount = baseAmount + buyerFee;
-  const sellerPayout = baseAmount - sellerFee;
-  const platformRevenue = buyerFee + sellerFee;
-  
-  return { buyerFee, sellerFee, totalAmount, sellerPayout, platformRevenue };
-}
-
-// Helper: Format order
+// Helper: Format order (uses new gateway-aware fee model)
 function formatOrder(order: any) {
   return {
     id: order.id,
     orderNumber: order.orderNumber,
     status: order.status,
+    // Amounts in Rands (divide cents by 100)
     baseAmount: order.baseAmount / 100,
-    buyerFee: order.buyerFee / 100,
-    totalAmount: order.totalAmount / 100,
-    sellerPayout: order.sellerPayout / 100,
+    buyerPlatformFee: (order.buyerPlatformFee ?? 0) / 100,
+    buyerProcessingFee: (order.buyerProcessingFee ?? 0) / 100,
+    sellerPlatformFee: (order.sellerPlatformFee ?? 0) / 100,
+    grossAmount: (order.grossAmount ?? order.totalAmount ?? 0) / 100,
+    sellerPayoutAmount: (order.sellerPayoutAmount ?? order.sellerPayout ?? 0) / 100,
+    platformRevenue: (order.platformRevenue ?? 0) / 100,
+    // Legacy fields for backward compatibility
+    buyerFee: (order.buyerFee ?? order.buyerPlatformFee ?? 0) / 100,
+    totalAmount: (order.totalAmount ?? order.grossAmount ?? 0) / 100,
+    sellerPayout: (order.sellerPayout ?? order.sellerPayoutAmount ?? 0) / 100,
     currency: order.currency,
+    gateway: order.gateway,
+    gatewayMethod: order.gatewayMethod,
     requirements: order.requirements,
     deliveryDays: order.deliveryDays,
     revisions: order.revisions,
@@ -110,6 +115,30 @@ function formatOrder(order: any) {
     } : null,
   };
 }
+
+// POST /quote - Get fee breakdown before order creation
+app.post('/quote', requireAuth, validate(quoteSchema), async (c) => {
+  const { baseAmount, gateway, method } = getValidatedBody<{ baseAmount: number; gateway: Gateway; method: PaymentMethod }>(c);
+  
+  try {
+    const fees = calculateFees({
+      baseAmount,
+      gateway,
+      method,
+      policy: DEFAULT_FEE_POLICY,
+    });
+    
+    return c.json({
+      success: true,
+      data: fees,
+    });
+  } catch (err) {
+    return c.json({
+      success: false,
+      error: { message: err instanceof Error ? err.message : 'Fee calculation failed' },
+    }, 400);
+  }
+});
 
 // GET /buying - Get orders as buyer
 app.get('/buying', requireAuth, async (c) => {
@@ -273,8 +302,13 @@ app.post('/', requireAuth, validate(createOrderSchema), async (c) => {
     }, 404);
   }
   
-  // Calculate fees
-  const fees = calculateFees(pkg.price);
+  // Calculate fees using gateway-aware fee engine
+  const fees = calculateFees({
+    baseAmount: pkg.price,
+    gateway: body.gateway as Gateway,
+    method: body.method as PaymentMethod,
+    policy: DEFAULT_FEE_POLICY,
+  });
   
   // Create order
   const orderId = createId();
@@ -287,12 +321,21 @@ app.post('/', requireAuth, validate(createOrderSchema), async (c) => {
     sellerId: service.sellerId,
     serviceId: service.id,
     packageId: pkg.id,
-    baseAmount: pkg.price,
-    buyerFee: fees.buyerFee,
-    totalAmount: fees.totalAmount,
-    sellerFee: fees.sellerFee,
-    sellerPayout: fees.sellerPayout,
+    // New gateway-aware fee model
+    baseAmount: fees.baseAmount,
+    buyerPlatformFee: fees.buyerPlatformFee,
+    buyerProcessingFee: fees.buyerProcessingFee,
+    sellerPlatformFee: fees.sellerPlatformFee,
+    grossAmount: fees.grossAmount,
+    sellerPayoutAmount: fees.sellerPayoutAmount,
     platformRevenue: fees.platformRevenue,
+    gateway: body.gateway,
+    gatewayMethod: body.method,
+    // Legacy fields for backward compatibility
+    buyerFee: fees.buyerPlatformFee,
+    totalAmount: fees.grossAmount,
+    sellerFee: fees.sellerPlatformFee,
+    sellerPayout: fees.sellerPayoutAmount,
     requirements: body.requirements,
     deliveryDays: pkg.deliveryDays,
     revisions: pkg.revisions,

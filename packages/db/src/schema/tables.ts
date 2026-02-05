@@ -46,6 +46,12 @@ export type PaymentGateway = typeof paymentGateways[number];
 export const transactionStatuses = ['PENDING', 'COMPLETED', 'FAILED', 'REFUNDED', 'PARTIALLY_REFUNDED'] as const;
 export type TransactionStatus = typeof transactionStatuses[number];
 
+export const transactionTypes = ['PAYMENT', 'REFUND', 'PAYOUT', 'ADJUSTMENT'] as const;
+export type TransactionType = typeof transactionTypes[number];
+
+export const paymentMethods = ['CARD', 'EFT', 'UNKNOWN'] as const;
+export type PaymentMethod = typeof paymentMethods[number];
+
 export const escrowStatuses = ['PENDING', 'HELD', 'RELEASED', 'REFUNDED', 'DISPUTED'] as const;
 export type EscrowStatus = typeof escrowStatuses[number];
 
@@ -137,6 +143,11 @@ export const sellerProfiles = sqliteTable('seller_profiles', {
   level: integer('level').default(1).notNull(),
   isVerified: integer('is_verified', { mode: 'boolean' }).default(false).notNull(),
   verifiedAt: text('verified_at'),
+  
+  // Balance (in cents) - calculated from escrow/payouts
+  balance: integer('balance').default(0).notNull(), // Available to withdraw
+  pendingBalance: integer('pending_balance').default(0).notNull(), // In withdrawal process
+  escrowBalance: integer('escrow_balance').default(0).notNull(), // Held in escrow
 
   // Availability
   isAvailable: integer('is_available', { mode: 'boolean' }).default(true).notNull(),
@@ -160,6 +171,7 @@ export const bankDetails = sqliteTable('bank_details', {
   accountType: text('account_type').$type<AccountType>().notNull(),
   accountHolder: text('account_holder').notNull(),
 
+  isDefault: integer('is_default', { mode: 'boolean' }).default(false).notNull(),
   isVerified: integer('is_verified', { mode: 'boolean' }).default(false).notNull(),
   verifiedAt: text('verified_at'),
 
@@ -317,14 +329,25 @@ export const orders = sqliteTable('orders', {
   serviceId: text('service_id').notNull().references(() => services.id),
   packageId: text('package_id').references(() => servicePackages.id),
 
-  // Pricing (all in cents)
+  // Pricing (all in cents) - Gateway-aware fee model
   baseAmount: integer('base_amount').notNull(),
-  buyerFee: integer('buyer_fee').notNull(),
-  totalAmount: integer('total_amount').notNull(),
-  sellerFee: integer('seller_fee').notNull(),
-  sellerPayout: integer('seller_payout').notNull(),
-  platformRevenue: integer('platform_revenue').notNull(),
+  buyerPlatformFee: integer('buyer_platform_fee').notNull().default(0), // Marketplace buyer fee (e.g., 3%)
+  buyerProcessingFee: integer('buyer_processing_fee').notNull().default(0), // Covers gateway costs
+  sellerPlatformFee: integer('seller_platform_fee').notNull().default(0), // Seller fee (tiered)
+  grossAmount: integer('gross_amount').notNull().default(0), // baseAmount + buyerPlatformFee + buyerProcessingFee
+  platformRevenue: integer('platform_revenue').notNull().default(0), // buyerPlatformFee + sellerPlatformFee
+  sellerPayoutAmount: integer('seller_payout_amount').notNull().default(0), // baseAmount - sellerPlatformFee
   currency: text('currency').default('ZAR').notNull(),
+  
+  // Payment method info
+  gateway: text('gateway').$type<PaymentGateway>(),
+  gatewayMethod: text('gateway_method').$type<PaymentMethod>(),
+  
+  // Legacy fields (deprecated, kept for migration)
+  buyerFee: integer('buyer_fee').default(0),
+  totalAmount: integer('total_amount').default(0),
+  sellerFee: integer('seller_fee').default(0),
+  sellerPayout: integer('seller_payout').default(0),
 
   // Status
   status: text('status').$type<OrderStatus>().default('PENDING_PAYMENT').notNull(),
@@ -466,22 +489,45 @@ export const subscriptionPayments = sqliteTable('subscription_payments', {
 export const transactions = sqliteTable('transactions', {
   id: text('id').primaryKey().$defaultFn(cuid),
   orderId: text('order_id').references(() => orders.id),
+  subscriptionId: text('subscription_id'),
+  userId: text('user_id').references(() => users.id),
 
-  gateway: text('gateway').$type<PaymentGateway>().notNull(),
-  gatewayTransactionId: text('gateway_transaction_id').notNull().unique(),
-  gatewayReference: text('gateway_reference'),
-
-  amount: integer('amount').notNull(), // cents
-  buyerFee: integer('buyer_fee').notNull(),
-  totalAmount: integer('total_amount').notNull(),
-  sellerFee: integer('seller_fee').notNull(),
-  sellerPayout: integer('seller_payout').notNull(),
-  platformRevenue: integer('platform_revenue').notNull(),
-  currency: text('currency').default('ZAR').notNull(),
-
+  // Transaction type and status
+  type: text('type').$type<TransactionType>().default('PAYMENT').notNull(),
   status: text('status').$type<TransactionStatus>().default('PENDING').notNull(),
 
-  gatewayData: text('gateway_data', { mode: 'json' }),
+  // Gateway info
+  gateway: text('gateway').$type<PaymentGateway>().notNull(),
+  gatewayMethod: text('gateway_method').$type<PaymentMethod>(),
+  gatewayRef: text('gateway_ref').unique(), // pf_payment_id or ozow ref
+  gatewayTransactionId: text('gateway_transaction_id'), // legacy, keep for migration
+  gatewayReference: text('gateway_reference'),
+
+  // Amounts (all in cents) - Gateway-aware
+  grossAmount: integer('gross_amount').notNull(), // What buyer paid
+  gatewayFee: integer('gateway_fee'), // Fee charged by gateway (from ITN)
+  netAmount: integer('net_amount'), // grossAmount - gatewayFee (from ITN)
+  
+  // Fee snapshots (from order at time of payment)
+  baseAmount: integer('base_amount'),
+  buyerPlatformFee: integer('buyer_platform_fee'),
+  buyerProcessingFee: integer('buyer_processing_fee'),
+  sellerPlatformFee: integer('seller_platform_fee'),
+  platformRevenue: integer('platform_revenue'),
+  sellerPayoutAmount: integer('seller_payout_amount'),
+  
+  currency: text('currency').default('ZAR').notNull(),
+
+  // Raw gateway response
+  rawPayload: text('raw_payload', { mode: 'json' }),
+  gatewayData: text('gateway_data', { mode: 'json' }), // legacy
+
+  // Legacy fields (deprecated)
+  amount: integer('amount'),
+  buyerFee: integer('buyer_fee'),
+  totalAmount: integer('total_amount'),
+  sellerFee: integer('seller_fee'),
+  sellerPayout: integer('seller_payout'),
 
   paidAt: text('paid_at'),
   failedAt: text('failed_at'),
@@ -492,43 +538,79 @@ export const transactions = sqliteTable('transactions', {
 }, (table) => ({
   orderIdIdx: index('transactions_order_id_idx').on(table.orderId),
   statusIdx: index('transactions_status_idx').on(table.status),
+  gatewayRefIdx: index('transactions_gateway_ref_idx').on(table.gatewayRef),
 }));
 
 export const escrowHolds = sqliteTable('escrow_holds', {
   id: text('id').primaryKey().$defaultFn(cuid),
   transactionId: text('transaction_id').references(() => transactions.id),
-  orderId: text('order_id').references(() => orders.id),
+  orderId: text('order_id').unique().references(() => orders.id),
   milestoneId: text('milestone_id').unique().references(() => orderMilestones.id),
   subscriptionPaymentId: text('subscription_payment_id').unique().references(() => subscriptionPayments.id),
 
-  amount: integer('amount').notNull(), // cents
-  sellerAmount: integer('seller_amount').notNull(),
+  // Amounts from gateway (all in cents)
+  grossAmount: integer('gross_amount').notNull(),
+  gatewayFee: integer('gateway_fee'),
+  netAmount: integer('net_amount'),
+
+  // Fee snapshots (audit trail)
+  baseAmount: integer('base_amount'),
+  buyerPlatformFee: integer('buyer_platform_fee'),
+  buyerProcessingFee: integer('buyer_processing_fee'),
+  sellerPlatformFee: integer('seller_platform_fee'),
+  platformRevenue: integer('platform_revenue'),
+  sellerPayoutAmount: integer('seller_payout_amount'),
+
+  // Legacy fields
+  amount: integer('amount'),
+  sellerAmount: integer('seller_amount'),
 
   status: text('status').$type<EscrowStatus>().default('HELD').notNull(),
   holdUntil: text('hold_until'),
+  heldAt: text('held_at').$defaultFn(() => new Date().toISOString()),
 
   releasedAt: text('released_at'),
   refundedAt: text('refunded_at'),
 
-  payoutId: text('payout_id').references(() => sellerPayouts.id),
+  // Track payout via sellerPayouts.escrowHoldId instead (avoids circular reference)
+  payoutId: text('payout_id'),
 
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
   updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => ({
   statusIdx: index('escrow_holds_status_idx').on(table.status),
   transactionIdIdx: index('escrow_holds_transaction_id_idx').on(table.transactionId),
+  orderIdIdx: index('escrow_holds_order_id_idx').on(table.orderId),
 }));
 
 export const sellerPayouts = sqliteTable('seller_payouts', {
   id: text('id').primaryKey().$defaultFn(cuid),
   sellerId: text('seller_id').notNull().references(() => users.id),
+  orderId: text('order_id').references(() => orders.id),
+  escrowHoldId: text('escrow_hold_id').references(() => escrowHolds.id),
 
-  amount: integer('amount').notNull(), // cents
+  amount: integer('amount').notNull(), // cents - what seller gets
+  fee: integer('fee').default(0), // any payout fee (if applicable)
+  netAmount: integer('net_amount').notNull(), // amount - fee
   currency: text('currency').default('ZAR').notNull(),
 
   status: text('status').$type<PayoutStatus>().default('PENDING').notNull(),
+  
+  // Batch payout support
+  batchId: text('batch_id'),
+  availableAt: text('available_at'), // When funds become available for payout (reserve period)
+  externalRef: text('external_ref'), // Bank EFT reference
+  
+  // Snapshot of bank details at time of payout request
+  bankDetailsSnapshot: text('bank_details_snapshot', { mode: 'json' }).$type<{
+    bankName: string;
+    accountNumber: string;
+    branchCode: string;
+    accountHolder: string;
+    accountType: string;
+  }>(),
 
-  bankReference: text('bank_reference'),
+  bankReference: text('bank_reference'), // legacy
   processedAt: text('processed_at'),
   failedAt: text('failed_at'),
   failedReason: text('failed_reason'),
@@ -538,6 +620,8 @@ export const sellerPayouts = sqliteTable('seller_payouts', {
 }, (table) => ({
   sellerIdIdx: index('seller_payouts_seller_id_idx').on(table.sellerId),
   statusIdx: index('seller_payouts_status_idx').on(table.status),
+  batchIdIdx: index('seller_payouts_batch_id_idx').on(table.batchId),
+  availableAtIdx: index('seller_payouts_available_at_idx').on(table.availableAt),
 }));
 
 export const refunds = sqliteTable('refunds', {
@@ -822,4 +906,65 @@ export const sellerMetrics = sqliteTable('seller_metrics', {
 }, (table) => ({
   userDateUnique: uniqueIndex('seller_metrics_user_date_unique').on(table.userId, table.date),
   userDateIdx: index('seller_metrics_user_date_idx').on(table.userId, table.date),
+}));
+
+// ============ CONFIGURATION MODELS ============
+
+/**
+ * Site Configuration - Key-value store for platform settings
+ * Supports encrypted values for sensitive data like API keys
+ */
+export const siteConfig = sqliteTable('site_config', {
+  id: text('id').primaryKey().$defaultFn(cuid),
+  category: text('category').notNull(), // e.g., 'smtp', 'payfast', 'ozow', 'cloudflare', 'general'
+  key: text('key').notNull(),
+  value: text('value'), // Plain text value
+  encryptedValue: text('encrypted_value'), // For sensitive data like API keys
+  description: text('description'),
+  isSecret: integer('is_secret', { mode: 'boolean' }).default(false).notNull(),
+  
+  updatedBy: text('updated_by').references(() => users.id),
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  categoryKeyUnique: uniqueIndex('site_config_category_key_unique').on(table.category, table.key),
+  categoryIdx: index('site_config_category_idx').on(table.category),
+}));
+
+/**
+ * Fee Policy - Platform fee configuration
+ * Only one active policy at a time
+ */
+export const feePolicy = sqliteTable('fee_policy', {
+  id: text('id').primaryKey().$defaultFn(cuid),
+  name: text('name').notNull(),
+  isActive: integer('is_active', { mode: 'boolean' }).default(false).notNull(),
+  
+  // Buyer fees
+  buyerPlatformPct: integer('buyer_platform_pct').notNull(), // Stored as basis points (300 = 3%)
+  buyerPlatformMin: integer('buyer_platform_min').notNull(), // Cents
+  buyerProcessingMin: integer('buyer_processing_min').notNull(), // Cents
+  
+  // Seller fee tiers (stored as JSON)
+  sellerTiers: text('seller_tiers', { mode: 'json' }).$type<{
+    maxAmount: number | null; // null = no limit
+    pct: number; // basis points
+    min: number; // cents
+  }[]>().notNull(),
+  
+  // Gateway settings
+  bufferPct: integer('buffer_pct').notNull(), // basis points (20 = 0.2%)
+  bufferFixed: integer('buffer_fixed').notNull(), // cents
+  vatPct: integer('vat_pct').notNull(), // basis points (1500 = 15%)
+  
+  // Payout settings
+  reserveDays: integer('reserve_days').notNull(),
+  payoutMinimum: integer('payout_minimum').notNull(), // cents
+  
+  // Audit
+  createdBy: text('created_by').references(() => users.id),
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  isActiveIdx: index('fee_policy_is_active_idx').on(table.isActive),
 }));

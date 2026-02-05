@@ -3,12 +3,19 @@ import { z } from 'zod';
 import { eq, and, desc, sql, count, gte, lte, like, or } from 'drizzle-orm';
 import { 
   users, orders, services, sellerProfiles, transactions,
-  disputes, refunds, sellerPayouts, subscriptions, categories
+  disputes, refunds, sellerPayouts, subscriptions, categories, bankDetails
 } from '@zomieks/db';
 import { createId } from '@paralleldrive/cuid2';
 import type { Env } from '../types';
 import { authMiddleware, requireAuth, requireAdmin } from '../middleware/auth';
 import { validate, getValidatedBody } from '../middleware/validation';
+import {
+  createPayoutBatch,
+  confirmPayoutBatch,
+  failPayoutBatch,
+  getBatchStatus,
+  generateBatchCSV,
+} from '../services/payout-batch.service';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -37,6 +44,18 @@ const payoutActionSchema = z.object({
   action: z.enum(['process', 'reject']),
   reference: z.string().optional(),
   reason: z.string().optional(),
+});
+
+const batchConfirmSchema = z.object({
+  confirmations: z.array(z.object({
+    payoutId: z.string(),
+    externalRef: z.string(),
+  })).min(1),
+});
+
+const batchFailSchema = z.object({
+  reason: z.string().min(1),
+  payoutIds: z.array(z.string()).optional(),
 });
 
 // Dashboard Stats
@@ -621,6 +640,179 @@ app.post('/payouts/:id/action', validate(payoutActionSchema), async (c) => {
   return c.json({
     success: true,
     message: `Payout ${action === 'process' ? 'processed' : 'rejected'}`,
+  });
+});
+
+// Batch Payout Management
+
+// Create a new payout batch from eligible payouts
+app.post('/payouts/batches/create', async (c) => {
+  const db = c.get('db');
+  
+  const batch = await createPayoutBatch(db);
+  
+  if (!batch) {
+    return c.json({
+      success: false,
+      error: { message: 'No eligible payouts found' },
+    }, 404);
+  }
+  
+  return c.json({
+    success: true,
+    data: {
+      batchId: batch.batchId,
+      createdAt: batch.createdAt,
+      totalAmount: batch.totalAmountRands,
+      payoutCount: batch.payoutCount,
+      items: batch.items.map(item => ({
+        payoutId: item.payoutId,
+        sellerId: item.sellerId,
+        sellerEmail: item.sellerEmail,
+        sellerName: item.sellerName,
+        amount: item.amountRands,
+        bankName: item.bankName,
+        accountNumber: item.accountNumber, // Masked
+        accountHolder: item.accountHolder,
+      })),
+    },
+  });
+});
+
+// Download batch as CSV for bank EFT processing
+app.get('/payouts/batches/:batchId/csv', async (c) => {
+  const { batchId } = c.req.param();
+  const db = c.get('db');
+  
+  // Reconstruct the batch from DB
+  const payouts = await db.query.sellerPayouts.findMany({
+    where: eq(sellerPayouts.batchId, batchId),
+  });
+  
+  if (payouts.length === 0) {
+    return c.json({
+      success: false,
+      error: { message: 'Batch not found' },
+    }, 404);
+  }
+  
+  // Build batch items from existing payouts
+  const items = [];
+  for (const payout of payouts) {
+    const seller = await db.query.users.findFirst({
+      where: eq(users.id, payout.sellerId),
+    });
+    
+    // Parse stored bank details from snapshot if available
+    let bankData = payout.bankDetailsSnapshot as Record<string, string> | null;
+    
+    if (!bankData) {
+      // Fall back to fetching from bankDetails
+      const bank = await db.query.bankDetails.findFirst({
+        where: and(
+          eq(bankDetails.userId, payout.sellerId),
+          eq(bankDetails.isDefault, true)
+        ),
+      });
+      if (bank) {
+        bankData = {
+          bankName: bank.bankName,
+          accountNumber: bank.accountNumber,
+          branchCode: bank.branchCode,
+          accountHolder: bank.accountHolder,
+          accountType: bank.accountType,
+        };
+      }
+    }
+    
+    items.push({
+      payoutId: payout.id,
+      sellerId: payout.sellerId,
+      sellerEmail: seller?.email || '',
+      sellerName: seller ? `${seller.firstName} ${seller.lastName}` : '',
+      amount: payout.amount,
+      amountRands: (payout.amount || 0) / 100,
+      currency: payout.currency || 'ZAR',
+      orderId: payout.orderId,
+      bankName: bankData?.bankName || '',
+      accountNumber: `****${(bankData?.accountNumber || '').slice(-4)}`,
+      accountNumberFull: bankData?.accountNumber || '',
+      branchCode: bankData?.branchCode || '',
+      accountHolder: bankData?.accountHolder || '',
+      accountType: bankData?.accountType || '',
+    });
+  }
+  
+  const batch = {
+    batchId,
+    createdAt: payouts[0].createdAt || new Date().toISOString(),
+    totalAmount: items.reduce((sum, i) => sum + i.amount, 0),
+    totalAmountRands: items.reduce((sum, i) => sum + i.amountRands, 0),
+    payoutCount: items.length,
+    items,
+  };
+  
+  const csv = generateBatchCSV(batch);
+  
+  return new Response(csv, {
+    headers: {
+      'Content-Type': 'text/csv',
+      'Content-Disposition': `attachment; filename="payout-batch-${batchId}.csv"`,
+    },
+  });
+});
+
+// Get batch status
+app.get('/payouts/batches/:batchId', async (c) => {
+  const { batchId } = c.req.param();
+  const db = c.get('db');
+  
+  const status = await getBatchStatus(db, batchId);
+  
+  if (!status) {
+    return c.json({
+      success: false,
+      error: { message: 'Batch not found' },
+    }, 404);
+  }
+  
+  return c.json({
+    success: true,
+    data: status,
+  });
+});
+
+// Confirm batch payouts after bank processing
+app.post('/payouts/batches/:batchId/confirm', validate(batchConfirmSchema), async (c) => {
+  const { batchId } = c.req.param();
+  const { confirmations } = getValidatedBody<z.infer<typeof batchConfirmSchema>>(c);
+  const db = c.get('db');
+  
+  const result = await confirmPayoutBatch(db, batchId, confirmations);
+  
+  return c.json({
+    success: result.success,
+    data: {
+      confirmedCount: result.confirmedCount,
+      failedCount: result.failedCount,
+      errors: result.errors,
+    },
+  });
+});
+
+// Mark batch payouts as failed
+app.post('/payouts/batches/:batchId/fail', validate(batchFailSchema), async (c) => {
+  const { batchId } = c.req.param();
+  const { reason, payoutIds } = getValidatedBody<z.infer<typeof batchFailSchema>>(c);
+  const db = c.get('db');
+  
+  const result = await failPayoutBatch(db, batchId, reason, payoutIds);
+  
+  return c.json({
+    success: true,
+    data: {
+      failedCount: result.failedCount,
+    },
   });
 });
 

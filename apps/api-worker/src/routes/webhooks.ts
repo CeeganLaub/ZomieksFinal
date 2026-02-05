@@ -1,13 +1,17 @@
 import { Hono } from 'hono';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
 import { 
   transactions, orders, escrowHolds, subscriptions, 
-  subscriptionPayments, sellerProfiles, users
+  subscriptionPayments, sellerProfiles, users, sellerPayouts
 } from '@zomieks/db';
 import { createId } from '@paralleldrive/cuid2';
 import type { Env } from '../types';
+import { DEFAULT_FEE_POLICY } from '../services/fee-engine';
 
 const app = new Hono<{ Bindings: Env }>();
+
+// Reserve period for payouts (days)
+const RESERVE_DAYS = DEFAULT_FEE_POLICY.reserveDays;
 
 // PayFast Webhook Handler
 app.post('/payments/payfast', async (c) => {
@@ -47,46 +51,147 @@ app.post('/payments/payfast', async (c) => {
     return c.text('Invalid source', 403);
   }
   
-  const paymentId = data.m_payment_id;
+  const orderId = data.m_payment_id;
   const status = data.payment_status;
-  const amountGross = Math.round(parseFloat(data.amount_gross) * 100);
+  const pfPaymentId = data.pf_payment_id;
   
-  // Find transaction
-  const transaction = await db.query.transactions.findFirst({
-    where: eq(transactions.id, paymentId),
+  // Parse amounts from ITN (in Rands, convert to cents)
+  const amountGross = Math.round(parseFloat(data.amount_gross) * 100);
+  const amountFee = Math.round(parseFloat(data.amount_fee || '0') * 100);
+  const amountNet = Math.round(parseFloat(data.amount_net || data.amount_gross) * 100);
+  
+  // Find order by m_payment_id (order ID)
+  const order = await db.query.orders.findFirst({
+    where: eq(orders.id, orderId),
+    with: { seller: true, buyer: true },
   });
   
-  if (!transaction) {
-    console.error('Transaction not found:', paymentId);
-    return c.text('Transaction not found', 404);
+  if (!order) {
+    console.error('Order not found:', orderId);
+    return c.text('Order not found', 404);
+  }
+  
+  // CRITICAL: Verify amount matches expected gross
+  const expectedGross = order.grossAmount ?? order.totalAmount ?? 0;
+  if (amountGross !== expectedGross) {
+    console.error(`Amount mismatch: received ${amountGross}, expected ${expectedGross}`);
+    return c.text('Amount mismatch', 400);
+  }
+  
+  // Idempotency: Check if we already processed this payment
+  const existingTransaction = await db.query.transactions.findFirst({
+    where: eq(transactions.gatewayRef, pfPaymentId),
+  });
+  
+  if (existingTransaction) {
+    console.log('Transaction already processed, returning OK');
+    return c.text('OK', 200);
   }
   
   const now = new Date().toISOString();
   
   if (status === 'COMPLETE') {
-    // Update transaction
-    await db.update(transactions)
+    // Create transaction with gateway-aware fields
+    const transactionId = createId();
+    await db.insert(transactions).values({
+      id: transactionId,
+      orderId: order.id,
+      userId: order.buyerId,
+      type: 'PAYMENT',
+      status: 'COMPLETED',
+      gateway: 'PAYFAST',
+      gatewayMethod: 'UNKNOWN', // PayFast doesn't indicate in ITN
+      gatewayRef: pfPaymentId,
+      // Amounts from ITN
+      grossAmount: amountGross,
+      gatewayFee: amountFee,
+      netAmount: amountNet,
+      // Fee snapshots from order
+      baseAmount: order.baseAmount,
+      buyerPlatformFee: order.buyerPlatformFee ?? 0,
+      buyerProcessingFee: order.buyerProcessingFee ?? 0,
+      sellerPlatformFee: order.sellerPlatformFee ?? 0,
+      platformRevenue: order.platformRevenue ?? 0,
+      sellerPayoutAmount: order.sellerPayoutAmount ?? 0,
+      currency: 'ZAR',
+      rawPayload: data,
+      paidAt: now,
+    });
+    
+    // Update order status to PAID (or IN_PROGRESS if you want)
+    await db.update(orders)
       .set({
-        status: 'COMPLETED',
-        providerReference: data.pf_payment_id,
-        metadata: { ...transaction.metadata, payfastData: data },
+        status: 'PAID',
+        paidAt: now,
         updatedAt: now,
       })
-      .where(eq(transactions.id, paymentId));
+      .where(eq(orders.id, order.id));
     
-    // Process based on transaction type
-    if (transaction.type === 'PAYMENT') {
-      await processOrderPayment(db, env, transaction, amountGross, now);
-    } else if (transaction.type === 'SUBSCRIPTION') {
-      await processSubscriptionPayment(db, env, transaction, amountGross, now);
+    // Create escrow hold with net-aware fields
+    await db.insert(escrowHolds).values({
+      id: createId(),
+      transactionId,
+      orderId: order.id,
+      // Amounts from ITN
+      grossAmount: amountGross,
+      gatewayFee: amountFee,
+      netAmount: amountNet,
+      // Fee snapshots
+      baseAmount: order.baseAmount,
+      buyerPlatformFee: order.buyerPlatformFee ?? 0,
+      buyerProcessingFee: order.buyerProcessingFee ?? 0,
+      sellerPlatformFee: order.sellerPlatformFee ?? 0,
+      platformRevenue: order.platformRevenue ?? 0,
+      sellerPayoutAmount: order.sellerPayoutAmount ?? 0,
+      // Legacy fields
+      amount: amountGross,
+      sellerAmount: order.sellerPayoutAmount ?? 0,
+      sellerId: order.sellerId,
+      status: 'HELD',
+      heldAt: now,
+    });
+    
+    // Update seller's escrow balance using SQL expression
+    const sellerPayoutAmt = order.sellerPayoutAmount ?? 0;
+    await db.update(sellerProfiles)
+      .set({
+        escrowBalance: sql`escrow_balance + ${sellerPayoutAmt}`,
+      })
+      .where(eq(sellerProfiles.userId, order.sellerId));
+    
+    // Send notifications
+    try {
+      await env.NOTIFICATION_QUEUE.send({
+        type: 'order_paid',
+        orderId: order.id,
+        buyerId: order.buyerId,
+        sellerId: order.sellerId,
+      });
+      
+      const seller = order.seller as { email?: string } | null;
+      if (seller?.email) {
+        await env.EMAIL_QUEUE.send({
+          type: 'new_order',
+          to: seller.email,
+          data: {
+            orderNumber: order.orderNumber,
+            amount: (order.sellerPayoutAmount ?? 0) / 100,
+          },
+        });
+      }
+    } catch (err) {
+      console.error('Failed to send notifications:', err);
     }
   } else if (status === 'FAILED' || status === 'CANCELLED') {
-    await db.update(transactions)
+    // Update order status
+    await db.update(orders)
       .set({
-        status: status === 'FAILED' ? 'FAILED' : 'CANCELLED',
+        status: 'CANCELLED',
+        cancelReason: `Payment ${status.toLowerCase()}`,
+        cancelledAt: now,
         updatedAt: now,
       })
-      .where(eq(transactions.id, paymentId));
+      .where(eq(orders.id, order.id));
   }
   
   return c.text('OK', 200);
@@ -112,160 +217,156 @@ app.post('/payments/ozow', async (c) => {
     return c.json({ error: 'Invalid hash' }, 400);
   }
   
-  const transactionRef = data.TransactionReference;
+  const transactionRef = data.TransactionReference; // This is our transaction ID
+  const ozowTxId = data.TransactionId; // Ozow's transaction ID
   const status = data.Status;
   const amountPaid = Math.round(parseFloat(data.Amount) * 100);
   
-  // Find transaction
-  const transaction = await db.query.transactions.findFirst({
+  // Find the pending transaction we created during payment initiation
+  const pendingTx = await db.query.transactions.findFirst({
     where: eq(transactions.id, transactionRef),
   });
   
-  if (!transaction) {
+  if (!pendingTx || !pendingTx.orderId) {
     console.error('Transaction not found:', transactionRef);
     return c.json({ error: 'Transaction not found' }, 404);
+  }
+  
+  // Find the order
+  const order = await db.query.orders.findFirst({
+    where: eq(orders.id, pendingTx.orderId),
+    with: { seller: true, buyer: true },
+  });
+  
+  if (!order) {
+    console.error('Order not found:', pendingTx.orderId);
+    return c.json({ error: 'Order not found' }, 404);
+  }
+  
+  // Verify amount matches expected gross
+  const expectedGross = order.grossAmount ?? order.totalAmount ?? 0;
+  if (amountPaid !== expectedGross) {
+    console.error(`Amount mismatch: received ${amountPaid}, expected ${expectedGross}`);
+    return c.json({ error: 'Amount mismatch' }, 400);
+  }
+  
+  // Idempotency: Check if already processed
+  if (pendingTx.status === 'COMPLETED') {
+    console.log('Transaction already processed, returning OK');
+    return c.json({ success: true });
   }
   
   const now = new Date().toISOString();
   
   if (status === 'Complete') {
+    // Ozow doesn't provide net/fee breakdown - we estimate
+    // For EFT, estimate ~2% + R1.50 fee with VAT
+    const estimatedFee = Math.round(amountPaid * 0.02 * 1.15 + 150 * 1.15);
+    const estimatedNet = amountPaid - estimatedFee;
+    
+    // Update the transaction
     await db.update(transactions)
       .set({
         status: 'COMPLETED',
-        providerReference: data.TransactionId,
-        metadata: { ...transaction.metadata, ozowData: data },
+        gatewayRef: ozowTxId,
+        gatewayMethod: 'EFT',
+        grossAmount: amountPaid,
+        gatewayFee: estimatedFee,
+        netAmount: estimatedNet,
+        // Fee snapshots
+        baseAmount: order.baseAmount,
+        buyerPlatformFee: order.buyerPlatformFee ?? 0,
+        buyerProcessingFee: order.buyerProcessingFee ?? 0,
+        sellerPlatformFee: order.sellerPlatformFee ?? 0,
+        platformRevenue: order.platformRevenue ?? 0,
+        sellerPayoutAmount: order.sellerPayoutAmount ?? 0,
+        rawPayload: data,
+        paidAt: now,
         updatedAt: now,
       })
       .where(eq(transactions.id, transactionRef));
     
-    if (transaction.type === 'PAYMENT') {
-      await processOrderPayment(db, env, transaction, amountPaid, now);
-    } else if (transaction.type === 'SUBSCRIPTION') {
-      await processSubscriptionPayment(db, env, transaction, amountPaid, now);
+    // Update order status
+    await db.update(orders)
+      .set({
+        status: 'PAID',
+        paidAt: now,
+        updatedAt: now,
+      })
+      .where(eq(orders.id, order.id));
+    
+    // Create escrow hold
+    await db.insert(escrowHolds).values({
+      id: createId(),
+      transactionId: transactionRef,
+      orderId: order.id,
+      grossAmount: amountPaid,
+      gatewayFee: estimatedFee,
+      netAmount: estimatedNet,
+      baseAmount: order.baseAmount,
+      buyerPlatformFee: order.buyerPlatformFee ?? 0,
+      buyerProcessingFee: order.buyerProcessingFee ?? 0,
+      sellerPlatformFee: order.sellerPlatformFee ?? 0,
+      platformRevenue: order.platformRevenue ?? 0,
+      sellerPayoutAmount: order.sellerPayoutAmount ?? 0,
+      amount: amountPaid,
+      sellerAmount: order.sellerPayoutAmount ?? 0,
+      sellerId: order.sellerId,
+      status: 'HELD',
+      heldAt: now,
+    });
+    
+    // Update seller escrow balance
+    const sellerPayoutAmt2 = order.sellerPayoutAmount ?? 0;
+    await db.update(sellerProfiles)
+      .set({
+        escrowBalance: sql`escrow_balance + ${sellerPayoutAmt2}`,
+      })
+      .where(eq(sellerProfiles.userId, order.sellerId));
+    
+    // Send notifications
+    try {
+      await env.NOTIFICATION_QUEUE.send({
+        type: 'order_paid',
+        orderId: order.id,
+        buyerId: order.buyerId,
+        sellerId: order.sellerId,
+      });
+      
+      const seller2 = order.seller as { email?: string } | null;
+      if (seller2?.email) {
+        await env.EMAIL_QUEUE.send({
+          type: 'new_order',
+          to: seller2.email,
+          data: {
+            orderNumber: order.orderNumber,
+            amount: (order.sellerPayoutAmount ?? 0) / 100,
+          },
+        });
+      }
+    } catch (err) {
+      console.error('Failed to send notifications:', err);
     }
   } else if (status === 'Error' || status === 'Cancelled' || status === 'Abandoned') {
     await db.update(transactions)
       .set({
-        status: status === 'Error' ? 'FAILED' : 'CANCELLED',
+        status: status === 'Error' ? 'FAILED' : 'FAILED', // Use FAILED since CANCELLED not in enum
         updatedAt: now,
       })
       .where(eq(transactions.id, transactionRef));
+    
+    await db.update(orders)
+      .set({
+        status: 'CANCELLED',
+        cancelReason: `Payment ${status.toLowerCase()}`,
+        cancelledAt: now,
+        updatedAt: now,
+      })
+      .where(eq(orders.id, order.id));
   }
   
   return c.json({ success: true });
 });
-
-// Helper: Process order payment
-async function processOrderPayment(db: any, env: Env, transaction: any, amountPaid: number, now: string) {
-  const metadata = transaction.metadata as { orderId?: string };
-  if (!metadata?.orderId) return;
-  
-  const order = await db.query.orders.findFirst({
-    where: eq(orders.id, metadata.orderId),
-    with: { seller: true },
-  });
-  
-  if (!order) return;
-  
-  // Calculate fees
-  const buyerFee = Math.round(amountPaid * 0.03);
-  const sellerFee = Math.round((amountPaid - buyerFee) * 0.08);
-  const sellerAmount = amountPaid - buyerFee - sellerFee;
-  const platformFee = buyerFee + sellerFee;
-  
-  // Update order
-  await db.update(orders)
-    .set({
-      paymentStatus: 'PAID',
-      status: 'IN_PROGRESS',
-      buyerFee,
-      platformFee,
-      sellerAmount,
-      paidAt: now,
-      updatedAt: now,
-    })
-    .where(eq(orders.id, order.id));
-  
-  // Create escrow hold
-  await db.insert(escrowHolds).values({
-    id: createId(),
-    orderId: order.id,
-    sellerId: order.sellerId,
-    amount: amountPaid,
-    sellerAmount,
-    platformFee,
-    status: 'HELD',
-    createdAt: now,
-    updatedAt: now,
-  });
-  
-  // Send notifications
-  await env.NOTIFICATION_QUEUE.send({
-    type: 'order_paid',
-    orderId: order.id,
-    buyerId: order.buyerId,
-    sellerId: order.sellerId,
-  });
-  
-  // Send email to seller
-  if (order.seller?.email) {
-    await env.EMAIL_QUEUE.send({
-      type: 'new_order',
-      to: order.seller.email,
-      data: {
-        orderNumber: order.orderNumber,
-        amount: sellerAmount / 100,
-      },
-    });
-  }
-}
-
-// Helper: Process subscription payment
-async function processSubscriptionPayment(db: any, env: Env, transaction: any, amountPaid: number, now: string) {
-  const metadata = transaction.metadata as { subscriptionId?: string; tierId?: string };
-  if (!metadata?.subscriptionId) return;
-  
-  const subscription = await db.query.subscriptions.findFirst({
-    where: eq(subscriptions.id, metadata.subscriptionId),
-    with: { user: true },
-  });
-  
-  if (!subscription) return;
-  
-  // Activate subscription
-  await db.update(subscriptions)
-    .set({
-      status: 'ACTIVE',
-      updatedAt: now,
-    })
-    .where(eq(subscriptions.id, subscription.id));
-  
-  // Create payment record
-  await db.insert(subscriptionPayments).values({
-    id: createId(),
-    subscriptionId: subscription.id,
-    userId: subscription.userId,
-    amount: amountPaid,
-    currency: 'ZAR',
-    status: 'PAID',
-    periodStart: subscription.currentPeriodStart,
-    periodEnd: subscription.currentPeriodEnd,
-    paidAt: now,
-    createdAt: now,
-    updatedAt: now,
-  });
-  
-  // Send welcome email
-  if (subscription.user?.email) {
-    await env.EMAIL_QUEUE.send({
-      type: 'subscription_activated',
-      to: subscription.user.email,
-      data: {
-        name: subscription.user.firstName || subscription.user.username,
-      },
-    });
-  }
-}
 
 // Subscription renewal webhook (PayFast recurring)
 app.post('/subscription/payfast', async (c) => {
