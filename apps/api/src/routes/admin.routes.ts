@@ -124,7 +124,7 @@ router.get('/users', async (req, res, next) => {
           isSuspended: true,
           createdAt: true,
           _count: {
-            select: { ordersAsBuyer: true, ordersAsSeller: true },
+            select: { buyerOrders: true, sellerOrders: true },
           },
         },
       }),
@@ -155,9 +155,7 @@ router.post('/users/:id/suspend', async (req, res, next) => {
       where: { id: req.params.id },
       data: {
         isSuspended: true,
-        suspendedAt: new Date(),
-        suspendReason: reason,
-        suspendedUntil: duration ? new Date(Date.now() + duration * 24 * 60 * 60 * 1000) : null,
+        suspendedReason: reason,
       },
     });
 
@@ -174,9 +172,7 @@ router.post('/users/:id/unsuspend', async (req, res, next) => {
       where: { id: req.params.id },
       data: {
         isSuspended: false,
-        suspendedAt: null,
-        suspendReason: null,
-        suspendedUntil: null,
+        suspendedReason: null,
       },
     });
 
@@ -192,7 +188,7 @@ router.get('/orders', async (req, res, next) => {
     const { status, startDate, endDate, page = '1', limit = '20' } = req.query;
 
     const where: any = {};
-    if (status) where.status = status;
+    if (status) where.status = status as string;
     if (startDate || endDate) {
       where.createdAt = {};
       if (startDate) where.createdAt.gte = new Date(startDate as string);
@@ -304,7 +300,7 @@ router.get('/payouts', async (req, res, next) => {
     const { status, page = '1', limit = '20' } = req.query;
 
     const where: any = {};
-    if (status) where.status = status;
+    if (status) where.status = status as string;
 
     const [payouts, total] = await Promise.all([
       prisma.sellerPayout.findMany({
@@ -317,7 +313,7 @@ router.get('/payouts', async (req, res, next) => {
             select: {
               username: true,
               email: true,
-              bankDetails: { where: { isDefault: true } },
+              bankDetails: true,
             },
           },
         },
@@ -349,8 +345,8 @@ router.post('/payouts/:id/process', async (req, res, next) => {
       where: { id: req.params.id },
       data: {
         status: 'COMPLETED',
-        completedAt: new Date(),
-        gatewayReference,
+        processedAt: new Date(),
+        bankReference: gatewayReference,
       },
     });
 

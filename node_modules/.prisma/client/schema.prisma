@@ -1,4 +1,4 @@
-// Prisma Schema for Kiekz - Freelance Marketplace Platform
+// Prisma Schema for Zomieks - Freelance Marketplace Platform
 // Includes: Users, Services, Orders, Subscriptions, Payments, Chat/CRM
 
 generator client {

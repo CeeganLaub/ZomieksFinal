@@ -102,6 +102,7 @@ router.get('/initiate-subscription', authenticate, async (req, res, next) => {
 
     const { createPayFastSubscription } = await import('@/services/payment.service.js');
     const paymentUrl = await createPayFastSubscription({
+      paymentId: subscription.id,
       subscriptionId: subscription.id,
       amount: Number(subscription.tier.price),
       itemName: `${subscription.service.title} - ${subscription.tier.name}`,

@@ -14,7 +14,7 @@ export async function calculateLeadScore(conversationId: string): Promise<number
         orderBy: { createdAt: 'desc' },
         take: 50,
       },
-      orders: true,
+      order: true,
       buyer: true,
     },
   });
@@ -39,10 +39,9 @@ export async function calculateLeadScore(conversationId: string): Promise<number
   }
 
   // Order history score (max 30 points)
-  const completedOrders = conversation.orders.filter(o => o.status === 'COMPLETED').length;
-  const totalOrderValue = conversation.orders
-    .filter(o => o.status === 'COMPLETED')
-    .reduce((sum, o) => sum + Number(o.totalAmount), 0);
+  const completedOrders = conversation.order?.status === 'COMPLETED' ? 1 : 0;
+  const totalOrderValue = conversation.order?.status === 'COMPLETED'
+    ? Number(conversation.order.totalAmount) : 0;
   
   score += Math.min(completedOrders * 5, 15);
   if (totalOrderValue > 10000) score += 15;
@@ -59,7 +58,7 @@ export async function calculateLeadScore(conversationId: string): Promise<number
   }
 
   // Engagement signals
-  const buyerMessageCount = conversation.messages.filter(m => m.senderId === conversation.buyerId).length;
+  const buyerMessageCount = conversation.messages.filter((m: { senderId: string }) => m.senderId === conversation.buyerId).length;
   const buyerEngagementRatio = messageCount > 0 ? buyerMessageCount / messageCount : 0;
   if (buyerEngagementRatio > 0.4) score += 10;
 
@@ -226,7 +225,7 @@ export async function executeAutoTrigger(
       await prisma.activity.create({
         data: {
           conversationId: context.conversationId,
-          userId: trigger.userId,
+          performedBy: trigger.userId,
           action: 'STAGE_CHANGED',
           data: { stageId: newStageId, automated: true },
         },

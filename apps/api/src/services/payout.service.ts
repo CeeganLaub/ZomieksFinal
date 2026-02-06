@@ -9,13 +9,13 @@ export async function processWeeklyPayouts(): Promise<void> {
     where: { status: 'PENDING' },
     include: {
       seller: {
-        include: { bankDetails: { where: { isDefault: true } } },
+        include: { bankDetails: true },
       },
     },
   });
 
   for (const payout of pendingPayouts) {
-    const bankDetails = payout.seller.bankDetails[0];
+    const bankDetails = payout.seller.bankDetails;
     
     if (!bankDetails) {
       // Mark as failed - no bank details
@@ -23,7 +23,7 @@ export async function processWeeklyPayouts(): Promise<void> {
         where: { id: payout.id },
         data: {
           status: 'FAILED',
-          failureReason: 'No bank details on file',
+          failedReason: 'No bank details on file',
         },
       });
 
@@ -54,8 +54,8 @@ export async function processWeeklyPayouts(): Promise<void> {
         where: { id: payout.id },
         data: {
           status: 'COMPLETED',
-          completedAt: new Date(),
-          gatewayReference: payoutReference,
+          processedAt: new Date(),
+          bankReference: payoutReference,
         },
       });
 
@@ -73,7 +73,7 @@ export async function processWeeklyPayouts(): Promise<void> {
         where: { id: payout.id },
         data: {
           status: 'FAILED',
-          failureReason: error instanceof Error ? error.message : 'Unknown error',
+          failedReason: error instanceof Error ? error.message : 'Unknown error',
         },
       });
 

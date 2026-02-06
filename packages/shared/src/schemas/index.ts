@@ -11,7 +11,7 @@ import {
   PAYMENT_GATEWAY,
   PRICING_TYPE,
   PACKAGE_TIER,
-} from '../constants';
+} from '../constants/index.js';
 
 // ============ Auth Schemas ============
 

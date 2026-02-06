@@ -10,7 +10,7 @@ const router = Router();
 router.get('/:username', optionalAuth, async (req, res, next) => {
   try {
     const user = await prisma.user.findUnique({
-      where: { username: req.params.username.toLowerCase() },
+      where: { username: (req.params.username as string).toLowerCase() },
       select: {
         id: true,
         username: true,

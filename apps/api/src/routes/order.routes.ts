@@ -12,7 +12,7 @@ router.get('/buying', authenticate, async (req, res, next) => {
     const { status, page = '1', limit = '20' } = req.query;
 
     const where: any = { buyerId: req.user!.id };
-    if (status) where.status = status;
+    if (status) where.status = status as string;
 
     const [orders, total] = await Promise.all([
       prisma.order.findMany({
@@ -54,7 +54,7 @@ router.get('/selling', authenticate, async (req, res, next) => {
     const { status, page = '1', limit = '20' } = req.query;
 
     const where: any = { sellerId: req.user!.id };
-    if (status) where.status = status;
+    if (status) where.status = status as string;
 
     const [orders, total] = await Promise.all([
       prisma.order.findMany({
@@ -95,7 +95,7 @@ router.get('/:id', authenticate, async (req, res, next) => {
   try {
     const order = await prisma.order.findFirst({
       where: {
-        id: req.params.id,
+        id: req.params.id as string,
         OR: [
           { buyerId: req.user!.id },
           { sellerId: req.user!.id },
@@ -255,7 +255,7 @@ router.post(
     try {
       const order = await prisma.order.findFirst({
         where: {
-          id: req.params.id,
+          id: req.params.id as string,
           sellerId: req.user!.id,
           status: { in: ['IN_PROGRESS', 'REVISION_REQUESTED'] },
         },
@@ -301,7 +301,7 @@ router.post(
     try {
       const order = await prisma.order.findFirst({
         where: {
-          id: req.params.id,
+          id: req.params.id as string,
           buyerId: req.user!.id,
           status: 'DELIVERED',
         },
@@ -349,7 +349,7 @@ router.post('/:id/accept', authenticate, async (req, res, next) => {
   try {
     const order = await prisma.order.findFirst({
       where: {
-        id: req.params.id,
+        id: req.params.id as string,
         buyerId: req.user!.id,
         status: 'DELIVERED',
       },
@@ -386,7 +386,7 @@ router.post('/:id/cancel', authenticate, async (req, res, next) => {
   try {
     const order = await prisma.order.findFirst({
       where: {
-        id: req.params.id,
+        id: req.params.id as string,
         OR: [
           { buyerId: req.user!.id },
           { sellerId: req.user!.id },
@@ -427,16 +427,16 @@ router.post('/:id/dispute', authenticate, async (req, res, next) => {
   try {
     const { reason, description } = req.body;
     
-    if (!reason || !description) {
+    if (!reason) {
       return res.status(400).json({
         success: false,
-        error: { code: 'VALIDATION_ERROR', message: 'Reason and description are required' },
+        error: { code: 'VALIDATION_ERROR', message: 'Reason is required' },
       });
     }
     
     const order = await prisma.order.findFirst({
       where: {
-        id: req.params.id,
+        id: req.params.id as string,
         OR: [
           { buyerId: req.user!.id },
           { sellerId: req.user!.id },
@@ -471,9 +471,8 @@ router.post('/:id/dispute', authenticate, async (req, res, next) => {
       prisma.dispute.create({
         data: {
           orderId: order.id,
-          raisedById: req.user!.id,
-          reason,
-          description,
+          raisedBy: req.user!.id,
+          reason: description ? `${reason}: ${description}` : reason,
           status: 'OPEN',
         },
       }),
@@ -484,7 +483,7 @@ router.post('/:id/dispute', authenticate, async (req, res, next) => {
         },
       }),
       // Put escrow on hold (update status to DISPUTED)
-      ...order.escrowHolds.map(hold => 
+      ...order.escrowHolds.map((hold: { id: string }) => 
         prisma.escrowHold.update({
           where: { id: hold.id },
           data: { status: 'DISPUTED' }
@@ -513,7 +512,7 @@ router.get('/:id/dispute', authenticate, async (req, res, next) => {
   try {
     const order = await prisma.order.findFirst({
       where: {
-        id: req.params.id,
+        id: req.params.id as string,
         OR: [
           { buyerId: req.user!.id },
           { sellerId: req.user!.id },
@@ -530,14 +529,6 @@ router.get('/:id/dispute', authenticate, async (req, res, next) => {
     
     const dispute = await prisma.dispute.findFirst({
       where: { orderId: order.id },
-      include: {
-        raisedBy: {
-          select: { id: true, username: true, firstName: true, lastName: true }
-        },
-        resolvedBy: {
-          select: { id: true, username: true, firstName: true, lastName: true }
-        }
-      },
       orderBy: { createdAt: 'desc' }
     });
 

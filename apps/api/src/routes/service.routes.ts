@@ -167,8 +167,8 @@ router.get('/:username/:slug', optionalAuth, async (req, res, next) => {
 
     const service = await prisma.service.findFirst({
       where: {
-        slug,
-        seller: { username: username.toLowerCase() },
+        slug: slug as string,
+        seller: { username: (username as string).toLowerCase() },
         isActive: true,
       },
       include: {
@@ -291,7 +291,7 @@ router.post(
   validate(servicePackageSchema),
   async (req, res, next) => {
     try {
-      const { serviceId } = req.params;
+      const serviceId = req.params.serviceId as string;
 
       // Verify ownership
       const service = await prisma.service.findFirst({
@@ -331,7 +331,7 @@ router.post(
   validate(subscriptionTierSchema),
   async (req, res, next) => {
     try {
-      const { serviceId } = req.params;
+      const serviceId = req.params.serviceId as string;
 
       const service = await prisma.service.findFirst({
         where: { id: serviceId, sellerId: req.user!.id },
@@ -345,11 +345,11 @@ router.post(
       }
 
       // Map interval to PayFast frequency
-      const payFastFrequency = {
+      const payFastFrequency = ({
         MONTHLY: 3,
         QUARTERLY: 4,
         YEARLY: 6,
-      }[req.body.interval];
+      } as Record<string, number>)[req.body.interval];
 
       const tier = await prisma.subscriptionTier.create({
         data: {

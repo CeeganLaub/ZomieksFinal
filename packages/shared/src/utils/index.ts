@@ -1,4 +1,4 @@
-import { PLATFORM_FEES } from '../constants';
+import { PLATFORM_FEES } from '../constants/index.js';
 
 /**
  * Calculate fees for an order

@@ -1,4 +1,4 @@
-import Redis from 'ioredis';
+import { Redis } from 'ioredis';
 import { env } from '@/config/env.js';
 import { logger } from '@/lib/logger.js';
 
@@ -11,7 +11,7 @@ redis.on('connect', () => {
   logger.info('Redis connected');
 });
 
-redis.on('error', (err) => {
+redis.on('error', (err: Error) => {
   logger.error('Redis error:', err);
 });
 

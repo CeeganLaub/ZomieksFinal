@@ -25,8 +25,8 @@ router.get('/', authenticate, async (req, res, next) => {
       ? { sellerId: req.user!.id }
       : { buyerId: req.user!.id };
 
-    if (status) where.status = status;
-    if (pipelineStageId) where.pipelineStageId = pipelineStageId;
+    if (status) where.status = status as string;
+    if (pipelineStageId) where.pipelineStageId = pipelineStageId as string;
     if (labelId) where.labels = { some: { labelId: labelId as string } };
 
     const [conversations, total] = await Promise.all([
@@ -77,7 +77,7 @@ router.get('/:id', authenticate, async (req, res, next) => {
   try {
     const conversation = await prisma.conversation.findFirst({
       where: {
-        id: req.params.id,
+        id: req.params.id as string,
         OR: [
           { buyerId: req.user!.id },
           { sellerId: req.user!.id },
@@ -120,7 +120,7 @@ router.get('/:id', authenticate, async (req, res, next) => {
 
     // Get messages separately with pagination
     const messages = await prisma.message.findMany({
-      where: { conversationId: req.params.id },
+      where: { conversationId: req.params.id as string },
       orderBy: { createdAt: 'desc' },
       take: 50,
       include: {
@@ -244,7 +244,7 @@ router.patch(
   async (req, res, next) => {
     try {
       const conversation = await prisma.conversation.findFirst({
-        where: { id: req.params.id, sellerId: req.user!.id },
+        where: { id: req.params.id as string, sellerId: req.user!.id },
       });
 
       if (!conversation) {
@@ -463,7 +463,7 @@ router.post(
   async (req, res, next) => {
     try {
       const conversation = await prisma.conversation.findFirst({
-        where: { id: req.params.id, sellerId: req.user!.id },
+        where: { id: req.params.id as string, sellerId: req.user!.id },
       });
 
       if (!conversation) {

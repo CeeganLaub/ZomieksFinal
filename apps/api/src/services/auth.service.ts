@@ -186,13 +186,13 @@ export const authService = {
     const accessToken = jwt.sign(
       { userId, type: 'access' } as JwtPayload,
       env.JWT_ACCESS_SECRET,
-      { expiresIn: env.JWT_ACCESS_EXPIRES_IN }
+      { expiresIn: env.JWT_ACCESS_EXPIRES_IN } as jwt.SignOptions
     );
     
     const refreshToken = jwt.sign(
       { userId, type: 'refresh' } as JwtPayload,
       env.JWT_REFRESH_SECRET,
-      { expiresIn: env.JWT_REFRESH_EXPIRES_IN }
+      { expiresIn: env.JWT_REFRESH_EXPIRES_IN } as jwt.SignOptions
     );
     
     // Store refresh token
