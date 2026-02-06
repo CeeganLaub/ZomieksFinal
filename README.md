@@ -15,7 +15,7 @@ A full-stack freelance marketplace platform built with a monorepo architecture u
 - **Framer Motion** for animations
 
 ### Backend (`apps/api`)
-- **Node.js 20+** with Express 4
+- **Node.js 20+** with Express 4.x
 - **TypeScript 5**
 - **Prisma 6** ORM with PostgreSQL
 - **Redis** (ioredis) for caching, sessions, and rate limiting
