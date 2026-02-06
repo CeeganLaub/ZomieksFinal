@@ -307,7 +307,7 @@ export default function ConversationPage() {
                 <span className="mx-1">·</span>
                 You earn: <span className="font-medium text-green-600">R{(parseFloat(offerData.price) * 0.92).toFixed(2)}</span>
                 <span className="mx-1">·</span>
-                <span className="text-muted-foreground">3% buyer fee · 8% service fee</span>
+                <span className="text-muted-foreground">Fees applied at checkout</span>
               </div>
             )}
             <button

@@ -629,13 +629,23 @@ router.post(
       // Calculate fees using shared utility
       const fees = calculateOrderFees(offer.price);
 
+      // Find seller's active service for the order linkage
+      const sellerService = await prisma.service.findFirst({ where: { sellerId: conversation.sellerId, isActive: true } });
+
+      if (!sellerService) {
+        return res.status(400).json({
+          success: false,
+          error: { code: 'NO_SERVICE', message: 'Seller has no active service to link this order to' },
+        });
+      }
+
       // Create order from the offer
       const order = await prisma.order.create({
         data: {
           orderNumber: generateOrderNumber(),
           buyerId: req.user!.id,
           sellerId: conversation.sellerId,
-          serviceId: (await prisma.service.findFirst({ where: { sellerId: conversation.sellerId, isActive: true } }))?.id || '',
+          serviceId: sellerService.id,
           baseAmount: fees.baseAmount,
           buyerFee: fees.buyerFee,
           totalAmount: fees.totalAmount,
