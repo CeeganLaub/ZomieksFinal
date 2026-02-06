@@ -209,6 +209,19 @@ export const createNoteSchema = z.object({
   isPinned: z.boolean().default(false),
 });
 
+// ============ Custom Offer Schemas ============
+
+export const createCustomOfferSchema = z.object({
+  description: z.string().min(10, 'Description must be at least 10 characters').max(2000),
+  price: z.number().min(50, 'Minimum price is R50'),
+  deliveryDays: z.number().int().min(1, 'Minimum 1 day').max(90, 'Maximum 90 days'),
+  revisions: z.number().int().min(0).max(99).default(0),
+});
+
+export const acceptOfferSchema = z.object({
+  paymentGateway: z.enum([PAYMENT_GATEWAY.PAYFAST, PAYMENT_GATEWAY.OZOW]),
+});
+
 // ============ Payment Schemas ============
 
 export const initiatePaymentSchema = z.object({
@@ -237,3 +250,5 @@ export type CreateSavedReplyInput = z.infer<typeof createSavedReplySchema>;
 export type CreateAutoTriggerInput = z.infer<typeof createAutoTriggerSchema>;
 export type CreateNoteInput = z.infer<typeof createNoteSchema>;
 export type InitiatePaymentInput = z.infer<typeof initiatePaymentSchema>;
+export type CreateCustomOfferInput = z.infer<typeof createCustomOfferSchema>;
+export type AcceptOfferInput = z.infer<typeof acceptOfferSchema>;

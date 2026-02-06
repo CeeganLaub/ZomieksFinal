@@ -11,6 +11,11 @@ import {
   createSavedReplySchema,
   createAutoTriggerSchema,
   createNoteSchema,
+  createCustomOfferSchema,
+  acceptOfferSchema,
+  calculateOrderFees,
+  generateOrderNumber,
+  calculateDeliveryDueDate,
 } from '@zomieks/shared';
 
 const router = Router();
@@ -486,6 +491,294 @@ router.post(
       });
 
       res.status(201).json({ success: true, data: { note } });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// === CUSTOM OFFER ENDPOINTS ===
+
+// Send custom offer (seller only)
+router.post(
+  '/:id/offer',
+  authenticate,
+  requireSeller,
+  validate(createCustomOfferSchema),
+  async (req, res, next) => {
+    try {
+      const conversation = await prisma.conversation.findFirst({
+        where: { id: req.params.id as string, sellerId: req.user!.id },
+        include: {
+          buyer: { select: { id: true, username: true, firstName: true } },
+        },
+      });
+
+      if (!conversation) {
+        return res.status(404).json({
+          success: false,
+          error: { code: 'NOT_FOUND', message: 'Conversation not found' },
+        });
+      }
+
+      const { description, price, deliveryDays, revisions } = req.body;
+
+      // Calculate fees so buyer can see the total
+      const fees = calculateOrderFees(price);
+
+      const quickOffer = {
+        description,
+        price,
+        deliveryDays,
+        revisions: revisions || 0,
+        buyerFee: fees.buyerFee,
+        totalAmount: fees.totalAmount,
+        status: 'PENDING',
+      };
+
+      // Create message with QUICK_OFFER type
+      const message = await prisma.message.create({
+        data: {
+          conversationId: conversation.id,
+          senderId: req.user!.id,
+          content: `Custom offer: ${description}`,
+          type: 'QUICK_OFFER',
+          quickOffer,
+          deliveredAt: new Date(),
+        },
+        include: {
+          sender: { select: { id: true, username: true, firstName: true, avatar: true } },
+        },
+      });
+
+      // Update conversation
+      await prisma.conversation.update({
+        where: { id: conversation.id },
+        data: {
+          lastMessageAt: new Date(),
+          unreadBuyerCount: { increment: 1 },
+        },
+      });
+
+      // Notify buyer
+      const { notificationQueue } = await import('@/lib/queue.js');
+      await notificationQueue.add('notification', {
+        userId: conversation.buyerId,
+        type: 'CUSTOM_OFFER',
+        title: 'New Custom Offer',
+        message: `You received a custom offer for R${price.toFixed(2)}`,
+        data: { conversationId: conversation.id, messageId: message.id },
+      });
+
+      res.status(201).json({ success: true, data: { message } });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// Accept custom offer (buyer creates order from offer)
+router.post(
+  '/:id/offer/:messageId/accept',
+  authenticate,
+  validate(acceptOfferSchema),
+  async (req, res, next) => {
+    try {
+      const conversation = await prisma.conversation.findFirst({
+        where: {
+          id: req.params.id as string,
+          buyerId: req.user!.id,
+        },
+        include: {
+          seller: { select: { id: true, username: true } },
+        },
+      });
+
+      if (!conversation) {
+        return res.status(404).json({
+          success: false,
+          error: { code: 'NOT_FOUND', message: 'Conversation not found' },
+        });
+      }
+
+      // Find the offer message
+      const offerMessage = await prisma.message.findFirst({
+        where: {
+          id: req.params.messageId as string,
+          conversationId: conversation.id,
+          type: 'QUICK_OFFER',
+        },
+      });
+
+      if (!offerMessage || !offerMessage.quickOffer) {
+        return res.status(404).json({
+          success: false,
+          error: { code: 'NOT_FOUND', message: 'Offer not found' },
+        });
+      }
+
+      const offer = offerMessage.quickOffer as { description: string; price: number; deliveryDays: number; revisions?: number; status: string };
+
+      if (offer.status !== 'PENDING') {
+        return res.status(400).json({
+          success: false,
+          error: { code: 'OFFER_NOT_PENDING', message: `Offer has already been ${offer.status.toLowerCase()}` },
+        });
+      }
+
+      // Calculate fees using shared utility
+      const fees = calculateOrderFees(offer.price);
+
+      // Create order from the offer
+      const order = await prisma.order.create({
+        data: {
+          orderNumber: generateOrderNumber(),
+          buyerId: req.user!.id,
+          sellerId: conversation.sellerId,
+          serviceId: (await prisma.service.findFirst({ where: { sellerId: conversation.sellerId, isActive: true } }))?.id || '',
+          baseAmount: fees.baseAmount,
+          buyerFee: fees.buyerFee,
+          totalAmount: fees.totalAmount,
+          sellerFee: fees.sellerFee,
+          sellerPayout: fees.sellerPayout,
+          platformRevenue: fees.platformRevenue,
+          deliveryDays: offer.deliveryDays,
+          revisions: offer.revisions || 0,
+          requirements: offer.description,
+          deliveryDueAt: calculateDeliveryDueDate(offer.deliveryDays),
+        },
+      });
+
+      // Update the offer status in the message
+      await prisma.message.update({
+        where: { id: offerMessage.id },
+        data: {
+          quickOffer: { ...offer, status: 'ACCEPTED', orderId: order.id },
+        },
+      });
+
+      // Link conversation to order
+      await prisma.conversation.update({
+        where: { id: conversation.id },
+        data: { orderId: order.id },
+      });
+
+      // Send system message about acceptance
+      await prisma.message.create({
+        data: {
+          conversationId: conversation.id,
+          senderId: req.user!.id,
+          content: `Offer accepted! Order #${order.orderNumber} has been created.`,
+          type: 'ORDER_UPDATE',
+          deliveredAt: new Date(),
+        },
+      });
+
+      // Notify seller
+      const { notificationQueue } = await import('@/lib/queue.js');
+      await notificationQueue.add('notification', {
+        userId: conversation.sellerId,
+        type: 'OFFER_ACCEPTED',
+        title: 'Offer Accepted!',
+        message: `Your custom offer was accepted. Order #${order.orderNumber} created.`,
+        data: { orderId: order.id, conversationId: conversation.id },
+      });
+
+      const { paymentGateway } = req.body;
+
+      res.json({
+        success: true,
+        data: {
+          order,
+          paymentUrl: `/api/v1/payments/initiate?orderId=${order.id}&gateway=${paymentGateway}`,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// Decline custom offer (buyer)
+router.post(
+  '/:id/offer/:messageId/decline',
+  authenticate,
+  async (req, res, next) => {
+    try {
+      const conversation = await prisma.conversation.findFirst({
+        where: {
+          id: req.params.id as string,
+          buyerId: req.user!.id,
+        },
+      });
+
+      if (!conversation) {
+        return res.status(404).json({
+          success: false,
+          error: { code: 'NOT_FOUND', message: 'Conversation not found' },
+        });
+      }
+
+      const offerMessage = await prisma.message.findFirst({
+        where: {
+          id: req.params.messageId as string,
+          conversationId: conversation.id,
+          type: 'QUICK_OFFER',
+        },
+      });
+
+      if (!offerMessage || !offerMessage.quickOffer) {
+        return res.status(404).json({
+          success: false,
+          error: { code: 'NOT_FOUND', message: 'Offer not found' },
+        });
+      }
+
+      const offer = offerMessage.quickOffer as { status: string };
+
+      if (offer.status !== 'PENDING') {
+        return res.status(400).json({
+          success: false,
+          error: { code: 'OFFER_NOT_PENDING', message: `Offer has already been ${offer.status.toLowerCase()}` },
+        });
+      }
+
+      // Update offer status
+      await prisma.message.update({
+        where: { id: offerMessage.id },
+        data: {
+          quickOffer: { ...offerMessage.quickOffer as object, status: 'DECLINED' },
+        },
+      });
+
+      // Send system message
+      await prisma.message.create({
+        data: {
+          conversationId: conversation.id,
+          senderId: req.user!.id,
+          content: 'The custom offer was declined.',
+          type: 'SYSTEM',
+          deliveredAt: new Date(),
+        },
+      });
+
+      // Update conversation
+      await prisma.conversation.update({
+        where: { id: conversation.id },
+        data: { lastMessageAt: new Date() },
+      });
+
+      // Notify seller
+      const { notificationQueue } = await import('@/lib/queue.js');
+      await notificationQueue.add('notification', {
+        userId: conversation.sellerId,
+        type: 'OFFER_DECLINED',
+        title: 'Offer Declined',
+        message: 'Your custom offer was declined.',
+        data: { conversationId: conversation.id },
+      });
+
+      res.json({ success: true, data: { message: 'Offer declined' } });
     } catch (error) {
       next(error);
     }
