@@ -43,7 +43,7 @@ export default function EarningsPage() {
     queryKey: ['wallet'],
     queryFn: async () => {
       const res = await api.get('/wallet');
-      return res.data.data.wallet;
+      return (res as any).data.data.wallet;
     },
   });
 
@@ -51,7 +51,7 @@ export default function EarningsPage() {
     queryKey: ['payouts'],
     queryFn: async () => {
       const res = await api.get('/wallet/payouts');
-      return res.data.data.payouts;
+      return (res as any).data.data.payouts;
     },
   });
 
@@ -59,7 +59,7 @@ export default function EarningsPage() {
     queryKey: ['earnings-summary'],
     queryFn: async () => {
       const res = await api.get('/wallet/earnings-summary');
-      return res.data.data;
+      return (res as any).data.data;
     },
   });
 

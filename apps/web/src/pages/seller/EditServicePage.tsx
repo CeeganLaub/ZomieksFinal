@@ -54,7 +54,7 @@ export default function EditServicePage() {
     queryKey: ['service', serviceId],
     queryFn: async () => {
       const res = await api.get(`/services/${serviceId}`);
-      return res.data.data.service;
+      return (res as any).data.data.service;
     },
     enabled: !!serviceId,
   });
@@ -63,7 +63,7 @@ export default function EditServicePage() {
     queryKey: ['categories'],
     queryFn: async () => {
       const res = await api.get('/services/meta/categories');
-      return res.data.data.categories;
+      return (res as any).data.data.categories;
     },
   });
 

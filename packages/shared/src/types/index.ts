@@ -12,7 +12,7 @@ import type {
   PACKAGE_TIER,
   TRIGGER_TYPE,
   PAYOUT_STATUS,
-} from '../constants';
+} from '../constants/index.js';
 
 // ============ Utility Types ============
 

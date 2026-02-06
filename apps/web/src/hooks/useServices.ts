@@ -243,7 +243,7 @@ export function useCreateService() {
       images: string[];
     }) => {
       const response = await api.post('/services', data);
-      return response.data;
+      return (response as any).data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['services'] });
@@ -257,7 +257,7 @@ export function useUpdateService() {
   return useMutation({
     mutationFn: async ({ id, data }: { id: string; data: Partial<Service> }) => {
       const response = await api.patch(`/services/${id}`, data);
-      return response.data;
+      return (response as any).data;
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['service', variables.id] });
@@ -272,7 +272,7 @@ export function useAddServicePackage() {
   return useMutation({
     mutationFn: async ({ serviceId, data }: { serviceId: string; data: Omit<ServicePackage, 'id'> }) => {
       const response = await api.post(`/services/${serviceId}/packages`, data);
-      return response.data;
+      return (response as any).data;
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['service', variables.serviceId] });
@@ -286,7 +286,7 @@ export function useAddSubscriptionTier() {
   return useMutation({
     mutationFn: async ({ serviceId, data }: { serviceId: string; data: Omit<SubscriptionTier, 'id'> }) => {
       const response = await api.post(`/services/${serviceId}/subscription-tiers`, data);
-      return response.data;
+      return (response as any).data;
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['service', variables.serviceId] });

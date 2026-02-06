@@ -122,7 +122,7 @@ class ApiClient {
   }
 
   // File upload helper
-  async upload(endpoint: string, file: File, category: string): Promise<{ key: string; url: string }> {
+  async upload(_endpoint: string, file: File, category: string): Promise<{ key: string; url: string }> {
     // First, get upload URL
     const init = await this.post<ApiResponse<{ uploadId: string; key: string; uploadUrl: string }>>('/uploads/init', {
       filename: file.name,

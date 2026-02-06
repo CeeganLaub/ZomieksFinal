@@ -11,7 +11,7 @@ import {
   PAYMENT_GATEWAY,
   PRICING_TYPE,
   PACKAGE_TIER,
-} from '../constants';
+} from '../constants/index.js';
 
 // ============ Auth Schemas ============
 
@@ -33,6 +33,7 @@ export const registerSchema = z.object({
     .min(3, 'Username must be at least 3 characters')
     .max(30, 'Username must be at most 30 characters')
     .regex(/^[a-zA-Z0-9_]+$/, 'Username can only contain letters, numbers, and underscores'),
+  country: z.string().min(2, 'Country is required'),
 });
 
 export const forgotPasswordSchema = z.object({
@@ -70,12 +71,14 @@ export const sellerOnboardingSchema = z.object({
     language: z.string(),
     proficiency: z.enum(['BASIC', 'CONVERSATIONAL', 'FLUENT', 'NATIVE']),
   })).min(1, 'At least one language is required'),
+  idNumber: z.string().min(6, 'ID / passport number is required for KYC verification'),
   bankDetails: z.object({
-    bankName: z.string(),
-    accountNumber: z.string(),
-    branchCode: z.string(),
+    bankName: z.string().min(1, 'Bank name is required'),
+    accountNumber: z.string().min(5, 'Account number is required'),
+    branchCode: z.string().min(1, 'Branch code is required'),
     accountType: z.enum(['SAVINGS', 'CURRENT', 'TRANSMISSION']),
-  }).optional(),
+    accountHolder: z.string().min(2, 'Account holder name is required'),
+  }),
 });
 
 // ============ Service Schemas ============
@@ -209,11 +212,28 @@ export const createNoteSchema = z.object({
   isPinned: z.boolean().default(false),
 });
 
+// ============ Custom Offer Schemas ============
+
+export const createCustomOfferSchema = z.object({
+  description: z.string().min(10, 'Description must be at least 10 characters').max(2000),
+  price: z.number().min(50, 'Minimum price is R50'),
+  deliveryDays: z.number().int().min(1, 'Minimum 1 day').max(90, 'Maximum 90 days'),
+  revisions: z.number().int().min(0).max(99).default(0),
+});
+
+export const acceptOfferSchema = z.object({
+  paymentGateway: z.enum([PAYMENT_GATEWAY.PAYFAST, PAYMENT_GATEWAY.OZOW]),
+});
+
 // ============ Payment Schemas ============
 
 export const initiatePaymentSchema = z.object({
   orderId: z.string(),
   gateway: z.enum([PAYMENT_GATEWAY.PAYFAST, PAYMENT_GATEWAY.OZOW]),
+});
+
+export const withdrawRequestSchema = z.object({
+  amount: z.number().min(100, 'Minimum withdrawal is R100'),
 });
 
 // ============ Type Exports ============
@@ -237,3 +257,6 @@ export type CreateSavedReplyInput = z.infer<typeof createSavedReplySchema>;
 export type CreateAutoTriggerInput = z.infer<typeof createAutoTriggerSchema>;
 export type CreateNoteInput = z.infer<typeof createNoteSchema>;
 export type InitiatePaymentInput = z.infer<typeof initiatePaymentSchema>;
+export type CreateCustomOfferInput = z.infer<typeof createCustomOfferSchema>;
+export type AcceptOfferInput = z.infer<typeof acceptOfferSchema>;
+export type WithdrawRequestInput = z.infer<typeof withdrawRequestSchema>;

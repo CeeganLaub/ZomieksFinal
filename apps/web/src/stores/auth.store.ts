@@ -10,6 +10,7 @@ interface User {
   firstName?: string;
   lastName?: string;
   avatar?: string;
+  country?: string;
   isSeller: boolean;
   isAdmin: boolean;
   sellerProfile?: {
@@ -44,6 +45,7 @@ interface RegisterData {
   username: string;
   firstName?: string;
   lastName?: string;
+  country: string;
 }
 
 export const useAuthStore = create<AuthState>()(

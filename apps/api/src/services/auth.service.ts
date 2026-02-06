@@ -41,6 +41,7 @@ export const authService = {
         passwordHash,
         firstName: data.firstName,
         lastName: data.lastName,
+        country: data.country,
         roles: {
           create: { role: 'BUYER' },
         },
@@ -60,6 +61,7 @@ export const authService = {
         username: user.username,
         firstName: user.firstName,
         lastName: user.lastName,
+        country: user.country,
         isSeller: user.isSeller,
         isAdmin: user.isAdmin,
         roles: user.roles.map(r => r.role),
@@ -107,6 +109,7 @@ export const authService = {
         firstName: user.firstName,
         lastName: user.lastName,
         avatar: user.avatar,
+        country: user.country,
         isSeller: user.isSeller,
         isAdmin: user.isAdmin,
         roles: user.roles.map(r => r.role),
@@ -154,6 +157,7 @@ export const authService = {
         firstName: storedToken.user.firstName,
         lastName: storedToken.user.lastName,
         avatar: storedToken.user.avatar,
+        country: storedToken.user.country,
         isSeller: storedToken.user.isSeller,
         isAdmin: storedToken.user.isAdmin,
         roles: storedToken.user.roles.map(r => r.role),
@@ -186,13 +190,13 @@ export const authService = {
     const accessToken = jwt.sign(
       { userId, type: 'access' } as JwtPayload,
       env.JWT_ACCESS_SECRET,
-      { expiresIn: env.JWT_ACCESS_EXPIRES_IN }
+      { expiresIn: env.JWT_ACCESS_EXPIRES_IN } as jwt.SignOptions
     );
     
     const refreshToken = jwt.sign(
       { userId, type: 'refresh' } as JwtPayload,
       env.JWT_REFRESH_SECRET,
-      { expiresIn: env.JWT_REFRESH_EXPIRES_IN }
+      { expiresIn: env.JWT_REFRESH_EXPIRES_IN } as jwt.SignOptions
     );
     
     // Store refresh token

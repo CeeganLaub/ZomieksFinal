@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import { authenticate } from '@/middleware/auth.js';
 import { prisma } from '@/lib/prisma.js';
-import { calculateOrderFees } from '@zomieks/shared';
 
 const router = Router();
 
@@ -11,7 +10,7 @@ router.get('/', authenticate, async (req, res, next) => {
     const { status, page = '1', limit = '20' } = req.query;
 
     const where: any = { buyerId: req.user!.id };
-    if (status) where.status = status;
+    if (status) where.status = status as string;
 
     const [subscriptions, total] = await Promise.all([
       prisma.subscription.findMany({
@@ -57,7 +56,7 @@ router.get('/subscribers', authenticate, async (req, res, next) => {
     const { status, page = '1', limit = '20' } = req.query;
 
     const where: any = { service: { sellerId: req.user!.id } };
-    if (status) where.status = status;
+    if (status) where.status = status as string;
 
     const [subscriptions, total] = await Promise.all([
       prisma.subscription.findMany({
@@ -191,7 +190,7 @@ router.post('/:id/cancel', authenticate, async (req, res, next) => {
 
     const subscription = await prisma.subscription.findFirst({
       where: {
-        id: req.params.id,
+        id: req.params.id as string,
         buyerId: req.user!.id,
         status: { in: ['ACTIVE', 'PAUSED'] },
       },
@@ -237,7 +236,7 @@ router.post('/:id/pause', authenticate, async (req, res, next) => {
   try {
     const subscription = await prisma.subscription.findFirst({
       where: {
-        id: req.params.id,
+        id: req.params.id as string,
         buyerId: req.user!.id,
         status: 'ACTIVE',
       },
@@ -270,7 +269,7 @@ router.post('/:id/resume', authenticate, async (req, res, next) => {
   try {
     const subscription = await prisma.subscription.findFirst({
       where: {
-        id: req.params.id,
+        id: req.params.id as string,
         buyerId: req.user!.id,
         status: 'PAUSED',
       },

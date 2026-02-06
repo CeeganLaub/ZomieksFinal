@@ -2,8 +2,9 @@ import { Router } from 'express';
 import { prisma } from '@/lib/prisma.js';
 import { env } from '@/config/env.js';
 import { validatePayFastSignature, PAYFAST_IPS, validateOzowHash } from '@/services/payment.service.js';
-import { processEscrowHold, scheduleEscrowRelease } from '@/services/escrow.service.js';
+import { processEscrowHold } from '@/services/escrow.service.js';
 import { sendNotification } from '@/services/notification.service.js';
+import { calculateOrderFees } from '@zomieks/shared';
 
 const router = Router();
 
@@ -54,13 +55,17 @@ router.post('/payfast', async (req, res) => {
             data: {
               orderId: order.id,
               gateway: 'PAYFAST',
-              type: 'PAYMENT',
-              status: 'COMPLETED',
-              grossAmount,
-              gatewayFee: feeAmount,
-              netAmount,
+              gatewayTransactionId: pfPaymentId,
               gatewayReference: pfPaymentId,
-              gatewayResponse: data,
+              status: 'COMPLETED',
+              amount: order.baseAmount,
+              buyerFee: order.buyerFee,
+              totalAmount: order.totalAmount,
+              sellerFee: order.sellerFee,
+              sellerPayout: order.sellerPayout,
+              platformRevenue: order.platformRevenue,
+              paidAt: new Date(),
+              gatewayData: data,
             },
           });
 
@@ -135,13 +140,20 @@ router.post('/payfast/subscription', async (req, res) => {
       }
 
       // Record payment
+      const fees = calculateOrderFees(grossAmount);
       await prisma.subscriptionPayment.create({
         data: {
           subscriptionId: subscription.id,
-          amount: grossAmount,
-          status: 'COMPLETED',
+          amount: fees.baseAmount,
+          buyerFee: fees.buyerFee,
+          totalAmount: fees.totalAmount,
+          sellerFee: fees.sellerFee,
+          sellerPayout: fees.sellerPayout,
+          platformRevenue: fees.platformRevenue,
           gateway: 'PAYFAST',
-          gatewayReference: pfPaymentId,
+          gatewayPaymentId: pfPaymentId,
+          periodStart: subscription.currentPeriodStart,
+          periodEnd: subscription.currentPeriodEnd,
           paidAt: new Date(),
         },
       });
@@ -230,12 +242,17 @@ router.post('/ozow', async (req, res) => {
           data: {
             orderId: order.id,
             gateway: 'OZOW',
-            type: 'PAYMENT',
-            status: 'COMPLETED',
-            grossAmount: amount,
-            netAmount: amount,
+            gatewayTransactionId: transactionId,
             gatewayReference: transactionId,
-            gatewayResponse: data,
+            status: 'COMPLETED',
+            amount: order.baseAmount,
+            buyerFee: order.buyerFee,
+            totalAmount: order.totalAmount,
+            sellerFee: order.sellerFee,
+            sellerPayout: order.sellerPayout,
+            platformRevenue: order.platformRevenue,
+            paidAt: new Date(),
+            gatewayData: data,
           },
         });
 

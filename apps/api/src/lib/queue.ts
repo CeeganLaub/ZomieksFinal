@@ -1,5 +1,5 @@
 import { Queue, Worker, Job } from 'bullmq';
-import Redis from 'ioredis';
+import { Redis } from 'ioredis';
 import { env } from '@/config/env.js';
 import { logger } from '@/lib/logger.js';
 
@@ -21,12 +21,12 @@ export const emailQueue = new Queue('emails', connection);
 export const escrowReleaseWorker = new Worker(
   'escrow-release',
   async (job: Job) => {
-    const { escrowId, transactionId, subscriptionPaymentId } = job.data;
-    logger.info(`Processing escrow release: ${escrowId}`);
+    const { orderId } = job.data;
+    logger.info(`Processing escrow release for order: ${orderId}`);
     
     // Import here to avoid circular dependencies
-    const { processEscrowRelease } = await import('@/services/escrow.service.js');
-    return processEscrowRelease(escrowId, transactionId, subscriptionPaymentId);
+    const { releaseOrderEscrow } = await import('@/services/escrow.service.js');
+    return releaseOrderEscrow(orderId);
   },
   connection
 );
@@ -57,7 +57,7 @@ export const notificationWorker = new Worker(
     logger.info(`Sending notification to ${userId}: ${type}`);
     
     const { sendNotification } = await import('@/services/notification.service.js');
-    return sendNotification(userId, type, title, message, data);
+    return sendNotification({ userId, type, title, message, data });
   },
   connection
 );
@@ -66,11 +66,10 @@ export const notificationWorker = new Worker(
 export const payoutWorker = new Worker(
   'payouts',
   async (job: Job) => {
-    const { payoutId } = job.data;
-    logger.info(`Processing payout: ${payoutId}`);
+    logger.info(`Processing payouts batch`);
     
-    const { processPayout } = await import('@/services/payout.service.js');
-    return processPayout(payoutId);
+    const { processWeeklyPayouts } = await import('@/services/payout.service.js');
+    return processWeeklyPayouts();
   },
   connection
 );
