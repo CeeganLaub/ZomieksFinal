@@ -10,23 +10,31 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Textarea } from '../../components/ui/Textarea';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../components/ui/Card';
-import { CheckIcon } from '@heroicons/react/24/solid';
+import { CheckIcon, ExclamationTriangleIcon } from '@heroicons/react/24/solid';
 import { toast } from 'sonner';
 
 const becomeSellerSchema = z.object({
   displayName: z.string().min(2, 'Display name is required'),
-  tagline: z.string().max(100, 'Tagline must be less than 100 characters').optional(),
-  bio: z.string().max(1000, 'Bio must be less than 1000 characters').optional(),
-  skills: z.string().optional(),
-  languages: z.string().optional(),
+  professionalTitle: z.string().min(5, 'Professional title is required (min 5 characters)'),
+  description: z.string().min(50, 'Description must be at least 50 characters'),
+  skills: z.string().min(1, 'At least one skill is required'),
+  languages: z.string().min(1, 'At least one language is required'),
+  idNumber: z.string().min(6, 'SA ID or passport number is required for verification'),
+  bankName: z.string().min(1, 'Bank name is required'),
+  accountNumber: z.string().min(5, 'Account number is required'),
+  branchCode: z.string().min(1, 'Branch code is required'),
+  accountType: z.enum(['SAVINGS', 'CURRENT', 'TRANSMISSION']),
+  accountHolder: z.string().min(2, 'Account holder name is required'),
 });
 
 type BecomeSellerForm = z.infer<typeof becomeSellerSchema>;
 
 export default function BecomeSeller() {
   const navigate = useNavigate();
-  const { refreshUser } = useAuthStore();
+  const { refreshUser, user } = useAuthStore();
   const [step, setStep] = useState(1);
+
+  const isSouthAfrican = user?.country?.toUpperCase() === 'ZA';
 
   const { 
     register, 
@@ -34,19 +42,34 @@ export default function BecomeSeller() {
     formState: { errors } 
   } = useForm<BecomeSellerForm>({
     resolver: zodResolver(becomeSellerSchema),
+    defaultValues: {
+      accountType: 'SAVINGS',
+      accountHolder: user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() : '',
+    },
   });
 
   const becomeSeller = useMutation({
     mutationFn: (data: BecomeSellerForm) => {
-      const skills = data.skills?.split(',').map(s => s.trim()).filter(Boolean) || [];
-      const languages = data.languages?.split(',').map(l => l.trim()).filter(Boolean) || ['English'];
+      const skills = data.skills.split(',').map(s => s.trim()).filter(Boolean);
+      const languages = data.languages.split(',').map(l => l.trim()).filter(Boolean).map(l => ({
+        language: l,
+        proficiency: 'FLUENT' as const,
+      }));
       
       return api.post('/users/become-seller', {
         displayName: data.displayName,
-        tagline: data.tagline,
-        bio: data.bio,
+        professionalTitle: data.professionalTitle,
+        description: data.description,
         skills,
         languages,
+        idNumber: data.idNumber,
+        bankDetails: {
+          bankName: data.bankName,
+          accountNumber: data.accountNumber,
+          branchCode: data.branchCode,
+          accountType: data.accountType,
+          accountHolder: data.accountHolder,
+        },
       });
     },
     onSuccess: async () => {
@@ -71,6 +94,35 @@ export default function BecomeSeller() {
     'Build your reputation with reviews',
     'Manage clients with our built-in CRM',
   ];
+
+  if (!isSouthAfrican) {
+    return (
+      <div className="max-w-2xl mx-auto">
+        <Card>
+          <CardHeader className="text-center">
+            <ExclamationTriangleIcon className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
+            <CardTitle className="text-2xl">South Africa Only (For Now)</CardTitle>
+            <CardDescription>
+              Selling on Zomieks is currently available to South African users only. 
+              We&apos;re working on international support via Stripe Connect.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="bg-muted/50 rounded-lg p-4 text-sm text-muted-foreground">
+              <p>Your account country: <strong>{user?.country || 'Not set'}</strong></p>
+              <p className="mt-2">
+                If you&apos;re in South Africa, please update your country in{' '}
+                <a href="/settings" className="text-primary hover:underline">Settings</a> to &quot;ZA&quot;.
+              </p>
+            </div>
+            <Button variant="outline" className="w-full mt-4" onClick={() => navigate('/dashboard')}>
+              Back to Dashboard
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (step === 1) {
     return (
@@ -107,6 +159,15 @@ export default function BecomeSeller() {
                 </p>
               </div>
 
+              <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                <h4 className="font-medium text-blue-900 mb-2">🇿🇦 South Africa Only</h4>
+                <p className="text-sm text-blue-700">
+                  Selling is currently available to South African users only. 
+                  We process payouts via bank transfer (EFT). 
+                  International support is coming soon via Stripe Connect.
+                </p>
+              </div>
+
               <Button className="w-full" size="lg" onClick={() => setStep(2)}>
                 Continue
               </Button>
@@ -117,60 +178,166 @@ export default function BecomeSeller() {
     );
   }
 
+  if (step === 2) {
+    return (
+      <div className="max-w-2xl mx-auto">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-2xl">Create Your Seller Profile</CardTitle>
+            <CardDescription>
+              Step 2 of 3: Tell buyers about yourself and your skills
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={(e) => { e.preventDefault(); setStep(3); }} className="space-y-6">
+              <Input
+                id="displayName"
+                label="Display Name"
+                placeholder="e.g., John's Design Studio"
+                error={errors.displayName?.message}
+                {...register('displayName')}
+              />
+
+              <Input
+                id="professionalTitle"
+                label="Professional Title"
+                placeholder="e.g., Professional Logo & Brand Designer"
+                error={errors.professionalTitle?.message}
+                {...register('professionalTitle')}
+              />
+
+              <Textarea
+                id="description"
+                label="About You (min 50 characters)"
+                placeholder="Tell buyers about your experience, skills, and what makes you unique..."
+                rows={4}
+                error={errors.description?.message}
+                {...register('description')}
+              />
+
+              <Input
+                id="skills"
+                label="Skills (comma-separated)"
+                placeholder="e.g., Logo Design, Branding, Illustration"
+                error={errors.skills?.message}
+                {...register('skills')}
+              />
+
+              <Input
+                id="languages"
+                label="Languages (comma-separated)"
+                placeholder="e.g., English, Afrikaans"
+                error={errors.languages?.message}
+                {...register('languages')}
+              />
+
+              <div className="flex space-x-4">
+                <Button type="button" variant="outline" onClick={() => setStep(1)}>
+                  Back
+                </Button>
+                <Button type="submit" className="flex-1">
+                  Continue to KYC & Banking
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-2xl mx-auto">
       <Card>
         <CardHeader>
-          <CardTitle className="text-2xl">Create Your Seller Profile</CardTitle>
+          <CardTitle className="text-2xl">KYC & Bank Details</CardTitle>
           <CardDescription>
-            Tell buyers about yourself and your skills
+            Step 3 of 3: Verify your identity and add bank details for payouts
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-            <Input
-              id="displayName"
-              label="Display Name"
-              placeholder="e.g., John's Design Studio"
-              error={errors.displayName?.message}
-              {...register('displayName')}
-            />
+            {/* Hidden fields from step 2 that react-hook-form needs */}
+            <input type="hidden" {...register('displayName')} />
+            <input type="hidden" {...register('professionalTitle')} />
+            <input type="hidden" {...register('description')} />
+            <input type="hidden" {...register('skills')} />
+            <input type="hidden" {...register('languages')} />
+
+            <div className="bg-yellow-50 rounded-lg p-4 border border-yellow-200">
+              <h4 className="font-medium text-yellow-900 mb-1">🔒 Identity Verification (KYC)</h4>
+              <p className="text-sm text-yellow-700">
+                We require your SA ID or passport number to verify your identity. 
+                This is reviewed by our team and kept secure.
+              </p>
+            </div>
 
             <Input
-              id="tagline"
-              label="Tagline (optional)"
-              placeholder="e.g., Professional logo & brand designer"
-              error={errors.tagline?.message}
-              {...register('tagline')}
+              id="idNumber"
+              label="SA ID Number or Passport Number"
+              placeholder="e.g., 9001015009087"
+              error={errors.idNumber?.message}
+              {...register('idNumber')}
             />
 
-            <Textarea
-              id="bio"
-              label="Bio (optional)"
-              placeholder="Tell buyers about your experience, skills, and what makes you unique..."
-              rows={4}
-              error={errors.bio?.message}
-              {...register('bio')}
-            />
+            <div className="border-t pt-6">
+              <h3 className="font-semibold mb-4">Bank Account Details</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Payouts are processed via bank transfer (EFT). Admin will manually process withdrawals.
+              </p>
 
-            <Input
-              id="skills"
-              label="Skills (comma-separated)"
-              placeholder="e.g., Logo Design, Branding, Illustration"
-              error={errors.skills?.message}
-              {...register('skills')}
-            />
+              <div className="space-y-4">
+                <Input
+                  id="accountHolder"
+                  label="Account Holder Name"
+                  placeholder="Full name as on bank account"
+                  error={errors.accountHolder?.message}
+                  {...register('accountHolder')}
+                />
 
-            <Input
-              id="languages"
-              label="Languages (comma-separated)"
-              placeholder="e.g., English, Afrikaans"
-              error={errors.languages?.message}
-              {...register('languages')}
-            />
+                <div className="grid grid-cols-2 gap-4">
+                  <Input
+                    id="bankName"
+                    label="Bank Name"
+                    placeholder="e.g., FNB, Capitec, Standard Bank"
+                    error={errors.bankName?.message}
+                    {...register('bankName')}
+                  />
+                  <div>
+                    <label htmlFor="accountType" className="block text-sm font-medium mb-2">Account Type</label>
+                    <select
+                      id="accountType"
+                      {...register('accountType')}
+                      className="w-full h-10 px-3 border rounded-md bg-background focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                    >
+                      <option value="SAVINGS">Savings</option>
+                      <option value="CURRENT">Current / Cheque</option>
+                      <option value="TRANSMISSION">Transmission</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <Input
+                    id="accountNumber"
+                    label="Account Number"
+                    placeholder="Your account number"
+                    error={errors.accountNumber?.message}
+                    {...register('accountNumber')}
+                  />
+                  <Input
+                    id="branchCode"
+                    label="Branch Code"
+                    placeholder="e.g., 250655"
+                    error={errors.branchCode?.message}
+                    {...register('branchCode')}
+                  />
+                </div>
+              </div>
+            </div>
 
             <div className="flex space-x-4">
-              <Button type="button" variant="outline" onClick={() => setStep(1)}>
+              <Button type="button" variant="outline" onClick={() => setStep(2)}>
                 Back
               </Button>
               <Button type="submit" className="flex-1" isLoading={becomeSeller.isPending}>

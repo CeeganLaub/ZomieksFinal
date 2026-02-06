@@ -218,7 +218,7 @@ router.post(
       });
 
       // Create or find conversation
-      await prisma.conversation.upsert({
+      const conversation = await prisma.conversation.upsert({
         where: {
           buyerId_sellerId: {
             buyerId: req.user!.id,
@@ -230,7 +230,29 @@ router.post(
           sellerId: service.sellerId,
           orderId: order.id,
         },
-        update: {},
+        update: {
+          orderId: order.id,
+        },
+      });
+
+      // Send system message about order creation
+      await prisma.message.create({
+        data: {
+          conversationId: conversation.id,
+          senderId: req.user!.id,
+          content: `📦 Order #${order.orderNumber} created for "${order.service.title}" (${packageTier} package). Awaiting payment.`,
+          type: 'ORDER_UPDATE',
+          deliveredAt: new Date(),
+        },
+      });
+
+      // Update conversation last message
+      await prisma.conversation.update({
+        where: { id: conversation.id },
+        data: {
+          lastMessageAt: new Date(),
+          unreadSellerCount: { increment: 1 },
+        },
       });
 
       res.status(201).json({ 

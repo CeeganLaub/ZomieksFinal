@@ -33,6 +33,7 @@ export const registerSchema = z.object({
     .min(3, 'Username must be at least 3 characters')
     .max(30, 'Username must be at most 30 characters')
     .regex(/^[a-zA-Z0-9_]+$/, 'Username can only contain letters, numbers, and underscores'),
+  country: z.string().min(2, 'Country is required'),
 });
 
 export const forgotPasswordSchema = z.object({
@@ -70,12 +71,14 @@ export const sellerOnboardingSchema = z.object({
     language: z.string(),
     proficiency: z.enum(['BASIC', 'CONVERSATIONAL', 'FLUENT', 'NATIVE']),
   })).min(1, 'At least one language is required'),
+  idNumber: z.string().min(6, 'ID / passport number is required for KYC verification'),
   bankDetails: z.object({
-    bankName: z.string(),
-    accountNumber: z.string(),
-    branchCode: z.string(),
+    bankName: z.string().min(1, 'Bank name is required'),
+    accountNumber: z.string().min(5, 'Account number is required'),
+    branchCode: z.string().min(1, 'Branch code is required'),
     accountType: z.enum(['SAVINGS', 'CURRENT', 'TRANSMISSION']),
-  }).optional(),
+    accountHolder: z.string().min(2, 'Account holder name is required'),
+  }),
 });
 
 // ============ Service Schemas ============
@@ -229,6 +232,10 @@ export const initiatePaymentSchema = z.object({
   gateway: z.enum([PAYMENT_GATEWAY.PAYFAST, PAYMENT_GATEWAY.OZOW]),
 });
 
+export const withdrawRequestSchema = z.object({
+  amount: z.number().min(100, 'Minimum withdrawal is R100'),
+});
+
 // ============ Type Exports ============
 
 export type LoginInput = z.infer<typeof loginSchema>;
@@ -252,3 +259,4 @@ export type CreateNoteInput = z.infer<typeof createNoteSchema>;
 export type InitiatePaymentInput = z.infer<typeof initiatePaymentSchema>;
 export type CreateCustomOfferInput = z.infer<typeof createCustomOfferSchema>;
 export type AcceptOfferInput = z.infer<typeof acceptOfferSchema>;
+export type WithdrawRequestInput = z.infer<typeof withdrawRequestSchema>;

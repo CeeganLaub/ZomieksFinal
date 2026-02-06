@@ -339,14 +339,21 @@ router.get('/payouts', async (req, res, next) => {
 // Process payout manually
 router.post('/payouts/:id/process', async (req, res, next) => {
   try {
-    const { gatewayReference } = req.body;
+    const { bankReference } = req.body;
+
+    if (!bankReference) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'MISSING_REFERENCE', message: 'Bank transfer reference is required' },
+      });
+    }
 
     const payout = await prisma.sellerPayout.update({
       where: { id: req.params.id },
       data: {
         status: 'COMPLETED',
         processedAt: new Date(),
-        bankReference: gatewayReference,
+        bankReference,
       },
     });
 
@@ -356,11 +363,105 @@ router.post('/payouts/:id/process', async (req, res, next) => {
       userId: payout.sellerId,
       type: 'PAYOUT_COMPLETED',
       title: 'Payout Sent',
-      message: `R${Number(payout.amount).toFixed(2)} has been sent to your bank account`,
+      message: `R${Number(payout.amount).toFixed(2)} has been sent to your bank account (Ref: ${bankReference})`,
       data: { payoutId: payout.id },
     });
 
     res.json({ success: true, data: { payout } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Reject / fail payout
+router.post('/payouts/:id/reject', async (req, res, next) => {
+  try {
+    const { reason } = req.body;
+
+    const payout = await prisma.sellerPayout.update({
+      where: { id: req.params.id },
+      data: {
+        status: 'FAILED',
+        failedAt: new Date(),
+        failedReason: reason || 'Rejected by admin',
+      },
+    });
+
+    const { sendNotification } = await import('@/services/notification.service.js');
+    await sendNotification({
+      userId: payout.sellerId,
+      type: 'PAYOUT_FAILED',
+      title: 'Payout Failed',
+      message: `Your withdrawal of R${Number(payout.amount).toFixed(2)} was not processed: ${reason || 'Contact support'}`,
+      data: { payoutId: payout.id },
+    });
+
+    res.json({ success: true, data: { payout } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// KYC: Verify seller
+router.post('/sellers/:id/verify-kyc', async (req, res, next) => {
+  try {
+    const { status } = req.body; // 'VERIFIED' or 'REJECTED'
+
+    if (!['VERIFIED', 'REJECTED'].includes(status)) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'INVALID_STATUS', message: 'Status must be VERIFIED or REJECTED' },
+      });
+    }
+
+    const profile = await prisma.sellerProfile.update({
+      where: { userId: req.params.id },
+      data: {
+        kycStatus: status,
+        isVerified: status === 'VERIFIED',
+        verifiedAt: status === 'VERIFIED' ? new Date() : undefined,
+      },
+    });
+
+    const { sendNotification } = await import('@/services/notification.service.js');
+    await sendNotification({
+      userId: req.params.id,
+      type: 'KYC_UPDATE',
+      title: status === 'VERIFIED' ? 'Identity Verified!' : 'Verification Failed',
+      message: status === 'VERIFIED'
+        ? 'Your identity has been verified. You can now receive payouts.'
+        : 'Your identity verification was rejected. Please update your details.',
+      data: { kycStatus: status },
+    });
+
+    res.json({ success: true, data: { profile } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get sellers pending KYC
+router.get('/sellers/pending-kyc', async (req, res, next) => {
+  try {
+    const sellers = await prisma.sellerProfile.findMany({
+      where: { kycStatus: 'PENDING' },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            username: true,
+            firstName: true,
+            lastName: true,
+            country: true,
+            bankDetails: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    res.json({ success: true, data: { sellers } });
   } catch (error) {
     next(error);
   }

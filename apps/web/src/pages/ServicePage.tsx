@@ -6,7 +6,7 @@ import { useAuthStore } from '../stores/auth.store';
 import { Button } from '../components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { StarIcon, ClockIcon, CheckIcon, ArrowsRightLeftIcon } from '@heroicons/react/24/solid';
-import { ChatBubbleLeftRightIcon, HeartIcon } from '@heroicons/react/24/outline';
+import { ChatBubbleLeftRightIcon, HeartIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { formatCurrency, formatDate } from '../lib/utils';
 import { toast } from 'sonner';
 
@@ -16,6 +16,8 @@ export default function ServicePage() {
   const { isAuthenticated } = useAuthStore();
   const [selectedPackage, setSelectedPackage] = useState(0);
   const [showSubscription, setShowSubscription] = useState(false);
+  const [showRequirementsModal, setShowRequirementsModal] = useState(false);
+  const [requirements, setRequirements] = useState('');
 
   const { data, isLoading } = useQuery({
     queryKey: ['service', username, slug],
@@ -26,7 +28,9 @@ export default function ServicePage() {
   const createOrder = useMutation({
     mutationFn: (data: any) => api.post<any>('/orders', data),
     onSuccess: (data) => {
-      toast.success('Order created!');
+      toast.success('Order created! Proceed to payment.');
+      setShowRequirementsModal(false);
+      setRequirements('');
       navigate(`/orders/${data.data.order.id}?payment=pending`);
     },
     onError: (error: any) => {
@@ -67,9 +71,15 @@ export default function ServicePage() {
       return;
     }
 
+    setShowRequirementsModal(true);
+  };
+
+  const handleSubmitOrder = () => {
     createOrder.mutate({
       serviceId: service.id,
-      packageId: currentPackage.id,
+      packageTier: currentPackage.tier,
+      requirements: requirements.trim() || undefined,
+      paymentGateway: 'PAYFAST',
     });
   };
 
@@ -347,6 +357,98 @@ export default function ServicePage() {
           </div>
         </div>
       </div>
+
+      {/* Requirements Modal */}
+      {showRequirementsModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-background rounded-xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-6 border-b">
+              <div>
+                <h3 className="text-lg font-bold">Project Details</h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Tell the seller about your project requirements
+                </p>
+              </div>
+              <button
+                onClick={() => setShowRequirementsModal(false)}
+                className="p-2 hover:bg-muted rounded-lg"
+              >
+                <XMarkIcon className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              {/* Package summary */}
+              <div className="bg-muted/50 rounded-lg p-4">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <p className="font-semibold">{currentPackage?.name}</p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {currentPackage?.deliveryDays} days delivery · {currentPackage?.revisions} revisions
+                    </p>
+                  </div>
+                  <p className="text-xl font-bold text-primary">{formatCurrency(currentPackage?.price)}</p>
+                </div>
+                {currentPackage?.features && (
+                  <ul className="mt-3 space-y-1">
+                    {currentPackage.features.map((feature: string, index: number) => (
+                      <li key={index} className="flex items-center gap-2 text-sm">
+                        <CheckIcon className="h-3.5 w-3.5 text-primary shrink-0" />
+                        <span>{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              {/* Requirements input */}
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  Project Requirements <span className="text-muted-foreground">(optional)</span>
+                </label>
+                <textarea
+                  value={requirements}
+                  onChange={(e) => setRequirements(e.target.value)}
+                  rows={5}
+                  className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all resize-none"
+                  placeholder="Describe what you need:&#10;• Brand name and slogan&#10;• Preferred colors or style&#10;• Reference examples&#10;• Any specific requirements..."
+                />
+              </div>
+
+              {/* Fee breakdown */}
+              <div className="text-sm text-muted-foreground space-y-1 border-t pt-4">
+                <div className="flex justify-between">
+                  <span>Service price</span>
+                  <span>{formatCurrency(currentPackage?.price)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Service fee (3%)</span>
+                  <span>{formatCurrency((currentPackage?.price || 0) * 0.03)}</span>
+                </div>
+                <div className="flex justify-between font-semibold text-foreground pt-2 border-t">
+                  <span>Total</span>
+                  <span>{formatCurrency((currentPackage?.price || 0) * 1.03)}</span>
+                </div>
+              </div>
+            </div>
+            <div className="p-6 border-t flex gap-3">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => setShowRequirementsModal(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="flex-1"
+                onClick={handleSubmitOrder}
+                isLoading={createOrder.isPending}
+              >
+                Place Order ({formatCurrency((currentPackage?.price || 0) * 1.03)})
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

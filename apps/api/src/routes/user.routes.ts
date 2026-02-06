@@ -124,7 +124,20 @@ router.post(
   validate(sellerOnboardingSchema),
   async (req, res, next) => {
     try {
-      const { displayName, professionalTitle, description, skills, languages, bankDetails } = req.body;
+      // Check SA-only restriction for selling
+      const currentUser = await prisma.user.findUnique({
+        where: { id: req.user!.id },
+        select: { country: true, firstName: true, lastName: true },
+      });
+
+      if (!currentUser?.country || currentUser.country.toUpperCase() !== 'ZA') {
+        return res.status(403).json({
+          success: false,
+          error: { code: 'COUNTRY_RESTRICTED', message: 'Selling is currently available to South African users only. International support coming soon!' },
+        });
+      }
+
+      const { displayName, professionalTitle, description, skills, languages, bankDetails, idNumber } = req.body;
 
       // Create seller profile
       const [user] = await prisma.$transaction([
@@ -142,17 +155,19 @@ router.post(
                 description,
                 skills,
                 languages,
+                idNumber,
+                kycStatus: 'PENDING',
               },
             },
-            bankDetails: bankDetails ? {
+            bankDetails: {
               create: {
                 bankName: bankDetails.bankName,
                 accountNumber: bankDetails.accountNumber,
                 branchCode: bankDetails.branchCode,
                 accountType: bankDetails.accountType,
-                accountHolder: `${req.user!.firstName} ${req.user!.lastName}`,
+                accountHolder: bankDetails.accountHolder || `${currentUser.firstName} ${currentUser.lastName}`,
               },
-            } : undefined,
+            },
           },
           include: {
             sellerProfile: true,

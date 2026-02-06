@@ -2,8 +2,9 @@ import { Router } from 'express';
 import { authenticate } from '@/middleware/auth.js';
 import { prisma } from '@/lib/prisma.js';
 import { env } from '@/config/env.js';
-import { calculateOrderFees } from '@zomieks/shared';
+import { calculateOrderFees, withdrawRequestSchema } from '@zomieks/shared';
 import { createPayFastPayment, createOzowPayment } from '@/services/payment.service.js';
+import { validate } from '@/middleware/validate.js';
 
 const router = Router();
 
@@ -189,6 +190,99 @@ router.get('/payouts', authenticate, async (req, res, next) => {
     });
 
     res.json({ success: true, data: { payouts } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Request withdrawal
+router.post('/withdraw', authenticate, validate(withdrawRequestSchema), async (req, res, next) => {
+  try {
+    if (!req.user!.isSeller) {
+      return res.status(403).json({
+        success: false,
+        error: { code: 'NOT_A_SELLER', message: 'Seller account required' },
+      });
+    }
+
+    const { amount } = req.body;
+
+    // Check bank details
+    const bankDetails = await prisma.bankDetails.findUnique({
+      where: { userId: req.user!.id },
+    });
+
+    if (!bankDetails) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'NO_BANK_DETAILS', message: 'Please add your bank details before requesting a withdrawal' },
+      });
+    }
+
+    // Check KYC
+    const sellerProfile = await prisma.sellerProfile.findUnique({
+      where: { userId: req.user!.id },
+      select: { kycStatus: true },
+    });
+
+    if (sellerProfile?.kycStatus !== 'VERIFIED') {
+      // Allow pending KYC to request but note it
+    }
+
+    // Calculate available balance from released escrow without existing pending/processing payouts
+    const [releasedEscrow, existingPayouts] = await Promise.all([
+      prisma.escrowHold.aggregate({
+        where: {
+          OR: [
+            { order: { sellerId: req.user!.id } },
+            { subscriptionPayment: { subscription: { service: { sellerId: req.user!.id } } } },
+          ],
+          status: 'RELEASED',
+          payoutId: null,
+        },
+        _sum: { sellerAmount: true },
+      }),
+      prisma.sellerPayout.aggregate({
+        where: { sellerId: req.user!.id, status: { in: ['PENDING', 'PROCESSING'] } },
+        _sum: { amount: true },
+      }),
+    ]);
+
+    const availableBalance = Number(releasedEscrow._sum.sellerAmount || 0) - Number(existingPayouts._sum.amount || 0);
+
+    if (amount > availableBalance) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'INSUFFICIENT_BALANCE',
+          message: `Insufficient balance. Available: R${availableBalance.toFixed(2)}`,
+        },
+      });
+    }
+
+    // Create payout request
+    const payout = await prisma.sellerPayout.create({
+      data: {
+        sellerId: req.user!.id,
+        amount,
+        status: 'PENDING',
+      },
+    });
+
+    res.status(201).json({ success: true, data: { payout, availableBalance: availableBalance - amount } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get bank details
+router.get('/bank-details', authenticate, async (req, res, next) => {
+  try {
+    const bankDetails = await prisma.bankDetails.findUnique({
+      where: { userId: req.user!.id },
+    });
+
+    res.json({ success: true, data: { bankDetails } });
   } catch (error) {
     next(error);
   }
