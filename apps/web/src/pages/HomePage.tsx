@@ -226,10 +226,10 @@ export default function HomePage() {
               transition={{ delay: 0.7 }}
             >
               {[
-                { value: platformStats?.data?.totalServices?.toLocaleString() || '0', label: 'Services' },
+                { value: (platformStats?.data?.totalServices || 0).toLocaleString(), label: 'Services' },
                 { value: (coursesData as any)?.meta?.total?.toLocaleString() || '0', label: 'Courses' },
-                { value: platformStats?.data?.totalSellers?.toLocaleString() || '0', label: 'Sellers' },
-                { value: platformStats?.data?.totalCategories?.toLocaleString() || '0', label: 'Categories' },
+                { value: (platformStats?.data?.totalSellers || 0).toLocaleString(), label: 'Sellers' },
+                { value: (platformStats?.data?.totalCategories || 0).toLocaleString(), label: 'Categories' },
               ].map((stat, i) => (
                 <div key={i} className="flex items-center gap-1.5">
                   <span className="font-bold text-foreground">{stat.value}</span>
@@ -564,9 +564,9 @@ export default function HomePage() {
             viewport={{ once: true }}
           >
             {[
-              { value: platformStats?.data?.totalSellers?.toLocaleString() || '0', label: 'Active Sellers', icon: UserGroupIcon },
-              { value: platformStats?.data?.totalServices?.toLocaleString() || '0', label: 'Services Listed', icon: CheckBadgeIcon },
-              { value: platformStats?.data?.totalCategories?.toLocaleString() || '0', label: 'Categories', icon: StarIcon },
+              { value: (platformStats?.data?.totalSellers || 0).toLocaleString(), label: 'Active Sellers', icon: UserGroupIcon },
+              { value: (platformStats?.data?.totalServices || 0).toLocaleString(), label: 'Services Listed', icon: CheckBadgeIcon },
+              { value: (platformStats?.data?.totalCategories || 0).toLocaleString(), label: 'Categories', icon: StarIcon },
               { value: '24/7', label: 'Support', icon: ClockIcon },
             ].map((stat, i) => (
               <motion.div key={i} className="text-center" variants={scaleIn}>

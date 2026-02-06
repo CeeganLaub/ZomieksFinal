@@ -44,7 +44,7 @@ export default function AdminDashboardPage() {
         pendingDisputes: d?.pending?.disputes || 0,
         pendingPayouts: d?.pending?.payouts || 0,
         revenueToday: 0,
-        revenueWeek: 0,
+        revenueWeek: Number(d?.revenue?.total) || 0,
         revenueMonth: Number(d?.revenue?.monthly) || 0,
       });
     } catch {
