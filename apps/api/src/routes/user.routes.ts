@@ -2,9 +2,208 @@ import { Router } from 'express';
 import { authenticate, optionalAuth } from '@/middleware/auth.js';
 import { prisma } from '@/lib/prisma.js';
 import { validate } from '@/middleware/validate.js';
-import { updateProfileSchema, sellerOnboardingSchema } from '@zomieks/shared';
+import { updateProfileSchema, sellerOnboardingSchema, SELLER_FEE_AMOUNT } from '@zomieks/shared';
 
 const router = Router();
+
+// Get user favorites (must be before /:username to avoid matching "favorites" as username)
+router.get('/favorites', authenticate, async (req, res, next) => {
+  try {
+    const favorites = await prisma.favorite.findMany({
+      where: { userId: req.user!.id },
+      include: {
+        service: {
+          select: {
+            id: true,
+            title: true,
+            slug: true,
+            images: true,
+            rating: true,
+            reviewCount: true,
+            seller: {
+              select: {
+                username: true,
+                sellerProfile: { select: { displayName: true } },
+              },
+            },
+            packages: {
+              where: { tier: 'BASIC' },
+              select: { price: true },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    res.json({ success: true, data: { favorites } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Add favorite
+router.post('/favorites/:serviceId', authenticate, async (req, res, next) => {
+  try {
+    const { serviceId } = req.params;
+
+    const service = await prisma.service.findUnique({ where: { id: serviceId } });
+    if (!service) {
+      return res.status(404).json({
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Service not found' },
+      });
+    }
+
+    await prisma.favorite.upsert({
+      where: { userId_serviceId: { userId: req.user!.id, serviceId } },
+      create: { userId: req.user!.id, serviceId },
+      update: {},
+    });
+
+    await prisma.service.update({
+      where: { id: serviceId },
+      data: { favoriteCount: { increment: 1 } },
+    });
+
+    res.json({ success: true, data: null });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Remove favorite
+router.delete('/favorites/:serviceId', authenticate, async (req, res, next) => {
+  try {
+    const { serviceId } = req.params;
+
+    const existing = await prisma.favorite.findUnique({
+      where: { userId_serviceId: { userId: req.user!.id, serviceId } },
+    });
+
+    if (existing) {
+      await prisma.favorite.delete({
+        where: { userId_serviceId: { userId: req.user!.id, serviceId } },
+      });
+
+      await prisma.service.update({
+        where: { id: serviceId },
+        data: { favoriteCount: { decrement: 1 } },
+      });
+    }
+
+    res.json({ success: true, data: null });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Seller dashboard stats (must be before /:username)
+router.get('/seller/stats', authenticate, async (req, res, next) => {
+  try {
+    if (!req.user!.isSeller) {
+      return res.status(403).json({
+        success: false,
+        error: { code: 'NOT_A_SELLER', message: 'Seller account required' },
+      });
+    }
+
+    const [orders, earnings, conversations, profile] = await Promise.all([
+      prisma.order.aggregate({
+        where: { sellerId: req.user!.id },
+        _count: { id: true },
+      }),
+      prisma.order.aggregate({
+        where: { sellerId: req.user!.id, status: 'COMPLETED' },
+        _sum: { sellerPayout: true },
+      }),
+      prisma.conversation.count({
+        where: { sellerId: req.user!.id, status: 'OPEN' },
+      }),
+      prisma.sellerProfile.findUnique({
+        where: { userId: req.user!.id },
+        select: { rating: true, reviewCount: true, completedOrders: true, sellerFeePaid: true },
+      }),
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        totalOrders: orders._count.id,
+        totalEarnings: earnings._sum.sellerPayout || 0,
+        openConversations: conversations,
+        rating: profile?.rating || 0,
+        reviewCount: profile?.reviewCount || 0,
+        completedOrders: profile?.completedOrders || 0,
+        sellerFeePaid: profile?.sellerFeePaid || false,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Check seller fee status
+router.get('/seller/fee-status', authenticate, async (req, res, next) => {
+  try {
+    const profile = await prisma.sellerProfile.findUnique({
+      where: { userId: req.user!.id },
+      select: { sellerFeePaid: true, sellerFeePaidAt: true },
+    });
+
+    res.json({
+      success: true,
+      data: {
+        feeAmount: SELLER_FEE_AMOUNT,
+        feePaid: profile?.sellerFeePaid || false,
+        feePaidAt: profile?.sellerFeePaidAt || null,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Pay seller fee (R399 one-time)
+router.post('/seller/pay-fee', authenticate, async (req, res, next) => {
+  try {
+    const profile = await prisma.sellerProfile.findUnique({
+      where: { userId: req.user!.id },
+    });
+
+    if (!profile) {
+      return res.status(403).json({
+        success: false,
+        error: { code: 'NOT_A_SELLER', message: 'Become a seller first' },
+      });
+    }
+
+    if (profile.sellerFeePaid) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'ALREADY_PAID', message: 'Seller fee already paid' },
+      });
+    }
+
+    // For now, mark as paid directly (in production, redirect to PayFast)
+    // In a real implementation you'd create a PayFast payment and handle via webhook
+    await prisma.sellerProfile.update({
+      where: { id: profile.id },
+      data: {
+        sellerFeePaid: true,
+        sellerFeePaidAt: new Date(),
+        sellerFeeTransactionId: `SF-${Date.now()}`, // placeholder
+      },
+    });
+
+    res.json({
+      success: true,
+      data: { message: 'Seller fee paid successfully! You can now create courses.' },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
 
 // Get user profile by username
 router.get('/:username', optionalAuth, async (req, res, next) => {
@@ -193,49 +392,5 @@ router.post(
     }
   }
 );
-
-// Get seller dashboard stats
-router.get('/seller/stats', authenticate, async (req, res, next) => {
-  try {
-    if (!req.user!.isSeller) {
-      return res.status(403).json({
-        success: false,
-        error: { code: 'NOT_A_SELLER', message: 'Seller account required' },
-      });
-    }
-
-    const [orders, earnings, conversations, profile] = await Promise.all([
-      prisma.order.aggregate({
-        where: { sellerId: req.user!.id },
-        _count: { id: true },
-      }),
-      prisma.order.aggregate({
-        where: { sellerId: req.user!.id, status: 'COMPLETED' },
-        _sum: { sellerPayout: true },
-      }),
-      prisma.conversation.count({
-        where: { sellerId: req.user!.id, status: 'OPEN' },
-      }),
-      prisma.sellerProfile.findUnique({
-        where: { userId: req.user!.id },
-        select: { rating: true, reviewCount: true, completedOrders: true },
-      }),
-    ]);
-
-    res.json({
-      success: true,
-      data: {
-        totalOrders: orders._count.id,
-        totalEarnings: earnings._sum.sellerPayout || 0,
-        openConversations: conversations,
-        rating: profile?.rating || 0,
-        reviewCount: profile?.reviewCount || 0,
-        completedOrders: profile?.completedOrders || 0,
-      },
-    });
-  } catch (error) {
-    next(error);
-  }
-});
 
 export default router;

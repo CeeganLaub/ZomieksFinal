@@ -93,6 +93,7 @@ export default function BecomeSeller() {
     'Get paid securely through PayFast/OZOW',
     'Build your reputation with reviews',
     'Manage clients with our built-in CRM',
+    'Create & sell video courses (R399 one-time unlock)',
   ];
 
   if (!isSouthAfrican) {
@@ -156,6 +157,10 @@ export default function BecomeSeller() {
                   We charge a simple <strong>8% commission</strong> on your earnings. 
                   Buyers pay a <strong>3% service fee</strong> on top of your listed price.
                   You keep 92% of what you earn!
+                </p>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Want to sell courses? Unlock course creation for a <strong>one-time fee of R399</strong>. 
+                  Create unlimited video courses and earn from your knowledge!
                 </p>
               </div>
 

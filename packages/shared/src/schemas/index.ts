@@ -11,6 +11,8 @@ import {
   PAYMENT_GATEWAY,
   PRICING_TYPE,
   PACKAGE_TIER,
+  COURSE_LEVEL,
+  COURSE_STATUS,
 } from '../constants/index.js';
 
 // ============ Auth Schemas ============
@@ -236,6 +238,49 @@ export const withdrawRequestSchema = z.object({
   amount: z.number().min(100, 'Minimum withdrawal is R100'),
 });
 
+// ============ Course Schemas ============
+
+export const createCourseSchema = z.object({
+  title: z.string().min(5, 'Title must be at least 5 characters').max(120),
+  subtitle: z.string().max(200).optional(),
+  description: z.string().min(50, 'Description must be at least 50 characters'),
+  categoryId: z.string().optional(),
+  tags: z.array(z.string()).max(5).optional(),
+  level: z.enum([COURSE_LEVEL.BEGINNER, COURSE_LEVEL.INTERMEDIATE, COURSE_LEVEL.ADVANCED, COURSE_LEVEL.ALL_LEVELS]).default(COURSE_LEVEL.ALL_LEVELS),
+  language: z.string().default('English'),
+  price: z.number().min(0, 'Price cannot be negative'),
+  thumbnail: z.string().optional(),
+  promoVideo: z.string().optional(),
+  requirements: z.array(z.string()).optional(),
+  learnings: z.array(z.string()).min(1, 'At least one learning outcome required'),
+});
+
+export const updateCourseSchema = createCourseSchema.partial();
+
+export const courseSectionSchema = z.object({
+  title: z.string().min(2, 'Section title is required'),
+  order: z.number().int().min(0),
+});
+
+export const courseLessonSchema = z.object({
+  title: z.string().min(2, 'Lesson title is required'),
+  description: z.string().optional(),
+  order: z.number().int().min(0),
+  videoUrl: z.string().optional(),
+  duration: z.number().int().min(0).default(0),
+  isFreePreview: z.boolean().default(false),
+  resources: z.array(z.object({
+    name: z.string(),
+    url: z.string(),
+    type: z.string(),
+  })).optional(),
+});
+
+export const courseReviewSchema = z.object({
+  rating: z.number().int().min(1).max(5),
+  comment: z.string().min(10, 'Review must be at least 10 characters'),
+});
+
 // ============ Type Exports ============
 
 export type LoginInput = z.infer<typeof loginSchema>;
@@ -260,3 +305,8 @@ export type InitiatePaymentInput = z.infer<typeof initiatePaymentSchema>;
 export type CreateCustomOfferInput = z.infer<typeof createCustomOfferSchema>;
 export type AcceptOfferInput = z.infer<typeof acceptOfferSchema>;
 export type WithdrawRequestInput = z.infer<typeof withdrawRequestSchema>;
+export type CreateCourseInput = z.infer<typeof createCourseSchema>;
+export type UpdateCourseInput = z.infer<typeof updateCourseSchema>;
+export type CourseSectionInput = z.infer<typeof courseSectionSchema>;
+export type CourseLessonInput = z.infer<typeof courseLessonSchema>;
+export type CourseReviewInput = z.infer<typeof courseReviewSchema>;

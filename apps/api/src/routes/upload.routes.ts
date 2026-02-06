@@ -40,10 +40,12 @@ const upload = multer({
 const uploadsDir = path.join(process.cwd(), 'uploads');
 const imagesDir = path.join(uploadsDir, 'images');
 const filesDir = path.join(uploadsDir, 'files');
+const videosDir = path.join(uploadsDir, 'videos');
 
 async function ensureDirectories() {
   await fs.mkdir(imagesDir, { recursive: true });
   await fs.mkdir(filesDir, { recursive: true });
+  await fs.mkdir(videosDir, { recursive: true });
 }
 ensureDirectories();
 
@@ -192,6 +194,54 @@ router.post('/images', authenticate, upload.array('images', 10), async (req, res
     res.json({
       success: true,
       data: { images: results },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Upload video (for courses)
+const videoUpload = multer({
+  storage,
+  limits: {
+    fileSize: 500 * 1024 * 1024, // 500MB
+  },
+  fileFilter: (_req, file, cb) => {
+    const allowedMimes = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo'];
+    if (allowedMimes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid video type. Supported: MP4, WebM, MOV, AVI'));
+    }
+  },
+});
+
+router.post('/video', authenticate, videoUpload.single('video'), async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'NO_FILE', message: 'No video file uploaded' },
+      });
+    }
+
+    const ext = path.extname(req.file.originalname) || '.mp4';
+    const filename = `${crypto.randomBytes(16).toString('hex')}${ext}`;
+    const filepath = path.join(videosDir, filename);
+
+    await fs.writeFile(filepath, req.file.buffer);
+
+    const baseUrl = env.UPLOADS_URL || `${env.API_URL}/uploads`;
+
+    res.json({
+      success: true,
+      data: {
+        url: `${baseUrl}/videos/${filename}`,
+        filename,
+        originalName: req.file.originalname,
+        size: req.file.size,
+        mimeType: req.file.mimetype,
+      },
     });
   } catch (error) {
     next(error);

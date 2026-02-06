@@ -397,7 +397,7 @@ export default function HomePage() {
                             <div className="flex items-center space-x-1 bg-yellow-50 px-2 py-1 rounded-full">
                               <StarIcon className="h-4 w-4 text-yellow-500" />
                               <span className="text-sm font-semibold text-yellow-700">
-                                {service.rating?.toFixed(1) || 'New'}
+                                {service.rating ? Number(service.rating).toFixed(1) : 'New'}
                               </span>
                             </div>
                             <span className="text-sm text-muted-foreground">

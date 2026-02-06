@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '../../stores/auth.store';
+import { paymentsApi } from '../../lib/api';
 import {
   ChevronDownIcon,
   HomeIcon,
@@ -21,6 +23,14 @@ export default function ProfileDropdown() {
   const { user, logout } = useAuthStore();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const { data: creditData } = useQuery({
+    queryKey: ['credit-balance'],
+    queryFn: () => paymentsApi.creditBalance(),
+    enabled: !!user && isOpen,
+    staleTime: 30000,
+  });
+  const creditBalance = creditData?.data?.creditBalance || 0;
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -91,6 +101,12 @@ export default function ProfileDropdown() {
                     <span className="w-2 h-2 rounded-full bg-green-500" />
                     Online
                   </span>
+                  {creditBalance > 0 && (
+                    <span className="inline-flex items-center gap-1 ml-2 mt-1 text-xs font-medium text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded">
+                      <BanknotesIcon className="h-3 w-3" />
+                      R{creditBalance.toFixed(2)} credit
+                    </span>
+                  )}
                 </div>
               </div>
             </div>

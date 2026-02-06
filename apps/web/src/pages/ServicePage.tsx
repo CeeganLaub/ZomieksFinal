@@ -105,7 +105,7 @@ export default function ServicePage() {
               </Link>
               <div className="flex items-center space-x-1">
                 <StarIcon className="h-5 w-5 text-yellow-500" />
-                <span className="font-medium">{service.rating?.toFixed(1) || 'New'}</span>
+                <span className="font-medium">{service.rating ? Number(service.rating).toFixed(1) : 'New'}</span>
                 <span className="text-muted-foreground">({service.reviewCount || 0} reviews)</span>
               </div>
             </div>
@@ -155,7 +155,7 @@ export default function ServicePage() {
                   <div className="flex items-center space-x-4 mt-2 text-sm">
                     <div className="flex items-center space-x-1">
                       <StarIcon className="h-4 w-4 text-yellow-500" />
-                      <span>{service.seller.sellerProfile?.rating?.toFixed(1) || 'New'}</span>
+                      <span>{service.seller.sellerProfile?.rating ? Number(service.seller.sellerProfile.rating).toFixed(1) : 'New'}</span>
                     </div>
                     <div>
                       {service.seller.sellerProfile?.completedOrders || 0} orders completed

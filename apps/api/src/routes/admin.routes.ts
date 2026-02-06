@@ -276,8 +276,25 @@ router.post('/disputes/:orderId/resolve', async (req, res, next) => {
     }
 
     if (refundBuyer) {
-      const { processRefund } = await import('@/services/escrow.service.js');
-      await processRefund(order.id, notes);
+      // Calculate fees on dispute refund
+      const { calculateServiceRefund } = await import('@zomieks/shared');
+      const baseAmount = Number(order.baseAmount);
+      const buyerFee = Number(order.buyerFee);
+      const totalAmount = Number(order.totalAmount);
+      const feeBreakdown = calculateServiceRefund(baseAmount, buyerFee, totalAmount);
+
+      const { processOrderRefund } = await import('@/services/escrow.service.js');
+      await processOrderRefund(order.id, notes || resolution, {
+        refundAmount: feeBreakdown.refundAmount,
+        processingFee: feeBreakdown.processingFee,
+        buyerFeeKept: feeBreakdown.buyerFeeKept,
+      });
+
+      // Credit refund to buyer balance
+      await prisma.user.update({
+        where: { id: order.buyerId },
+        data: { creditBalance: { increment: feeBreakdown.refundAmount } },
+      });
     } else {
       const { releaseOrderEscrow } = await import('@/services/escrow.service.js');
       await releaseOrderEscrow(order.id);
@@ -287,6 +304,17 @@ router.post('/disputes/:orderId/resolve', async (req, res, next) => {
         data: { status: 'COMPLETED' },
       });
     }
+
+    // Update the dispute record
+    await prisma.dispute.updateMany({
+      where: { orderId: order.id, status: 'OPEN' },
+      data: {
+        status: refundBuyer ? 'RESOLVED_BUYER' : 'RESOLVED_SELLER',
+        resolution: resolution || (refundBuyer ? 'Refund issued to buyer' : 'Released to seller'),
+        resolvedBy: req.user?.id || 'admin',
+        resolvedAt: new Date(),
+      },
+    });
 
     res.json({ success: true, data: { message: 'Dispute resolved' } });
   } catch (error) {

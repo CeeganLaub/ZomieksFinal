@@ -27,6 +27,7 @@ import paymentRoutes from '@/routes/payment.routes.js';
 import webhookRoutes from '@/routes/webhook.routes.js';
 import uploadRoutes from '@/routes/upload.routes.js';
 import adminRoutes from '@/routes/admin.routes.js';
+import courseRoutes from '@/routes/course.routes.js';
 
 const app = express();
 const httpServer = createServer(app);
@@ -43,10 +44,33 @@ const io = new SocketServer(httpServer, {
 app.use(helmet({
   contentSecurityPolicy: env.NODE_ENV === 'production' ? undefined : false,
 }));
-app.use(cors({
-  origin: env.APP_URL,
-  credentials: true,
-}));
+
+// CORS - allow multiple origins in development
+const allowedOrigins = [
+  env.APP_URL,
+  'http://localhost:5173',
+  'http://localhost:3000',
+];
+// Add Codespaces pattern
+if (env.NODE_ENV === 'development') {
+  app.use(cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps or curl)
+      if (!origin) return callback(null, true);
+      // Allow Codespaces URLs
+      if (origin.includes('.app.github.dev') || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      callback(null, false);
+    },
+    credentials: true,
+  }));
+} else {
+  app.use(cors({
+    origin: env.APP_URL,
+    credentials: true,
+  }));
+}
 
 // Body parsing
 app.use(express.json({ limit: '10mb' }));
@@ -57,12 +81,25 @@ app.use(compression());
 // Request logging
 app.use(requestLogger);
 
+// Serve uploaded files statically
+app.use('/uploads', express.static('uploads'));
+
 // Rate limiting
 app.use('/api', rateLimiter);
 
 // Health check
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Root endpoint
+app.get('/', (_req, res) => {
+  res.json({ 
+    name: 'Zomieks API', 
+    version: '1.0.0',
+    docs: '/api/v1',
+    health: '/health'
+  });
 });
 
 // API Routes (versioned)
@@ -75,6 +112,7 @@ app.use('/api/v1/conversations', conversationRoutes);
 app.use('/api/v1/payments', paymentRoutes);
 app.use('/api/v1/uploads', uploadRoutes);
 app.use('/api/v1/admin', adminRoutes);
+app.use('/api/v1/courses', courseRoutes);
 
 // Webhooks (no auth, signature validation instead)
 app.use('/webhooks', webhookRoutes);

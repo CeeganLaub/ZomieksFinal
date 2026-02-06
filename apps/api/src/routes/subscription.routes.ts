@@ -4,6 +4,25 @@ import { prisma } from '@/lib/prisma.js';
 
 const router = Router();
 
+// Get available subscription tiers
+router.get('/tiers', async (_req, res, next) => {
+  try {
+    const tiers = await prisma.subscriptionTier.findMany({
+      where: { isActive: true },
+      include: {
+        service: {
+          select: { id: true, title: true, slug: true },
+        },
+      },
+      orderBy: { price: 'asc' },
+    });
+
+    res.json({ success: true, data: { tiers } });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Get user's subscriptions (as buyer)
 router.get('/', authenticate, async (req, res, next) => {
   try {

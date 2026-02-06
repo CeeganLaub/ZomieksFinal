@@ -80,6 +80,12 @@ export default function Header({ showSearch = true, variant = 'default' }: Heade
           >
             Explore
           </Link>
+          <Link
+            to="/courses"
+            className="px-4 py-2 text-sm font-medium rounded-lg hover:bg-muted transition-colors"
+          >
+            Courses
+          </Link>
 
           {isAuthenticated ? (
             <>
@@ -151,6 +157,14 @@ export default function Header({ showSearch = true, variant = 'default' }: Heade
                 >
                   <MagnifyingGlassIcon className="h-5 w-5 text-muted-foreground" />
                   Explore Services
+                </Link>
+                <Link
+                  to="/courses"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-3 py-3 px-4 rounded-xl hover:bg-muted transition-colors"
+                >
+                  <HomeIcon className="h-5 w-5 text-muted-foreground" />
+                  Courses
                 </Link>
                 {isAuthenticated ? (
                   <>

@@ -14,6 +14,9 @@ import HomePage from './pages/HomePage';
 import ServicesPage from './pages/ServicesPage';
 import ServicePage from './pages/ServicePage';
 import SellerPage from './pages/SellerPage';
+import CoursesPage from './pages/CoursesPage';
+import CoursePage from './pages/CoursePage';
+import CoursePlayerPage from './pages/CoursePlayerPage';
 
 // Auth pages
 import LoginPage from './pages/auth/LoginPage';
@@ -39,6 +42,8 @@ import SellerOrdersPage from './pages/seller/SellerOrdersPage';
 import CRMPage from './pages/seller/CRMPage';
 import EarningsPage from './pages/seller/EarningsPage';
 import BecomeSeller from './pages/seller/BecomeSeller';
+import SellerCoursesPage from './pages/seller/SellerCoursesPage';
+import CreateCoursePage from './pages/seller/CreateCoursePage';
 
 // Admin pages
 import AdminDashboardPage from './pages/admin/AdminDashboardPage';
@@ -78,7 +83,12 @@ function App() {
           <Route path="/services" element={<ServicesPage />} />
           <Route path="/services/:username/:slug" element={<ServicePage />} />
           <Route path="/sellers/:username" element={<SellerPage />} />
+          <Route path="/courses" element={<CoursesPage />} />
+          <Route path="/courses/:slug" element={<CoursePage />} />
         </Route>
+
+        {/* Course player (full screen, no layout) */}
+        <Route path="/courses/:slug/learn" element={<ProtectedRoute><CoursePlayerPage /></ProtectedRoute>} />
 
         {/* Auth routes */}
         <Route element={<AuthLayout />}>
@@ -109,6 +119,8 @@ function App() {
           <Route path="/seller/orders" element={<SellerOrdersPage />} />
           <Route path="/seller/crm" element={<CRMPage />} />
           <Route path="/seller/earnings" element={<EarningsPage />} />
+          <Route path="/seller/courses" element={<SellerCoursesPage />} />
+          <Route path="/seller/courses/new" element={<CreateCoursePage />} />
         </Route>
 
         {/* Admin routes */}

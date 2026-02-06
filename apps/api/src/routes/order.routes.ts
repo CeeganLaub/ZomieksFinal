@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { authenticate } from '@/middleware/auth.js';
 import { prisma } from '@/lib/prisma.js';
 import { validate } from '@/middleware/validate.js';
-import { createOrderSchema, orderDeliverySchema, orderRevisionSchema, calculateOrderFees, generateOrderNumber, calculateDeliveryDueDate } from '@zomieks/shared';
+import { createOrderSchema, orderDeliverySchema, orderRevisionSchema, calculateOrderFees, generateOrderNumber, calculateDeliveryDueDate, calculateServiceRefund } from '@zomieks/shared';
 
 const router = Router();
 
@@ -403,18 +403,16 @@ router.post('/:id/accept', authenticate, async (req, res, next) => {
   }
 });
 
-// Cancel order
+// Cancel order (with refund for paid orders)
 router.post('/:id/cancel', authenticate, async (req, res, next) => {
   try {
     const order = await prisma.order.findFirst({
       where: {
         id: req.params.id as string,
-        OR: [
-          { buyerId: req.user!.id },
-          { sellerId: req.user!.id },
-        ],
+        buyerId: req.user!.id,
         status: { in: ['PENDING_PAYMENT', 'PAID', 'IN_PROGRESS'] },
       },
+      include: { deliveries: true },
     });
 
     if (!order) {
@@ -424,11 +422,54 @@ router.post('/:id/cancel', authenticate, async (req, res, next) => {
       });
     }
 
-    // If already paid, initiate refund
-    if (order.status !== 'PENDING_PAYMENT') {
-      // TODO: Initiate refund process
+    // After delivery, buyer must dispute instead
+    if (order.deliveries && order.deliveries.length > 0) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'DELIVERY_EXISTS', message: 'Cannot cancel after delivery. Please open a dispute instead.' },
+      });
     }
 
+    // If order is paid, process refund to credit balance with fee deduction
+    if (order.status !== 'PENDING_PAYMENT') {
+      const baseAmount = Number(order.baseAmount);
+      const buyerFee = Number(order.buyerFee);
+      const totalAmount = Number(order.totalAmount);
+
+      const feeBreakdown = calculateServiceRefund(baseAmount, buyerFee, totalAmount);
+
+      // Process escrow refund
+      const { processOrderRefund } = await import('@/services/escrow.service.js');
+      await processOrderRefund(order.id, req.body.reason || 'Buyer cancelled', {
+        refundAmount: feeBreakdown.refundAmount,
+        processingFee: feeBreakdown.processingFee,
+        buyerFeeKept: feeBreakdown.buyerFeeKept,
+      });
+
+      // Credit refund amount to user balance
+      const user = await prisma.user.update({
+        where: { id: req.user!.id },
+        data: { creditBalance: { increment: feeBreakdown.refundAmount } },
+      });
+
+      return res.json({
+        success: true,
+        data: {
+          order: { id: order.id, status: 'REFUNDED' },
+          refund: {
+            originalAmount: totalAmount,
+            buyerFeeKept: feeBreakdown.buyerFeeKept,
+            processingFee: feeBreakdown.processingFee,
+            totalDeducted: feeBreakdown.totalDeducted,
+            refundAmount: feeBreakdown.refundAmount,
+            creditBalance: Number(user.creditBalance),
+          },
+          message: `R${feeBreakdown.refundAmount.toFixed(2)} has been credited to your account balance. R${feeBreakdown.totalDeducted.toFixed(2)} retained as fees.`,
+        },
+      });
+    }
+
+    // Unpaid order — just cancel
     const updated = await prisma.order.update({
       where: { id: order.id },
       data: {

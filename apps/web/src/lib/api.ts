@@ -1,4 +1,4 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8787';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 interface RequestOptions extends RequestInit {
   params?: Record<string, string | number | boolean | undefined>;
@@ -234,7 +234,10 @@ export const ordersApi = {
     api.post<ApiResponse<null>>(`/orders/${id}/review`, data),
   
   cancel: (id: string, reason?: string) =>
-    api.post<ApiResponse<null>>(`/orders/${id}/cancel`, { reason }),
+    api.post<ApiResponse<any>>(`/orders/${id}/cancel`, { reason }),
+  
+  cancelAndRefund: (id: string, reason?: string) =>
+    api.post<ApiResponse<any>>(`/orders/${id}/cancel`, { reason }),
 };
 
 // Users API
@@ -295,6 +298,8 @@ export const paymentsApi = {
     api.get<ApiResponse<any[]>>('/payments/transactions', { params }),
   
   balance: () => api.get<ApiResponse<any>>('/payments/balance'),
+  
+  creditBalance: () => api.get<ApiResponse<{ creditBalance: number }>>('/payments/credit-balance'),
   
   escrow: () => api.get<ApiResponse<any[]>>('/payments/escrow'),
   
@@ -358,6 +363,83 @@ export const uploadsApi = {
     if (!data.success) throw new Error(data.error?.message || 'Upload failed');
     return data.data as { key: string; url: string };
   },
+};
+
+// Courses API
+export const coursesApi = {
+  // Public
+  list: (params?: { category?: string; search?: string; level?: string; minPrice?: number; maxPrice?: number; sort?: string; page?: number; limit?: number }) =>
+    api.get<ApiResponse<any[]>>('/courses', { params }),
+
+  get: (slug: string) =>
+    api.get<ApiResponse<any>>(`/courses/${slug}`),
+
+  // Buyer
+  enroll: (courseId: string) =>
+    api.post<ApiResponse<{ enrollmentId: string }>>(`/courses/${courseId}/enroll`),
+
+  refund: (courseId: string, reason?: string) =>
+    api.post<ApiResponse<{ refundId: string; refundAmount: number; newCreditBalance: number; message: string }>>(`/courses/${courseId}/refund`, { reason }),
+
+  learn: (courseId: string) =>
+    api.get<ApiResponse<any>>(`/courses/${courseId}/learn`),
+
+  completeLesson: (courseId: string, lessonId: string) =>
+    api.post<ApiResponse<any>>(`/courses/${courseId}/lessons/${lessonId}/complete`),
+
+  myEnrollments: () =>
+    api.get<ApiResponse<any[]>>('/courses/my/enrollments'),
+
+  review: (courseId: string, data: { rating: number; comment: string }) =>
+    api.post<ApiResponse<any>>(`/courses/${courseId}/reviews`, data),
+
+  // Seller
+  sellerCourses: () =>
+    api.get<ApiResponse<any[]>>('/courses/seller/my'),
+
+  createCourse: (data: any) =>
+    api.post<ApiResponse<any>>('/courses/seller/create', data),
+
+  updateCourse: (courseId: string, data: any) =>
+    api.patch<ApiResponse<any>>(`/courses/seller/${courseId}`, data),
+
+  publishCourse: (courseId: string) =>
+    api.post<ApiResponse<any>>(`/courses/seller/${courseId}/publish`),
+
+  deleteCourse: (courseId: string) =>
+    api.delete<ApiResponse<any>>(`/courses/seller/${courseId}`),
+
+  getCourseForEdit: (courseId: string) =>
+    api.get<ApiResponse<any>>(`/courses/seller/${courseId}/edit`),
+
+  // Sections
+  addSection: (courseId: string, data: { title: string; order: number }) =>
+    api.post<ApiResponse<any>>(`/courses/seller/${courseId}/sections`, data),
+
+  updateSection: (sectionId: string, data: { title?: string; order?: number }) =>
+    api.patch<ApiResponse<any>>(`/courses/seller/sections/${sectionId}`, data),
+
+  deleteSection: (sectionId: string) =>
+    api.delete<ApiResponse<any>>(`/courses/seller/sections/${sectionId}`),
+
+  // Lessons
+  addLesson: (sectionId: string, data: any) =>
+    api.post<ApiResponse<any>>(`/courses/seller/sections/${sectionId}/lessons`, data),
+
+  updateLesson: (lessonId: string, data: any) =>
+    api.patch<ApiResponse<any>>(`/courses/seller/lessons/${lessonId}`, data),
+
+  deleteLesson: (lessonId: string) =>
+    api.delete<ApiResponse<any>>(`/courses/seller/lessons/${lessonId}`),
+};
+
+// Seller Fee API
+export const sellerFeeApi = {
+  checkStatus: () =>
+    api.get<ApiResponse<{ feeAmount: number; feePaid: boolean; feePaidAt: string | null }>>('/users/seller/fee-status'),
+
+  payFee: () =>
+    api.post<ApiResponse<{ message: string }>>('/users/seller/pay-fee'),
 };
 
 export { setAuthToken, getAuthToken };

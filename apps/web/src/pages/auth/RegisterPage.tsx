@@ -66,7 +66,7 @@ export default function RegisterPage() {
       const { confirmPassword, ...registerData } = data;
       await registerUser(registerData);
       toast.success('Welcome to Zomieks!');
-      navigate('/dashboard');
+      navigate('/services');
     } catch (error: any) {
       toast.error(error.message || 'Registration failed');
     } finally {

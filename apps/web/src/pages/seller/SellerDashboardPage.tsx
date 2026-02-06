@@ -156,10 +156,10 @@ export default function SellerDashboardPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <StatCard
           title="Total Earnings"
-          value={`R${stats?.totalEarnings.toFixed(2) || '0.00'}`}
+          value={`R${stats?.totalEarnings ? Number(stats.totalEarnings).toFixed(2) : '0.00'}`}
           icon={CurrencyDollarIcon}
           color="green"
-          subtitle={`R${stats?.pendingEarnings.toFixed(2) || '0.00'} pending`}
+          subtitle={`R${stats?.pendingEarnings ? Number(stats.pendingEarnings).toFixed(2) : '0.00'} pending`}
         />
         <StatCard
           title="Active Orders"
@@ -177,7 +177,7 @@ export default function SellerDashboardPage() {
         />
         <StatCard
           title="Rating"
-          value={stats?.averageRating?.toFixed(1) || 'N/A'}
+          value={stats?.averageRating ? Number(stats.averageRating).toFixed(1) : 'N/A'}
           icon={StarIcon}
           color="yellow"
           subtitle={`${stats?.totalReviews || 0} reviews`}
@@ -270,7 +270,7 @@ export default function SellerDashboardPage() {
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Customer Rating</span>
                 <div className="flex items-center gap-2">
-                  <span className="font-medium">{stats?.averageRating?.toFixed(1) || 'N/A'}</span>
+                  <span className="font-medium">{stats?.averageRating ? Number(stats.averageRating).toFixed(1) : 'N/A'}</span>
                   <StarIcon className="h-4 w-4 text-yellow-500" />
                 </div>
               </div>

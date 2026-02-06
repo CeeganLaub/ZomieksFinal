@@ -8,6 +8,8 @@ async function main() {
 
   // Clear existing data using raw query
   const tables = [
+    'CourseReview', 'LessonProgress', 'CourseEnrollment', 'CourseLesson', 
+    'CourseSection', 'Course',
     'Activity', 'ConversationMetrics', 'ConversationNote', 'ConversationLabel', 
     'Message', 'Conversation', 'SavedReply', 'AutoTrigger', 'PipelineStage', 
     'Label', 'Review', 'Notification', 'Refund', 'Dispute', 'EscrowHold', 
@@ -683,6 +685,185 @@ I have helped over 50 businesses grow their social media presence and increase e
   });
 
   console.log('✅ Created sample conversation');
+
+  // Create sample courses
+  const course1 = await prisma.course.create({
+    data: {
+      title: 'Master Modern Logo Design from Scratch',
+      slug: 'master-modern-logo-design',
+      description: 'Learn the complete process of designing professional logos — from concept sketching to final delivery. This course covers typography, color theory, iconography, and client presentation techniques used by top designers.',
+
+      price: 499,
+      level: 'BEGINNER',
+      status: 'PUBLISHED',
+      categoryId: categories[0].id,
+      sellerId: sellerUser1.sellerProfile!.id,
+      thumbnail: 'https://picsum.photos/seed/course-logo/800/450',
+      learnings: [
+        'Design professional logos from scratch',
+        'Understand color theory and typography',
+        'Present designs to clients effectively',
+        'Use Adobe Illustrator for logo work',
+        'Build a logo design portfolio',
+      ],
+      requirements: [
+        'No prior design experience needed',
+        'A computer with internet access',
+        'Adobe Illustrator (free trial is fine)',
+      ],
+      tags: ['logo design', 'branding', 'graphic design', 'illustrator'],
+      totalDuration: 18000,
+      publishedAt: new Date(),
+      sections: {
+        create: [
+          {
+            title: 'Getting Started with Logo Design',
+            order: 0,
+            lessons: {
+              create: [
+                { title: 'Welcome & Course Overview', duration: 300, order: 0, description: 'Welcome to the course!' },
+                { title: 'What Makes a Great Logo?', duration: 600, order: 1, description: 'Exploring the fundamentals of great logo design.' },
+                { title: 'Tools You Will Need', duration: 480, order: 2, description: 'Setting up your design workspace.' },
+              ],
+            },
+          },
+          {
+            title: 'Design Fundamentals',
+            order: 1,
+            lessons: {
+              create: [
+                { title: 'Color Theory for Logos', duration: 900, order: 0, description: 'Understanding how color impacts branding.' },
+                { title: 'Typography Essentials', duration: 720, order: 1, description: 'Choosing and pairing fonts for logos.' },
+                { title: 'Shape Psychology in Design', duration: 600, order: 2, description: 'How shapes influence perception.' },
+              ],
+            },
+          },
+          {
+            title: 'Building Your First Logo',
+            order: 2,
+            lessons: {
+              create: [
+                { title: 'Concept Sketching Techniques', duration: 1200, order: 0, description: 'Brainstorming and sketching logo concepts.' },
+                { title: 'From Sketch to Vector', duration: 1500, order: 1, description: 'Digitizing your sketches in Illustrator.' },
+                { title: 'Final Polish & Export', duration: 900, order: 2, description: 'Refining and exporting your logo.' },
+                { title: 'Presenting to Clients', duration: 600, order: 3, description: 'Creating professional mockups and presentations.' },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  });
+
+  const course2 = await prisma.course.create({
+    data: {
+      title: 'Build Full-Stack Web Apps with React & Node.js',
+      slug: 'fullstack-react-nodejs',
+      description: 'Go from zero to deploying a production-ready full-stack web application. This comprehensive course covers React for the frontend, Node.js/Express for the backend, PostgreSQL for the database, and deployment to the cloud.',
+      price: 799,
+      level: 'INTERMEDIATE',
+      status: 'PUBLISHED',
+      categoryId: categories[1].id,
+      sellerId: sellerUser2.sellerProfile!.id,
+      thumbnail: 'https://picsum.photos/seed/course-react/800/450',
+      learnings: [
+        'Build complete React frontends with TypeScript',
+        'Create REST APIs with Node.js and Express',
+        'Design and query PostgreSQL databases',
+        'Implement authentication and authorization',
+        'Deploy applications to production',
+        'Write tests and follow best practices',
+      ],
+      requirements: [
+        'Basic HTML, CSS, and JavaScript knowledge',
+        'A computer with Node.js installed',
+        'Familiarity with the command line',
+      ],
+      tags: ['react', 'nodejs', 'typescript', 'fullstack', 'web development'],
+      totalDuration: 36000,
+      publishedAt: new Date(),
+      sections: {
+        create: [
+          {
+            title: 'Project Setup & Architecture',
+            order: 0,
+            lessons: {
+              create: [
+                { title: 'Course Introduction', duration: 300, order: 0, description: 'What we will build together.' },
+                { title: 'Project Architecture Overview', duration: 600, order: 1, description: 'Understanding the full-stack architecture.' },
+                { title: 'Setting Up the Monorepo', duration: 900, order: 2, description: 'Configuring the development environment.' },
+              ],
+            },
+          },
+          {
+            title: 'Backend with Node.js & Express',
+            order: 1,
+            lessons: {
+              create: [
+                { title: 'Express Server Setup', duration: 1200, order: 0, description: 'Creating the Express application.' },
+                { title: 'Database Design with Prisma', duration: 1500, order: 1, description: 'Modeling data with Prisma ORM.' },
+                { title: 'Building REST Endpoints', duration: 1800, order: 2, description: 'Creating CRUD API routes.' },
+                { title: 'Authentication & JWT', duration: 1500, order: 3, description: 'Implementing secure authentication.' },
+              ],
+            },
+          },
+          {
+            title: 'Frontend with React & TypeScript',
+            order: 2,
+            lessons: {
+              create: [
+                { title: 'React Project Structure', duration: 900, order: 0, description: 'Organizing a scalable React app.' },
+                { title: 'State Management with Zustand', duration: 1200, order: 1, description: 'Managing application state.' },
+                { title: 'Building the UI Components', duration: 1800, order: 2, description: 'Creating reusable components with Tailwind.' },
+                { title: 'Connecting to the API', duration: 1200, order: 3, description: 'Using React Query for data fetching.' },
+              ],
+            },
+          },
+          {
+            title: 'Deployment & Production',
+            order: 3,
+            lessons: {
+              create: [
+                { title: 'Testing Your Application', duration: 1200, order: 0, description: 'Writing unit and integration tests.' },
+                { title: 'Docker & CI/CD', duration: 1500, order: 1, description: 'Containerizing and automating deployments.' },
+                { title: 'Deploying to Production', duration: 900, order: 2, description: 'Going live with your app.' },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  });
+
+  // Create a course enrollment for the buyer
+  await prisma.courseEnrollment.create({
+    data: {
+      userId: buyerUser.id,
+      courseId: course1.id,
+      amountPaid: 499,
+    },
+  });
+
+  // Mark seller fee as paid for seller1 (so they can create courses)
+  await prisma.sellerProfile.update({
+    where: { id: sellerUser1.sellerProfile!.id },
+    data: {
+      sellerFeePaid: true,
+      sellerFeePaidAt: new Date(),
+      sellerFeeTransactionId: 'SEED-FEE-001',
+    },
+  });
+
+  await prisma.sellerProfile.update({
+    where: { id: sellerUser2.sellerProfile!.id },
+    data: {
+      sellerFeePaid: true,
+      sellerFeePaidAt: new Date(),
+      sellerFeeTransactionId: 'SEED-FEE-002',
+    },
+  });
+
+  console.log('✅ Created 2 sample courses with sections & lessons');
 
   console.log('\n🎉 Seed completed successfully!\n');
   console.log('Test accounts:');

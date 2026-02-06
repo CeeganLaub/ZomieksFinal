@@ -141,6 +141,23 @@ router.get('/', optionalAuth, async (req, res, next) => {
 });
 
 // Get categories (MUST be before /:username/:slug to avoid route conflict)
+router.get('/meta/stats', async (_req, res, next) => {
+  try {
+    const [totalServices, totalSellers, totalCategories] = await Promise.all([
+      prisma.service.count({ where: { isActive: true, status: 'ACTIVE' } }),
+      prisma.sellerProfile.count(),
+      prisma.category.count(),
+    ]);
+
+    res.json({
+      success: true,
+      data: { totalServices, totalSellers, totalCategories },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get('/meta/categories', async (_req, res, next) => {
   try {
     const categories = await prisma.category.findMany({

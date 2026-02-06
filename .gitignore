@@ -60,3 +60,12 @@ uploads/
 # Vite build outputs
 apps/web/vite.config.js
 apps/web/vite.config.d.ts
+
+# Test artifacts
+test-results/
+
+# Redis dump
+dump.rdb
+
+# Credentials
+cred.md

@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { api } from '@/lib/api';
+import { api, ordersApi } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
+import { REFUND_POLICY } from '@zomieks/shared';
 import {
   CheckCircleIcon,
   XCircleIcon,
@@ -16,6 +17,7 @@ import {
   ArrowLeftIcon,
   StarIcon,
   BanknotesIcon,
+  ArrowPathIcon,
 } from '@heroicons/react/24/outline';
 import { format } from 'date-fns';
 
@@ -112,6 +114,26 @@ export default function OrderPage() {
     },
   });
 
+  const cancelRefundMutation = useMutation({
+    mutationFn: async (reason: string) => ordersApi.cancelAndRefund(id!, reason),
+    onSuccess: (data: any) => {
+      const refund = data.data?.refund;
+      if (refund) {
+        toast.success(`R${refund.refundAmount.toFixed(2)} credited to your balance. R${refund.totalDeducted.toFixed(2)} retained as fees.`);
+      } else {
+        toast.success('Order cancelled');
+      }
+      queryClient.invalidateQueries({ queryKey: ['order', id] });
+      setShowRefundModal(false);
+    },
+    onError: (err: any) => {
+      toast.error(err.message || 'Failed to cancel order');
+    },
+  });
+
+  const [showRefundModal, setShowRefundModal] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -133,6 +155,7 @@ export default function OrderPage() {
   const canPay = order.status === 'PENDING';
   const canAccept = order.status === 'DELIVERED';
   const canDispute = ['DELIVERED', 'IN_PROGRESS'].includes(order.status);
+  const canCancel = ['PAID', 'IN_PROGRESS'].includes(order.status) && (!order.deliveries || order.deliveries.length === 0);
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
@@ -432,6 +455,16 @@ export default function OrderPage() {
           </Card>
 
           {/* Actions */}
+          {canCancel && (
+            <Button
+              variant="outline"
+              className="w-full text-orange-600 border-orange-200 hover:bg-orange-50"
+              onClick={() => setShowRefundModal(true)}
+            >
+              <ArrowPathIcon className="h-4 w-4 mr-2" />
+              Cancel & Refund
+            </Button>
+          )}
           {canDispute && (
             <Button
               variant="outline"
@@ -498,6 +531,51 @@ export default function OrderPage() {
                 disabled={submitReviewMutation.isPending}
               >
                 {submitReviewMutation.isPending ? 'Submitting...' : 'Submit Review'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Refund Confirmation Modal */}
+      {showRefundModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <h2 className="text-xl font-bold mb-2">Cancel & Refund Order</h2>
+            <p className="text-sm text-muted-foreground mb-4">
+              Your refund will be credited to your account balance after deducting platform fees.
+              Credits can be used for any purchase but cannot be withdrawn.
+            </p>
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-4 text-sm space-y-1">
+              <p className="font-medium text-orange-800">Fee Breakdown</p>
+              <div className="text-orange-700">
+                <p>Order total: R{Number(order.totalAmount).toFixed(2)}</p>
+                <p>Buyer fee kept (3%): -R{Number(order.buyerFee).toFixed(2)}</p>
+                <p>Processing fee ({REFUND_POLICY.PROCESSING_FEE_PERCENT}%): -R{(Number(order.baseAmount) * REFUND_POLICY.PROCESSING_FEE_PERCENT / 100).toFixed(2)}</p>
+                <p className="font-bold mt-1">
+                  Estimated refund: R{(Number(order.totalAmount) - Number(order.buyerFee) - Number(order.baseAmount) * REFUND_POLICY.PROCESSING_FEE_PERCENT / 100).toFixed(2)}
+                </p>
+              </div>
+            </div>
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-1">Reason (optional)</label>
+              <textarea
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                rows={2}
+                className="w-full px-3 py-2 border rounded-lg text-sm"
+                placeholder="Why are you cancelling?"
+              />
+            </div>
+            <div className="flex gap-3">
+              <Button variant="outline" className="flex-1" onClick={() => setShowRefundModal(false)}>
+                Keep Order
+              </Button>
+              <Button
+                className="flex-1 bg-orange-600 hover:bg-orange-700"
+                onClick={() => cancelRefundMutation.mutate(cancelReason)}
+                disabled={cancelRefundMutation.isPending}
+              >
+                {cancelRefundMutation.isPending ? 'Processing...' : 'Confirm Refund'}
               </Button>
             </div>
           </div>

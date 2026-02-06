@@ -123,6 +123,74 @@ router.get('/initiate-subscription', authenticate, async (req, res, next) => {
   }
 });
 
+// Get credit balance
+router.get('/credit-balance', authenticate, async (req, res, next) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user!.id },
+      select: { creditBalance: true },
+    });
+
+    res.json({
+      success: true,
+      data: { creditBalance: Number(user?.creditBalance || 0) },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get balance summary
+router.get('/balance', authenticate, async (req, res, next) => {
+  try {
+    if (!req.user!.isSeller) {
+      return res.json({
+        success: true,
+        data: { available: 0, pending: 0, withdrawn: 0 },
+      });
+    }
+
+    const [pendingEscrow, releasedEscrow, pendingPayouts, completedPayouts] = await Promise.all([
+      prisma.escrowHold.aggregate({
+        where: {
+          transaction: { order: { sellerId: req.user!.id } },
+          status: 'HELD',
+        },
+        _sum: { sellerAmount: true },
+      }),
+      prisma.escrowHold.aggregate({
+        where: {
+          transaction: { order: { sellerId: req.user!.id } },
+          status: 'RELEASED',
+          payoutId: null,
+        },
+        _sum: { sellerAmount: true },
+      }),
+      prisma.sellerPayout.aggregate({
+        where: { sellerId: req.user!.id, status: { in: ['PENDING', 'PROCESSING'] } },
+        _sum: { amount: true },
+      }),
+      prisma.sellerPayout.aggregate({
+        where: { sellerId: req.user!.id, status: 'COMPLETED' },
+        _sum: { amount: true },
+      }),
+    ]);
+
+    const available = Number(releasedEscrow._sum.sellerAmount || 0) - Number(pendingPayouts._sum.amount || 0);
+
+    res.json({
+      success: true,
+      data: {
+        available,
+        pending: Number(pendingEscrow._sum.sellerAmount || 0),
+        withdrawn: Number(completedPayouts._sum.amount || 0),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Get seller earnings
 router.get('/earnings', authenticate, async (req, res, next) => {
   try {
