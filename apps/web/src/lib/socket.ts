@@ -178,6 +178,14 @@ class SocketClient {
     this.username = username;
   }
 
+  // General connect - sets up presence connection
+  connect(): void {
+    // This is a no-op placeholder for compatibility
+    // Actual connections happen via joinConversation, connectPresence, etc.
+    // We don't auto-connect presence here to avoid issues when user data isn't ready
+    console.log('[Socket] connect() called - connections will be made on demand');
+  }
+
   // Chat methods
   joinConversation(conversationId: string): DurableObjectSocket {
     if (!this.userId || !this.username) {

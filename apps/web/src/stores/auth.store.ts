@@ -67,7 +67,8 @@ export const useAuthStore = create<AuthState>()(
             isAuthenticated: true, 
             isLoading: false 
           });
-          socketClient.connect();
+          // Set user on socket client for future connections
+          socketClient.setUser(response.data.user.id, response.data.user.username);
         } catch {
           set({ user: null, token: null, isAuthenticated: false, isLoading: false });
         }
@@ -83,7 +84,7 @@ export const useAuthStore = create<AuthState>()(
           token: response.data.accessToken,
           isAuthenticated: true 
         });
-        socketClient.connect();
+        socketClient.setUser(response.data.user.id, response.data.user.username);
       },
 
       register: async (data) => {
@@ -93,7 +94,7 @@ export const useAuthStore = create<AuthState>()(
           token: response.data.accessToken,
           isAuthenticated: true 
         });
-        socketClient.connect();
+        socketClient.setUser(response.data.user.id, response.data.user.username);
       },
 
       logout: async () => {
@@ -109,7 +110,7 @@ export const useAuthStore = create<AuthState>()(
       
       setAuth: (user, token) => {
         set({ user, token, isAuthenticated: true });
-        socketClient.connect();
+        socketClient.setUser(user.id, user.username);
       },
       
       clearAuth: () => {

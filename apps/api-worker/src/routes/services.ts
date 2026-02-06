@@ -193,6 +193,23 @@ app.get('/', async (c) => {
   // Get services
   const offset = (page - 1) * limit;
   
+  // Build order by clause based on sortBy param
+  const getOrderBy = () => {
+    const direction = sortOrder === 'desc' ? desc : asc;
+    switch (sortBy) {
+      case 'rating':
+        return direction(services.rating);
+      case 'reviewCount':
+        return direction(services.reviewCount);
+      case 'orderCount':
+        return direction(services.orderCount);
+      case 'price':
+        return direction(services.createdAt); // Price sorting done post-query
+      default:
+        return direction(services.createdAt);
+    }
+  };
+  
   const allServices = await db.query.services.findMany({
     where: and(...conditions),
     with: {
@@ -206,9 +223,7 @@ app.get('/', async (c) => {
         where: eq(servicePackages.isActive, true),
       },
     },
-    orderBy: sortOrder === 'desc' 
-      ? desc(services[sortBy as keyof typeof services] || services.createdAt)
-      : asc(services[sortBy as keyof typeof services] || services.createdAt),
+    orderBy: getOrderBy(),
     limit,
     offset,
   });

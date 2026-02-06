@@ -17,6 +17,10 @@ import uploadRoutes from './routes/uploads';
 import webhookRoutes from './routes/webhooks';
 import adminRoutes from './routes/admin';
 import configRoutes from './routes/config';
+import debugRoutes from './routes/debug';
+
+// Middleware
+import { devLogger } from './middleware/dev-logger';
 
 // Durable Objects
 export { ChatRoom } from './durable-objects/ChatRoom';
@@ -31,6 +35,7 @@ const app = new Hono<{ Bindings: Env }>();
 // Global middleware
 app.use('*', logger());
 app.use('*', secureHeaders());
+app.use('*', devLogger());
 app.use('*', cors({
   origin: (origin, c) => {
     // Allow Codespaces and local development
@@ -84,6 +89,7 @@ v1.route('/uploads', uploadRoutes);
 v1.route('/webhooks', webhookRoutes);
 v1.route('/admin', adminRoutes);
 v1.route('/admin/settings', configRoutes);
+v1.route('/debug', debugRoutes);
 
 app.route('/api/v1', v1);
 

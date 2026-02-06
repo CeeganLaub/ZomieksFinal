@@ -49,6 +49,8 @@ import ConfigurationPage from './pages/admin/ConfigurationPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import SellerRoute from './components/SellerRoute';
 import AdminRoute from './components/AdminRoute';
+import ErrorBoundary from './components/ErrorBoundary';
+import DevPanel from './components/DevPanel';
 
 function App() {
   const { initialize, isLoading } = useAuthStore();
@@ -66,8 +68,9 @@ function App() {
   }
 
   return (
-    <>
+    <ErrorBoundary>
       <Toaster position="top-right" richColors />
+      <DevPanel />
       <Routes>
         {/* Public routes */}
         <Route element={<MainLayout />}>
@@ -115,7 +118,7 @@ function App() {
           <Route path="/admin/configuration" element={<ConfigurationPage />} />
         </Route>
       </Routes>
-    </>
+    </ErrorBoundary>
   );
 }
 

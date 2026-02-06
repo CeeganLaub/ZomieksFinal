@@ -113,8 +113,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }));
   },
 
-  sendMessage: (conversationId, content, type = 'TEXT', attachments) => {
-    socketClient.sendMessage(conversationId, content, type, attachments);
+  sendMessage: (conversationId, content, _type = 'TEXT', _attachments) => {
+    // Socket currently only supports text messages
+    socketClient.sendMessage(conversationId, content);
   },
 
   setTyping: (conversationId, userId, isTyping) => {
@@ -134,11 +135,5 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 }));
 
-// Setup socket listeners
-socketClient.onNewMessage((message) => {
-  useChatStore.getState().addMessage(message);
-});
-
-socketClient.onTyping(({ conversationId, userId, isTyping }) => {
-  useChatStore.getState().setTyping(conversationId, userId, isTyping);
-});
+// Socket listeners are set up per-conversation when joining
+// See fetchConversation and setActiveConversation for socket setup

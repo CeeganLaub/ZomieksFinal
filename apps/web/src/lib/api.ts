@@ -1,4 +1,4 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8787/api/v1';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8787';
 
 interface RequestOptions extends RequestInit {
   params?: Record<string, string | number | boolean | undefined>;
@@ -346,7 +346,7 @@ export const uploadsApi = {
   
   uploadAvatar: async (file: File) => {
     const token = getAuthToken();
-    const response = await fetch(`${API_URL}/api/v1/uploads/avatar`, {
+    const response = await fetch(`${API_URL}/uploads/avatar`, {
       method: 'POST',
       headers: {
         'Content-Type': file.type,

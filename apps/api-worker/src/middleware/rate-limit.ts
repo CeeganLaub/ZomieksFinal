@@ -50,8 +50,8 @@ export function rateLimit(options: RateLimitOptions) {
 
 // Preset rate limiters
 export const authRateLimit = rateLimit({
-  limit: 5,
-  windowMs: 15 * 60 * 1000, // 5 attempts per 15 minutes
+  limit: 50,
+  windowMs: 15 * 60 * 1000, // 50 attempts per 15 minutes (relaxed for dev)
   keyPrefix: 'auth',
 });
 

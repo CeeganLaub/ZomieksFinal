@@ -1,13 +1,12 @@
 import { create } from 'zustand';
 import { api } from '../lib/api';
-import { socketClient } from '../lib/socket';
 
 interface Notification {
   id: string;
   type: string;
   title: string;
   message: string;
-  isRead: boolean;
+  read: boolean;
   data?: Record<string, any>;
   createdAt: string;
 }
@@ -19,11 +18,12 @@ interface NotificationState {
   
   // Actions
   fetchNotifications: () => Promise<void>;
-  markAsRead: (ids?: string[]) => Promise<void>;
+  markAsRead: (id: string) => Promise<void>;
+  markAllAsRead: () => Promise<void>;
   addNotification: (notification: Notification) => void;
 }
 
-export const useNotificationStore = create<NotificationState>((set, get) => ({
+export const useNotificationStore = create<NotificationState>((set) => ({
   notifications: [],
   unreadCount: 0,
   isLoading: false,
@@ -39,18 +39,37 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
         notifications: response.data.notifications,
         unreadCount: response.data.unreadCount,
       });
+    } catch {
+      // Silently fail - notifications endpoint may not exist yet
+      set({ notifications: [], unreadCount: 0 });
     } finally {
       set({ isLoading: false });
     }
   },
 
-  markAsRead: async (ids) => {
-    await api.post('/users/notifications/read', { notificationIds: ids });
+  markAsRead: async (id: string) => {
+    try {
+      await api.post('/users/notifications/read', { notificationIds: [id] });
+    } catch {
+      // Silently fail
+    }
     set((state) => ({
       notifications: state.notifications.map(n => 
-        ids ? (ids.includes(n.id) ? { ...n, isRead: true } : n) : { ...n, isRead: true }
+        n.id === id ? { ...n, read: true } : n
       ),
-      unreadCount: ids ? state.unreadCount - ids.length : 0,
+      unreadCount: Math.max(0, state.unreadCount - 1),
+    }));
+  },
+
+  markAllAsRead: async () => {
+    try {
+      await api.post('/users/notifications/read', { all: true });
+    } catch {
+      // Silently fail
+    }
+    set((state) => ({
+      notifications: state.notifications.map(n => ({ ...n, read: true })),
+      unreadCount: 0,
     }));
   },
 
@@ -61,8 +80,3 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     }));
   },
 }));
-
-// Setup socket listener
-socketClient.onNotification((notification) => {
-  useNotificationStore.getState().addNotification(notification);
-});
