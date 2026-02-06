@@ -48,14 +48,6 @@ const categoryIcons: Record<string, string> = {
   'briefcase': '💼',
 };
 
-// Stats data
-const stats = [
-  { value: '50K+', label: 'Active Users', icon: UserGroupIcon },
-  { value: '100K+', label: 'Projects Completed', icon: CheckBadgeIcon },
-  { value: '4.9/5', label: 'Average Rating', icon: StarIcon },
-  { value: '24/7', label: 'Support', icon: ClockIcon },
-];
-
 // Trust badges
 const trustBadges = [
   { icon: ShieldCheckIcon, title: 'Secure Payments', desc: 'Escrow-protected transactions' },
@@ -81,6 +73,12 @@ export default function HomePage() {
   const { data: coursesData } = useQuery({
     queryKey: ['courses', 'featured-home'],
     queryFn: () => api.get<any>('/courses', { params: { limit: 4, sort: 'popular' } }),
+  });
+
+  const { data: platformStats } = useQuery({
+    queryKey: ['platform-stats'],
+    queryFn: () => api.get<any>('/services/meta/stats'),
+    staleTime: 5 * 60 * 1000,
   });
 
   const handleSearch = (e: React.FormEvent) => {
@@ -228,10 +226,10 @@ export default function HomePage() {
               transition={{ delay: 0.7 }}
             >
               {[
-                { value: '2,400+', label: 'Services' },
-                { value: '500+', label: 'Courses' },
-                { value: '4.9★', label: 'Avg Rating' },
-                { value: '10K+', label: 'Happy Users' },
+                { value: platformStats?.data?.totalServices?.toLocaleString() || '0', label: 'Services' },
+                { value: (coursesData as any)?.meta?.total?.toLocaleString() || '0', label: 'Courses' },
+                { value: platformStats?.data?.totalSellers?.toLocaleString() || '0', label: 'Sellers' },
+                { value: platformStats?.data?.totalCategories?.toLocaleString() || '0', label: 'Categories' },
               ].map((stat, i) => (
                 <div key={i} className="flex items-center gap-1.5">
                   <span className="font-bold text-foreground">{stat.value}</span>
@@ -565,7 +563,12 @@ export default function HomePage() {
             whileInView="visible"
             viewport={{ once: true }}
           >
-            {stats.map((stat, i) => (
+            {[
+              { value: platformStats?.data?.totalSellers?.toLocaleString() || '0', label: 'Active Sellers', icon: UserGroupIcon },
+              { value: platformStats?.data?.totalServices?.toLocaleString() || '0', label: 'Services Listed', icon: CheckBadgeIcon },
+              { value: platformStats?.data?.totalCategories?.toLocaleString() || '0', label: 'Categories', icon: StarIcon },
+              { value: '24/7', label: 'Support', icon: ClockIcon },
+            ].map((stat, i) => (
               <motion.div key={i} className="text-center" variants={scaleIn}>
                 <stat.icon className="h-8 w-8 mx-auto mb-3 opacity-80" />
                 <div className="text-4xl md:text-5xl font-bold mb-2">{stat.value}</div>

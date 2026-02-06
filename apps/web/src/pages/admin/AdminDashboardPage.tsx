@@ -34,24 +34,31 @@ export default function AdminDashboardPage() {
   async function loadStats() {
     try {
       setLoading(true);
-      // Try to load dashboard stats, fallback to mock data if endpoint doesn't exist
-      try {
-        const res = await api.get<{ success: boolean; data: DashboardStats }>('/admin/dashboard/stats');
-        setStats(res.data);
-      } catch {
-        // Endpoint might not exist yet, use placeholder stats
-        setStats({
-          totalUsers: 0,
-          totalSellers: 0,
-          totalServices: 0,
-          totalOrders: 0,
-          pendingDisputes: 0,
-          pendingPayouts: 0,
-          revenueToday: 0,
-          revenueWeek: 0,
-          revenueMonth: 0,
-        });
-      }
+      const res = await api.get<{ success: boolean; data: any }>('/admin/stats');
+      const d = res.data;
+      setStats({
+        totalUsers: d?.users?.total || 0,
+        totalSellers: d?.users?.sellers || 0,
+        totalServices: 0,
+        totalOrders: d?.orders?.total || 0,
+        pendingDisputes: d?.pending?.disputes || 0,
+        pendingPayouts: d?.pending?.payouts || 0,
+        revenueToday: 0,
+        revenueWeek: 0,
+        revenueMonth: Number(d?.revenue?.monthly) || 0,
+      });
+    } catch {
+      setStats({
+        totalUsers: 0,
+        totalSellers: 0,
+        totalServices: 0,
+        totalOrders: 0,
+        pendingDisputes: 0,
+        pendingPayouts: 0,
+        revenueToday: 0,
+        revenueWeek: 0,
+        revenueMonth: 0,
+      });
     } finally {
       setLoading(false);
     }
