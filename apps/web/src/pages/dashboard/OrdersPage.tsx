@@ -5,9 +5,7 @@ import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 import {
   CheckCircleIcon,
-  ClockIcon,
   XCircleIcon,
-  ChatBubbleLeftRightIcon,
   DocumentTextIcon,
   TruckIcon,
   ExclamationTriangleIcon,
@@ -129,7 +127,7 @@ export default function OrdersPage() {
     queryKey: ['buyer-orders'],
     queryFn: async () => {
       const res = await api.get('/orders/buying');
-      return res.data.data.orders;
+      return (res as any).data.data.orders;
     },
   });
 

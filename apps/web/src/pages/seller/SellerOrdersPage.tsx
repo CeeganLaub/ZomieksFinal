@@ -185,7 +185,7 @@ export default function SellerOrdersPage() {
     queryKey: ['seller-orders'],
     queryFn: async () => {
       const res = await api.get('/orders/my-orders');
-      return res.data.data.orders;
+      return (res as any).data.data.orders;
     },
   });
 

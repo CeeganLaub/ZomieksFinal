@@ -8,7 +8,6 @@ import {
   StarIcon,
   ClockIcon,
   CheckCircleIcon,
-  ExclamationTriangleIcon,
   PlusIcon,
 } from '@heroicons/react/24/outline';
 
@@ -102,8 +101,8 @@ export default function SellerDashboardPage() {
         api.get('/orders?selling=true'),
       ]);
       
-      const ordersData = orders.data.data.orders;
-      const earningsData = earnings.data.data;
+      const ordersData = (orders as any).data.data.orders;
+      const earningsData = (earnings as any).data.data;
       
       return {
         totalEarnings: earningsData.totalEarnings || 0,
@@ -125,7 +124,7 @@ export default function SellerDashboardPage() {
     queryKey: ['seller-recent-orders'],
     queryFn: async () => {
       const res = await api.get('/orders?selling=true&limit=5');
-      return res.data.data.orders;
+      return (res as any).data.data.orders;
     },
   });
 

@@ -130,7 +130,7 @@ export default function SellerServicesPage() {
     queryKey: ['seller-services'],
     queryFn: async () => {
       const res = await api.get('/services/my-services');
-      return res.data.data.services;
+      return (res as any).data.data.services;
     },
   });
 

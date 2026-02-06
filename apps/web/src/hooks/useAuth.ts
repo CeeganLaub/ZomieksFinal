@@ -108,7 +108,7 @@ export function useForgotPassword() {
   return useMutation({
     mutationFn: async (email: string) => {
       const response = await api.post('/auth/forgot-password', { email });
-      return response.data;
+      return (response as any).data;
     },
   });
 }
@@ -117,7 +117,7 @@ export function useResetPassword() {
   return useMutation({
     mutationFn: async ({ token, password }: { token: string; password: string }) => {
       const response = await api.post('/auth/reset-password', { token, password });
-      return response.data;
+      return (response as any).data;
     },
   });
 }
