@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { coursesApi, servicesApi } from '../lib/api';
-import { MagnifyingGlassIcon, AcademicCapIcon, ClockIcon, StarIcon, UsersIcon } from '@heroicons/react/24/outline';
+import { MagnifyingGlassIcon, AcademicCapIcon, ClockIcon, StarIcon, UsersIcon, SparklesIcon, ShieldCheckIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
+import { Button } from '../components/ui/Button';
 import { motion } from 'framer-motion';
 
 function formatDuration(seconds: number): string {
@@ -11,6 +12,13 @@ function formatDuration(seconds: number): string {
   if (hours > 0) return `${hours}h ${minutes}m`;
   return `${minutes}m`;
 }
+
+const levelOptions = [
+  { value: '', label: 'All Levels' },
+  { value: 'BEGINNER', label: 'Beginner' },
+  { value: 'INTERMEDIATE', label: 'Intermediate' },
+  { value: 'ADVANCED', label: 'Advanced' },
+];
 
 export default function CoursesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -34,7 +42,7 @@ export default function CoursesPage() {
 
   const courses = coursesData?.data || [];
   const meta = coursesData?.meta;
-  const categories = categoriesData?.data || [];
+  const categories: any[] = (categoriesData as any)?.data?.categories || (categoriesData as any)?.data || [];
 
   const updateParam = (key: string, value: string) => {
     const params = new URLSearchParams(searchParams);
@@ -53,65 +61,124 @@ export default function CoursesPage() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold">Courses</h1>
-        <p className="text-muted-foreground mt-2">
-          Learn from expert sellers — video courses on freelancing, design, development, and more
-        </p>
-      </div>
+    <div className="min-h-screen bg-gradient-to-b from-muted/30 to-background">
+      {/* Hero */}
+      <motion.section 
+        className="bg-gradient-to-br from-purple-950/30 via-background to-emerald-950/20 relative overflow-hidden"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+      >
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-10 right-10 w-72 h-72 bg-purple-500/10 rounded-full blur-3xl" />
+          <div className="absolute bottom-10 left-10 w-64 h-64 bg-primary/10 rounded-full blur-3xl" />
+        </div>
+        <div className="container relative z-10 py-12">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-purple-500/10 text-purple-600 text-sm font-medium mb-4">
+              <AcademicCapIcon className="h-4 w-4" />
+              Learn & Grow
+            </div>
+            <h1 className="text-4xl md:text-5xl font-bold mb-3">
+              Explore <span className="bg-clip-text text-transparent bg-gradient-to-r from-purple-600 to-primary">Courses</span>
+            </h1>
+            <p className="text-lg text-muted-foreground max-w-2xl mb-8">
+              Learn from expert sellers — video courses on freelancing, design, development, and more
+            </p>
+          </motion.div>
 
-      {/* Search & Filters */}
-      <div className="flex flex-col md:flex-row gap-4 mb-8">
-        <form onSubmit={handleSearch} className="flex-1 relative">
-          <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Search courses..."
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 border rounded-lg bg-background focus:ring-2 focus:ring-primary/20 focus:border-primary"
-          />
-        </form>
+          {/* Search & Filters */}
+          <motion.div
+            className="space-y-4"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+          >
+            <form onSubmit={handleSearch} className="max-w-2xl relative">
+              <MagnifyingGlassIcon className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Search courses..."
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                className="w-full pl-12 pr-28 py-3.5 border-2 rounded-xl bg-background focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500/50 transition-all text-lg shadow-sm"
+              />
+              <Button type="submit" className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg px-6">
+                Search
+              </Button>
+            </form>
 
-        <select
-          value={category}
-          onChange={(e) => updateParam('category', e.target.value)}
-          className="px-3 py-2.5 border rounded-lg bg-background"
-        >
-          <option value="">All Categories</option>
-          {categories.map((cat: any) => (
-            <option key={cat.id} value={cat.id}>{cat.name}</option>
-          ))}
-        </select>
+            <div className="flex flex-wrap gap-3 items-center">
+              {/* Level pills */}
+              <div className="flex gap-2">
+                {levelOptions.map((opt) => (
+                  <button
+                    key={opt.value}
+                    onClick={() => updateParam('level', opt.value)}
+                    className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                      level === opt.value 
+                        ? 'bg-purple-600 text-white shadow-md shadow-purple-500/25' 
+                        : 'bg-background border hover:border-purple-500/50 hover:text-purple-600'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
 
-        <select
-          value={level}
-          onChange={(e) => updateParam('level', e.target.value)}
-          className="px-3 py-2.5 border rounded-lg bg-background"
-        >
-          <option value="">All Levels</option>
-          <option value="BEGINNER">Beginner</option>
-          <option value="INTERMEDIATE">Intermediate</option>
-          <option value="ADVANCED">Advanced</option>
-          <option value="ALL_LEVELS">All Levels</option>
-        </select>
+              <div className="h-6 w-px bg-border" />
 
-        <select
-          value={sort}
-          onChange={(e) => updateParam('sort', e.target.value)}
-          className="px-3 py-2.5 border rounded-lg bg-background"
-        >
-          <option value="newest">Newest</option>
-          <option value="popular">Most Popular</option>
-          <option value="rating">Highest Rated</option>
-          <option value="price_low">Price: Low to High</option>
-          <option value="price_high">Price: High to Low</option>
-        </select>
+              <select
+                value={category}
+                onChange={(e) => updateParam('category', e.target.value)}
+                className="px-3 py-2 border rounded-lg bg-background text-sm hover:border-purple-500/50 transition-colors cursor-pointer"
+              >
+                <option value="">All Categories</option>
+                {categories.map((cat: any) => (
+                  <option key={cat.id} value={cat.id}>{cat.name}</option>
+                ))}
+              </select>
+
+              <select
+                value={sort}
+                onChange={(e) => updateParam('sort', e.target.value)}
+                className="px-3 py-2 border rounded-lg bg-background text-sm hover:border-purple-500/50 transition-colors cursor-pointer"
+              >
+                <option value="newest">Newest</option>
+                <option value="popular">Most Popular</option>
+                <option value="rating">Highest Rated</option>
+                <option value="price_low">Price: Low to High</option>
+                <option value="price_high">Price: High to Low</option>
+              </select>
+            </div>
+          </motion.div>
+        </div>
+      </motion.section>
+
+      {/* Trust strip */}
+      <div className="bg-gray-950 py-3">
+        <div className="container">
+          <div className="flex flex-wrap justify-center gap-x-8 gap-y-1 text-sm text-gray-400">
+            <span className="flex items-center gap-1.5">
+              <ShieldCheckIcon className="h-4 w-4 text-primary" />
+              24h Money-Back Guarantee
+            </span>
+            <span className="flex items-center gap-1.5">
+              <SparklesIcon className="h-4 w-4 text-primary" />
+              Lifetime Access
+            </span>
+            <span className="flex items-center gap-1.5">
+              <ArrowPathIcon className="h-4 w-4 text-primary" />
+              Expert Sellers
+            </span>
+          </div>
+        </div>
       </div>
 
       {/* Course Grid */}
+      <div className="container py-10">
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {[...Array(8)].map((_, i) => (
@@ -144,7 +211,7 @@ export default function CoursesPage() {
                 transition={{ delay: i * 0.05 }}
               >
                 <Link to={`/courses/${course.slug}`} className="group block">
-                  <div className="rounded-xl overflow-hidden border bg-card hover:shadow-lg transition-shadow">
+                    <div className="rounded-xl overflow-hidden border bg-card hover:shadow-xl hover:shadow-purple-500/5 transition-all duration-300 border-transparent hover:border-purple-500/20">
                     {/* Thumbnail */}
                     <div className="aspect-video bg-muted relative overflow-hidden">
                       {course.thumbnail ? (
@@ -159,9 +226,20 @@ export default function CoursesPage() {
                         </div>
                       )}
                       {/* Price badge */}
-                      <div className="absolute top-2 right-2 bg-background/90 backdrop-blur-sm px-2 py-1 rounded-md text-sm font-bold">
+                      <div className="absolute top-2 right-2 bg-background/90 backdrop-blur-sm px-2.5 py-1 rounded-lg text-sm font-bold shadow-lg">
                         {Number(course.price) === 0 ? 'Free' : `R${Number(course.price).toFixed(0)}`}
                       </div>
+                      {/* Popularity badge */}
+                      {course.enrollCount > 10 && (
+                        <div className="absolute top-2 left-2 px-2 py-1 rounded-full bg-orange-500 text-white text-xs font-bold shadow">
+                          🔥 Bestseller
+                        </div>
+                      )}
+                      {course.enrollCount <= 10 && course.enrollCount > 0 && (
+                        <div className="absolute top-2 left-2 px-2 py-1 rounded-full bg-emerald-500 text-white text-xs font-bold shadow">
+                          ✨ New
+                        </div>
+                      )}
                     </div>
 
                     {/* Content */}
@@ -217,9 +295,9 @@ export default function CoursesPage() {
           </div>
 
           {/* Pagination */}
-          {meta && meta.total > meta.limit && (
+          {meta && (meta as any).total > (meta as any).limit && (
             <div className="flex justify-center mt-8 gap-2">
-              {Array.from({ length: Math.ceil(meta.total / meta.limit) }, (_, i) => (
+              {Array.from({ length: Math.ceil((meta as any).total / (meta as any).limit) }, (_, i) => (
                 <button
                   key={i}
                   onClick={() => updateParam('page', String(i + 1))}
@@ -236,6 +314,7 @@ export default function CoursesPage() {
           )}
         </>
       )}
+      </div>
     </div>
   );
 }

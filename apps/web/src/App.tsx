@@ -17,6 +17,7 @@ import SellerPage from './pages/SellerPage';
 import CoursesPage from './pages/CoursesPage';
 import CoursePage from './pages/CoursePage';
 import CoursePlayerPage from './pages/CoursePlayerPage';
+import ExplorePage from './pages/ExplorePage';
 
 // Auth pages
 import LoginPage from './pages/auth/LoginPage';
@@ -80,6 +81,7 @@ function App() {
         {/* Public routes */}
         <Route element={<MainLayout />}>
           <Route path="/" element={<HomePage />} />
+          <Route path="/explore" element={<ExplorePage />} />
           <Route path="/services" element={<ServicesPage />} />
           <Route path="/services/:username/:slug" element={<ServicePage />} />
           <Route path="/sellers/:username" element={<SellerPage />} />

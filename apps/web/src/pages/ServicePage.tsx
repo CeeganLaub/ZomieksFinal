@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { api } from '../lib/api';
+import { api, conversationsApi } from '../lib/api';
 import { useAuthStore } from '../stores/auth.store';
 import { Button } from '../components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
@@ -42,6 +42,20 @@ export default function ServicePage() {
   const packages = service?.packages || [];
   const subscriptionTiers = service?.subscriptionTiers || [];
   const currentPackage = packages[selectedPackage];
+
+  const startConversation = useMutation({
+    mutationFn: async () => {
+      const sellerId = service?.seller?.id;
+      if (!sellerId) throw new Error('Seller not found');
+      return conversationsApi.start({ participantId: sellerId });
+    },
+    onSuccess: (data: any) => {
+      navigate(`/messages/${data.data?.conversationId || data.conversationId}`);
+    },
+    onError: (err: any) => {
+      toast.error(err.message || 'Could not start conversation');
+    },
+  });
 
   if (isLoading) {
     return (
@@ -164,8 +178,16 @@ export default function ServicePage() {
                   <p className="mt-3 text-sm">{service.seller.sellerProfile?.description}</p>
                 </div>
               </div>
-              <Button variant="outline" className="mt-4 w-full">
-                <ChatBubbleLeftRightIcon className="h-4 w-4 mr-2" />
+              <Button
+                variant="outline"
+                className="mt-4 w-full gap-2"
+                onClick={() => {
+                  if (!isAuthenticated) { navigate('/login'); return; }
+                  startConversation.mutate();
+                }}
+                isLoading={startConversation.isPending}
+              >
+                <ChatBubbleLeftRightIcon className="h-4 w-4" />
                 Contact Seller
               </Button>
             </CardContent>

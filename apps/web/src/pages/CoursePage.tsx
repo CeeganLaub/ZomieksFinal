@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { coursesApi } from '../lib/api';
+import { coursesApi, conversationsApi } from '../lib/api';
 import { useAuthStore } from '../stores/auth.store';
 import { Button } from '../components/ui/Button';
 import { motion } from 'framer-motion';
@@ -18,6 +18,8 @@ import {
   SignalIcon,
   DocumentTextIcon,
   ArrowPathIcon,
+  ChatBubbleLeftRightIcon,
+  ShieldCheckIcon,
 } from '@heroicons/react/24/outline';
 import { useState } from 'react';
 
@@ -65,6 +67,20 @@ export default function CoursePage() {
   });
 
   const [showRefundConfirm, setShowRefundConfirm] = useState(false);
+
+  const startConversation = useMutation({
+    mutationFn: async () => {
+      const sellerId = course?.seller?.userId || course?.seller?.user?.id;
+      if (!sellerId) throw new Error('Seller not found');
+      return conversationsApi.start({ participantId: sellerId });
+    },
+    onSuccess: (data: any) => {
+      navigate(`/messages/${data.data?.conversationId || data.conversationId}`);
+    },
+    onError: (err: any) => {
+      toast.error(err.message || 'Could not start conversation');
+    },
+  });
 
   const course = data?.data;
 
@@ -129,7 +145,7 @@ export default function CoursePage() {
   return (
     <div>
       {/* Hero section */}
-      <div className="bg-gradient-to-r from-gray-900 to-gray-800 text-white">
+      <div className="bg-gradient-to-r from-gray-950 via-gray-900 to-emerald-950/50 text-white">
         <div className="max-w-7xl mx-auto px-4 py-12">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2">
@@ -230,6 +246,26 @@ export default function CoursePage() {
                   <div className="flex items-center gap-2"><DocumentTextIcon className="h-4 w-4" /> {totalLessons} lessons</div>
                   <div className="flex items-center gap-2"><CheckCircleIcon className="h-4 w-4" /> Lifetime access</div>
                 </div>
+
+                {/* Trust badge */}
+                <div className="mt-4 p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center gap-2">
+                  <ShieldCheckIcon className="h-5 w-5 text-emerald-600 shrink-0" />
+                  <span className="text-xs text-emerald-700 font-medium">24h Money-Back Guarantee</span>
+                </div>
+
+                {/* Message Instructor */}
+                <Button
+                  variant="outline"
+                  className="w-full mt-3 gap-2"
+                  onClick={() => {
+                    if (!user) { navigate('/login'); return; }
+                    startConversation.mutate();
+                  }}
+                  isLoading={startConversation.isPending}
+                >
+                  <ChatBubbleLeftRightIcon className="h-4 w-4" />
+                  Message Instructor
+                </Button>
               </motion.div>
             </div>
           </div>
@@ -373,6 +409,18 @@ export default function CoursePage() {
                   </span>
                   <span>{course.seller?.reviewCount || 0} reviews</span>
                 </div>
+                <Button
+                  variant="outline"
+                  className="w-full mt-4 gap-2"
+                  onClick={() => {
+                    if (!user) { navigate('/login'); return; }
+                    startConversation.mutate();
+                  }}
+                  isLoading={startConversation.isPending}
+                >
+                  <ChatBubbleLeftRightIcon className="h-4 w-4" />
+                  Message
+                </Button>
               </div>
             </div>
           </div>

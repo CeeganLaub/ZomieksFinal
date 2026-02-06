@@ -76,7 +76,7 @@ export default function ServicesPage() {
     <div className="min-h-screen bg-gradient-to-b from-muted/30 to-background">
       {/* Hero header */}
       <motion.div 
-        className="bg-gradient-to-r from-primary/10 via-background to-purple-500/10 border-b"
+        className="bg-gradient-to-r from-emerald-950/30 via-background to-purple-950/20"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5 }}
@@ -182,7 +182,7 @@ export default function ServicesPage() {
               <div className="sticky top-24 space-y-6 p-6 bg-background rounded-2xl border shadow-sm">
                 <div className="flex justify-between items-center pb-4 border-b">
                   <h2 className="font-bold text-lg flex items-center gap-2">
-                    <FunnelIcon className="h-5 w-5" />
+                    <FunnelIcon className="h-5 w-5 text-primary" />
                     Filters
                   </h2>
                   {hasActiveFilters && (
@@ -431,7 +431,7 @@ export default function ServicesPage() {
                   {data?.data?.services?.map((service: any) => (
                     <motion.div key={service.id} variants={fadeInUp}>
                       <Link to={`/services/${service.seller?.username}/${service.slug}`}>
-                        <Card className="group overflow-hidden hover:shadow-2xl transition-all duration-300 h-full border-2 border-transparent hover:border-primary/20">
+                        <Card className="group overflow-hidden hover:shadow-2xl hover:shadow-primary/5 transition-all duration-300 h-full border-2 border-transparent hover:border-primary/20">
                           <div className="aspect-video bg-muted relative overflow-hidden">
                             {service.images?.[0] ? (
                               <img 

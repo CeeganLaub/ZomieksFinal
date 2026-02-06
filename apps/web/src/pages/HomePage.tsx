@@ -13,6 +13,7 @@ import {
   SparklesIcon,
   ArrowRightIcon,
   PlayIcon,
+  AcademicCapIcon,
 } from '@heroicons/react/24/outline';
 import { useState } from 'react';
 import { motion } from 'framer-motion';
@@ -57,9 +58,10 @@ const stats = [
 
 // Trust badges
 const trustBadges = [
-  { icon: ShieldCheckIcon, title: 'Secure Payments', desc: 'SSL encrypted transactions' },
-  { icon: CurrencyDollarIcon, title: 'Money-Back Guarantee', desc: 'Full refund if not satisfied' },
+  { icon: ShieldCheckIcon, title: 'Secure Payments', desc: 'Escrow-protected transactions' },
+  { icon: CurrencyDollarIcon, title: 'Money-Back Guarantee', desc: '24h refund on courses' },
   { icon: ClockIcon, title: 'Fast Delivery', desc: 'Most orders delivered in 24h' },
+  { icon: CheckBadgeIcon, title: 'Verified Sellers', desc: 'Quality-checked freelancers' },
 ];
 
 export default function HomePage() {
@@ -76,6 +78,11 @@ export default function HomePage() {
     queryFn: () => api.get<any>('/services', { params: { limit: 8, sortBy: 'rating' } }),
   });
 
+  const { data: coursesData } = useQuery({
+    queryKey: ['courses', 'featured-home'],
+    queryFn: () => api.get<any>('/courses', { params: { limit: 4, sort: 'popular' } }),
+  });
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
@@ -86,7 +93,7 @@ export default function HomePage() {
   return (
     <div className="overflow-hidden">
       {/* Hero Section */}
-      <section className="relative min-h-[85vh] flex items-center bg-gradient-to-br from-primary/5 via-background to-primary/10 overflow-hidden">
+      <section className="relative min-h-[70vh] flex items-center bg-gradient-to-br from-emerald-950/30 via-background to-purple-950/20 overflow-hidden">
         {/* Animated background elements */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <motion.div
@@ -212,6 +219,26 @@ export default function HomePage() {
                 </motion.div>
               ))}
             </motion.div>
+
+            {/* Social proof strip */}
+            <motion.div
+              className="mt-10 flex flex-wrap justify-center gap-x-8 gap-y-2 text-sm"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.7 }}
+            >
+              {[
+                { value: '2,400+', label: 'Services' },
+                { value: '500+', label: 'Courses' },
+                { value: '4.9★', label: 'Avg Rating' },
+                { value: '10K+', label: 'Happy Users' },
+              ].map((stat, i) => (
+                <div key={i} className="flex items-center gap-1.5">
+                  <span className="font-bold text-foreground">{stat.value}</span>
+                  <span className="text-muted-foreground">{stat.label}</span>
+                </div>
+              ))}
+            </motion.div>
           </div>
         </div>
 
@@ -232,10 +259,10 @@ export default function HomePage() {
       </section>
 
       {/* Trust Badges */}
-      <section className="py-12 bg-muted/30 border-y">
+      <section className="py-8 bg-gray-950">
         <div className="container">
           <motion.div
-            className="grid grid-cols-1 md:grid-cols-3 gap-8"
+            className="grid grid-cols-2 md:grid-cols-4 gap-4"
             variants={staggerContainer}
             initial="hidden"
             whileInView="visible"
@@ -244,15 +271,15 @@ export default function HomePage() {
             {trustBadges.map((badge, i) => (
               <motion.div
                 key={i}
-                className="flex items-center gap-4 justify-center md:justify-start"
+                className="flex items-center gap-3 justify-center p-4 rounded-xl bg-white/5 border border-white/5"
                 variants={fadeInUp}
               >
-                <div className="p-3 rounded-xl bg-primary/10">
-                  <badge.icon className="h-6 w-6 text-primary" />
+                <div className="p-2.5 rounded-lg bg-primary/20">
+                  <badge.icon className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <h3 className="font-semibold">{badge.title}</h3>
-                  <p className="text-sm text-muted-foreground">{badge.desc}</p>
+                  <h3 className="font-semibold text-white text-sm">{badge.title}</h3>
+                  <p className="text-xs text-gray-400">{badge.desc}</p>
                 </div>
               </motion.div>
             ))}
@@ -435,8 +462,97 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* Featured Courses */}
+      <section className="py-20 bg-gradient-to-b from-gray-950 to-gray-900 text-white relative overflow-hidden">
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-0 right-0 w-96 h-96 bg-purple-600/10 rounded-full blur-3xl" />
+          <div className="absolute bottom-0 left-0 w-72 h-72 bg-primary/10 rounded-full blur-3xl" />
+        </div>
+        <div className="container relative z-10">
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={staggerContainer}
+          >
+            <motion.div className="flex justify-between items-end mb-12" variants={fadeInUp}>
+              <div>
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/20 text-purple-300 text-sm font-medium mb-3">
+                  <AcademicCapIcon className="h-4 w-4" />
+                  Learn & Grow
+                </div>
+                <h2 className="text-3xl md:text-4xl font-bold mb-2">Popular Courses</h2>
+                <p className="text-gray-400">Upskill with courses created by expert sellers</p>
+              </div>
+              <Link 
+                to="/courses" 
+                className="hidden md:flex items-center gap-2 text-purple-400 hover:text-purple-300 hover:gap-3 transition-all font-medium"
+              >
+                View all courses
+                <ArrowRightIcon className="h-5 w-5" />
+              </Link>
+            </motion.div>
+
+            {(coursesData?.data as any[])?.length > 0 ? (
+              <motion.div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6" variants={staggerContainer}>
+                {(coursesData.data as any[]).map((course: any) => (
+                  <motion.div key={course.id} variants={fadeInUp}>
+                    <Link to={`/courses/${course.slug}`}>
+                      <div className="group rounded-2xl bg-gray-800/50 border border-gray-700/50 overflow-hidden hover:border-purple-500/30 hover:shadow-2xl hover:shadow-purple-500/10 transition-all duration-300">
+                        <div className="aspect-video bg-gray-800 relative overflow-hidden">
+                          {course.thumbnail ? (
+                            <img 
+                              src={course.thumbnail} 
+                              alt={course.title}
+                              className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-purple-900/50 to-gray-800">
+                              <AcademicCapIcon className="h-12 w-12 text-purple-400/50" />
+                            </div>
+                          )}
+                          {course.enrollCount > 5 && (
+                            <div className="absolute top-3 left-3 px-2 py-1 rounded-full bg-orange-500 text-white text-xs font-bold">
+                              🔥 Popular
+                            </div>
+                          )}
+                        </div>
+                        <div className="p-4">
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 capitalize">{course.level || 'All Levels'}</span>
+                          </div>
+                          <h3 className="font-semibold text-white line-clamp-2 mb-2 group-hover:text-purple-300 transition-colors">{course.title}</h3>
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-lg text-white">R{course.price?.toFixed(0) || '0'}</span>
+                            <span className="text-xs text-gray-400">{course.enrollCount || 0} students</span>
+                          </div>
+                        </div>
+                      </div>
+                    </Link>
+                  </motion.div>
+                ))}
+              </motion.div>
+            ) : (
+              <div className="text-center py-12 rounded-2xl bg-gray-800/30 border border-gray-700/30">
+                <AcademicCapIcon className="h-12 w-12 text-gray-600 mx-auto mb-3" />
+                <p className="text-gray-400">Courses coming soon!</p>
+              </div>
+            )}
+
+            <div className="text-center mt-8 md:hidden">
+              <Link to="/courses">
+                <Button variant="outline" size="lg" className="border-gray-700 text-white hover:bg-gray-800">
+                  View all courses
+                  <ArrowRightIcon className="h-5 w-5 ml-2" />
+                </Button>
+              </Link>
+            </div>
+          </motion.div>
+        </div>
+      </section>
+
       {/* Stats Section */}
-      <section className="py-20 bg-primary text-primary-foreground relative overflow-hidden">
+      <section className="py-20 bg-gradient-to-r from-primary via-emerald-600 to-teal-600 text-primary-foreground relative overflow-hidden">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-0 left-0 w-64 h-64 bg-white/5 rounded-full blur-3xl" />
           <div className="absolute bottom-0 right-0 w-96 h-96 bg-white/5 rounded-full blur-3xl" />
@@ -623,46 +739,59 @@ export default function HomePage() {
       </section>
 
       {/* Become a Seller CTA */}
-      <section className="container py-20">
-        <motion.div
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true }}
-          variants={fadeInUp}
-        >
-          <Card className="overflow-hidden border-0 shadow-2xl">
-            <div className="grid md:grid-cols-2 gap-8">
-              <div className="p-8 md:p-12 flex flex-col justify-center">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-green-100 text-green-700 text-sm font-medium mb-4 w-fit">
-                  <CurrencyDollarIcon className="h-4 w-4" />
-                  Earn money
-                </div>
-                <h2 className="text-3xl md:text-4xl font-bold mb-4">
-                  Turn your skills into income
-                </h2>
-                <p className="text-lg text-muted-foreground mb-6">
-                  Join our community of freelancers and start earning. Set your own rates, work on your terms, and grow your client base.
-                </p>
-                <ul className="space-y-3 mb-8">
-                  {['Set your own prices', 'Work from anywhere', 'Get paid securely', 'Build your reputation'].map((item, i) => (
-                    <li key={i} className="flex items-center gap-2">
-                      <CheckBadgeIcon className="h-5 w-5 text-green-500" />
-                      <span>{item}</span>
-                    </li>
-                  ))}
-                </ul>
-                <Link to="/become-seller">
-                  <Button size="lg" className="w-fit">
-                    Become a Seller
-                    <ArrowRightIcon className="h-5 w-5 ml-2" />
-                  </Button>
-                </Link>
+      <section className="py-20">
+        <div className="container">
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={fadeInUp}
+          >
+            <div className="rounded-3xl overflow-hidden bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 border border-gray-800 relative">
+              <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                <div className="absolute top-0 right-0 w-96 h-96 bg-primary/10 rounded-full blur-3xl" />
+                <div className="absolute bottom-0 left-0 w-72 h-72 bg-purple-600/10 rounded-full blur-3xl" />
               </div>
-              <div className="relative h-64 md:h-auto bg-gradient-to-br from-primary/20 via-purple-500/20 to-primary/10">
-                <div className="absolute inset-0 flex items-center justify-center">
+              <div className="grid md:grid-cols-2 gap-8 relative z-10">
+                <div className="p-8 md:p-12 flex flex-col justify-center text-white">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/20 text-primary text-sm font-medium mb-4 w-fit">
+                    <SparklesIcon className="h-4 w-4" />
+                    Start Earning
+                  </div>
+                  <h2 className="text-3xl md:text-4xl font-bold mb-4">
+                    Turn your skills into income
+                  </h2>
+                  <p className="text-gray-400 mb-6 text-lg">
+                    Join our community of freelancers. Sell services, create courses, and grow your brand.
+                  </p>
+                  <div className="grid grid-cols-2 gap-3 mb-6">
+                    {[
+                      { label: 'Sell Services', desc: '8% commission' },
+                      { label: 'Create Courses', desc: '20% platform fee' },
+                      { label: 'Set Your Prices', desc: 'You control pricing' },
+                      { label: 'From R399', desc: 'One-time seller fee' },
+                    ].map((item, i) => (
+                      <div key={i} className="p-3 rounded-xl bg-white/5 border border-white/10">
+                        <div className="font-semibold text-sm text-white">{item.label}</div>
+                        <div className="text-xs text-gray-400">{item.desc}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-3 mb-6 text-sm text-gray-400">
+                    <ShieldCheckIcon className="h-5 w-5 text-primary shrink-0" />
+                    <span>24h money-back guarantee on courses &bull; Secure escrow payments</span>
+                  </div>
+                  <Link to="/become-seller">
+                    <Button size="lg" className="w-fit shadow-lg shadow-primary/25">
+                      Become a Seller
+                      <ArrowRightIcon className="h-5 w-5 ml-2" />
+                    </Button>
+                  </Link>
+                </div>
+                <div className="relative h-64 md:h-auto flex items-center justify-center">
                   <motion.div
-                    className="text-9xl"
-                    animate={{ y: [0, -10, 0], rotate: [0, 5, 0, -5, 0] }}
+                    className="text-[120px] md:text-[160px] leading-none"
+                    animate={{ y: [0, -10, 0], rotate: [0, 3, 0, -3, 0] }}
                     transition={{ duration: 4, repeat: Infinity }}
                   >
                     💼
@@ -670,8 +799,8 @@ export default function HomePage() {
                 </div>
               </div>
             </div>
-          </Card>
-        </motion.div>
+          </motion.div>
+        </div>
       </section>
     </div>
   );
