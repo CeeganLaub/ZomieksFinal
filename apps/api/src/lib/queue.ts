@@ -21,6 +21,15 @@ export const emailQueue = new Queue('emails', connection);
 export const escrowReleaseWorker = new Worker(
   'escrow-release',
   async (job: Job) => {
+    // Course escrow release
+    if (job.name === 'course-auto-release') {
+      const { enrollmentId } = job.data;
+      logger.info(`Processing course escrow release for enrollment: ${enrollmentId}`);
+      const { releaseCourseEscrow } = await import('@/services/escrow.service.js');
+      return releaseCourseEscrow(enrollmentId);
+    }
+
+    // Service order escrow release
     const { orderId } = job.data;
     logger.info(`Processing escrow release for order: ${orderId}`);
     

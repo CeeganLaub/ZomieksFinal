@@ -18,6 +18,7 @@ export const ORDER_STATUS = {
   REVISION_REQUESTED: 'REVISION_REQUESTED',
   COMPLETED: 'COMPLETED',
   CANCELLED: 'CANCELLED',
+  REFUNDED: 'REFUNDED',
   DISPUTED: 'DISPUTED',
 } as const;
 
@@ -105,6 +106,7 @@ export const PRIORITY = {
 export const PAYMENT_GATEWAY = {
   PAYFAST: 'PAYFAST',
   OZOW: 'OZOW',
+  CREDIT: 'CREDIT',
 } as const;
 
 // Payout statuses
@@ -127,4 +129,34 @@ export const PACKAGE_TIER = {
   BASIC: 'BASIC',
   STANDARD: 'STANDARD',
   PREMIUM: 'PREMIUM',
+} as const;
+
+export const COURSE_LEVEL = {
+  BEGINNER: 'BEGINNER',
+  INTERMEDIATE: 'INTERMEDIATE',
+  ADVANCED: 'ADVANCED',
+  ALL_LEVELS: 'ALL_LEVELS',
+} as const;
+
+export const COURSE_STATUS = {
+  DRAFT: 'DRAFT',
+  PUBLISHED: 'PUBLISHED',
+  ARCHIVED: 'ARCHIVED',
+} as const;
+
+export const SELLER_FEE_AMOUNT = 399; // R399 one-time seller fee
+
+// Course fee configuration (Udemy-style: baked into price)
+export const COURSE_FEES = {
+  PLATFORM_FEE_PERCENT: 20,           // 20% platform cut per sale
+  ESTIMATED_GATEWAY_FEE_PERCENT: 3.5, // ~3.5% covers worst-case PayFast card
+  ESTIMATED_GATEWAY_FEE_FIXED: 2,     // R2 fixed gateway cost estimate
+  ESCROW_HOLD_HOURS: 24,              // 24h escrow before seller payout
+} as const;
+
+// Refund policies
+export const REFUND_POLICY = {
+  PROCESSING_FEE_PERCENT: 5,  // 5% processing fee on refunds
+  COURSE_REFUND_WINDOW_HOURS: 24,  // 24-hour refund window for courses
+  COURSE_REFUND_MAX_PROGRESS: 30,  // Block refund if >30% complete
 } as const;

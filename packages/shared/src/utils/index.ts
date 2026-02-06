@@ -1,4 +1,4 @@
-import { PLATFORM_FEES } from '../constants/index.js';
+import { PLATFORM_FEES, REFUND_POLICY, COURSE_FEES } from '../constants/index.js';
 
 /**
  * Calculate fees for an order
@@ -184,4 +184,88 @@ export function sanitizeFilename(filename: string): string {
     .replace(/[^a-zA-Z0-9.-]/g, '_')
     .replace(/_{2,}/g, '_')
     .toLowerCase();
+}
+
+/**
+ * Calculate service/order refund with fees deducted.
+ * Platform keeps: buyerFee (3%) + processingFee (5% of base).
+ * Buyer receives: totalAmount - buyerFee - processingFee.
+ */
+export function calculateServiceRefund(baseAmount: number, buyerFee: number, totalAmount: number) {
+  const processingFee = Math.round(baseAmount * (REFUND_POLICY.PROCESSING_FEE_PERCENT / 100) * 100) / 100;
+  const refundAmount = Math.round((totalAmount - buyerFee - processingFee) * 100) / 100;
+  const platformRevenue = Math.round((buyerFee + processingFee) * 100) / 100;
+
+  return {
+    refundAmount: Math.max(0, refundAmount),
+    buyerFeeKept: buyerFee,
+    processingFee,
+    platformRevenue,
+    totalDeducted: Math.round((buyerFee + processingFee) * 100) / 100,
+  };
+}
+
+/**
+ * Check if a course enrollment is eligible for refund.
+ * Must be within 24 hours AND <30% progress.
+ */
+export function isCourseRefundEligible(
+  enrolledAt: Date | string,
+  progressPercent: number
+): { eligible: boolean; reason?: string } {
+  const enrolled = new Date(enrolledAt);
+  const now = new Date();
+  const hoursSinceEnrollment = (now.getTime() - enrolled.getTime()) / (1000 * 60 * 60);
+
+  if (hoursSinceEnrollment > REFUND_POLICY.COURSE_REFUND_WINDOW_HOURS) {
+    return { eligible: false, reason: `Refund window expired (${REFUND_POLICY.COURSE_REFUND_WINDOW_HOURS}-hour limit)` };
+  }
+
+  if (progressPercent >= REFUND_POLICY.COURSE_REFUND_MAX_PROGRESS) {
+    return { eligible: false, reason: `Too much progress (${REFUND_POLICY.COURSE_REFUND_MAX_PROGRESS}% max)` };
+  }
+
+  return { eligible: true };
+}
+
+/**
+ * Calculate 20/80 course fee split (Udemy-style, baked into price).
+ * Buyer pays coursePrice; platform keeps 20%, seller gets 80%.
+ */
+export function calculateCourseFees(coursePrice: number) {
+  const platformCut = Math.round(coursePrice * (COURSE_FEES.PLATFORM_FEE_PERCENT / 100) * 100) / 100;
+  const sellerPayout = Math.round((coursePrice - platformCut) * 100) / 100;
+
+  return {
+    coursePrice,
+    platformCut,
+    sellerPayout,
+  };
+}
+
+/**
+ * Calculate course refund with fee deductions so the platform never loses money.
+ * Gateway payments: deduct estimated gateway fee (3.5% + R2) + 5% processing fee.
+ * Credit payments:  deduct only 5% processing fee (no gateway involved).
+ */
+export function calculateCourseRefund(coursePrice: number, paymentMethod: 'GATEWAY' | 'CREDIT') {
+  const processingFee = Math.round(coursePrice * (REFUND_POLICY.PROCESSING_FEE_PERCENT / 100) * 100) / 100;
+
+  let gatewayFeeEstimate = 0;
+  if (paymentMethod === 'GATEWAY') {
+    gatewayFeeEstimate = Math.round(
+      (coursePrice * (COURSE_FEES.ESTIMATED_GATEWAY_FEE_PERCENT / 100) + COURSE_FEES.ESTIMATED_GATEWAY_FEE_FIXED) * 100
+    ) / 100;
+  }
+
+  const totalDeducted = Math.round((gatewayFeeEstimate + processingFee) * 100) / 100;
+  const refundAmount = Math.round((coursePrice - totalDeducted) * 100) / 100;
+
+  return {
+    coursePrice,
+    gatewayFeeEstimate,
+    processingFee,
+    totalDeducted,
+    refundAmount: Math.max(0, refundAmount),
+  };
 }
