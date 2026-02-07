@@ -12,7 +12,8 @@ router.get('/stats', async (req, res, next) => {
   try {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay());
+    const startOfWeek = new Date(now.getTime() - now.getDay() * 86400000);
+    startOfWeek.setHours(0, 0, 0, 0);
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
     const [
@@ -732,12 +733,15 @@ router.get('/conversations', async (req, res, next) => {
       ];
     }
 
+    const pageNum = Math.max(1, parseInt(page as string) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit as string) || 20));
+
     const [conversations, total] = await Promise.all([
       prisma.conversation.findMany({
         where,
         orderBy: { lastMessageAt: 'desc' },
-        skip: (parseInt(page as string) - 1) * parseInt(limit as string),
-        take: parseInt(limit as string),
+        skip: (pageNum - 1) * limitNum,
+        take: limitNum,
         include: {
           buyer: { select: { id: true, username: true, email: true, firstName: true, avatar: true } },
           seller: { select: { id: true, username: true, email: true, firstName: true, avatar: true } },
@@ -763,10 +767,10 @@ router.get('/conversations', async (req, res, next) => {
       success: true,
       data: { conversations },
       meta: {
-        page: parseInt(page as string),
-        limit: parseInt(limit as string),
+        page: pageNum,
+        limit: limitNum,
         total,
-        totalPages: Math.ceil(total / parseInt(limit as string)),
+        totalPages: Math.ceil(total / limitNum),
       },
     });
   } catch (error) {

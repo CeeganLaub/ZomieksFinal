@@ -228,7 +228,11 @@ export default function AdminInboxPage() {
                         </div>
                         {lastMsg && (
                           <p className="text-xs text-muted-foreground truncate mt-1">
-                            {lastMsg.content?.substring(0, 80)}{lastMsg.content?.length > 80 ? '...' : ''}
+                            {lastMsg.content
+                              ? lastMsg.content.length > 80
+                                ? lastMsg.content.substring(0, 80) + '...'
+                                : lastMsg.content
+                              : ''}
                           </p>
                         )}
                         <div className="flex items-center gap-2 mt-1">

@@ -90,6 +90,16 @@ function StatCard({
   );
 }
 
+function parseMonthLabel(month: string): string {
+  const [year, m] = month.split('-');
+  return new Date(parseInt(year), parseInt(m) - 1, 1).toLocaleDateString('en-ZA', { month: 'short' });
+}
+
+function parseMonthLabelFull(month: string): string {
+  const [year, m] = month.split('-');
+  return new Date(parseInt(year), parseInt(m) - 1, 1).toLocaleDateString('en-ZA', { month: 'short', year: 'numeric' });
+}
+
 export default function AdminAnalyticsPage() {
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -210,9 +220,7 @@ export default function AdminAnalyticsPage() {
           <div className="flex items-end gap-3 h-40">
             {data.monthlyData.map((item) => {
               const height = maxRevenue > 0 ? (item.revenue / maxRevenue) * 100 : 0;
-              const monthLabel = new Date(item.month + '-01').toLocaleDateString('en-ZA', {
-                month: 'short',
-              });
+              const monthLabel = parseMonthLabel(item.month);
               return (
                 <div key={item.month} className="flex-1 flex flex-col items-center gap-1">
                   <span className="text-xs font-medium text-muted-foreground">
@@ -251,9 +259,7 @@ export default function AdminAnalyticsPage() {
           <div className="flex items-end gap-3 h-40">
             {data.monthlyData.map((item) => {
               const height = maxOrders > 0 ? (item.orders / maxOrders) * 100 : 0;
-              const monthLabel = new Date(item.month + '-01').toLocaleDateString('en-ZA', {
-                month: 'short',
-              });
+              const monthLabel = parseMonthLabel(item.month);
               return (
                 <div key={item.month} className="flex-1 flex flex-col items-center gap-1">
                   <span className="text-xs font-medium text-muted-foreground">
@@ -285,9 +291,7 @@ export default function AdminAnalyticsPage() {
           <h3 className="font-semibold mb-4">New User Signups</h3>
           <div className="space-y-3">
             {data.monthlyData.map((item) => {
-              const monthLabel = new Date(item.month + '-01').toLocaleDateString('en-ZA', {
-                month: 'short', year: 'numeric',
-              });
+              const monthLabel = parseMonthLabelFull(item.month);
               const maxUsers = Math.max(...data.monthlyData.map((d) => d.users), 1);
               const width = maxUsers > 0 ? (item.users / maxUsers) * 100 : 0;
               return (
