@@ -151,6 +151,87 @@ router.get('/:id', authenticate, async (req, res, next) => {
   }
 });
 
+// Start or find a conversation (lightweight – no initial message required)
+router.post('/start', authenticate, async (req, res, next) => {
+  try {
+    const { participantId, content, orderId } = req.body;
+
+    if (!participantId) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'MISSING_FIELD', message: 'participantId is required' },
+      });
+    }
+
+    // Get the other user
+    const recipient = await prisma.user.findUnique({
+      where: { id: participantId },
+      select: { id: true, isSeller: true },
+    });
+
+    if (!recipient) {
+      return res.status(404).json({
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'User not found' },
+      });
+    }
+
+    // Determine buyer/seller
+    const buyerId = recipient.isSeller ? req.user!.id : participantId;
+    const sellerId = recipient.isSeller ? participantId : req.user!.id;
+
+    // Find existing conversation or create one
+    let conversation = await prisma.conversation.findUnique({
+      where: { buyerId_sellerId: { buyerId, sellerId } },
+    });
+
+    if (!conversation) {
+      const defaultStage = await prisma.pipelineStage.findFirst({
+        where: { userId: sellerId, isDefault: true },
+      });
+
+      conversation = await prisma.conversation.create({
+        data: {
+          buyerId,
+          sellerId,
+          pipelineStageId: defaultStage?.id,
+          ...(orderId ? { orderId } : {}),
+          source: 'direct',
+        },
+      });
+    }
+
+    // Optionally send an initial message
+    if (content && content.trim()) {
+      await prisma.message.create({
+        data: {
+          conversationId: conversation.id,
+          senderId: req.user!.id,
+          content: content.trim(),
+          type: 'TEXT',
+          deliveredAt: new Date(),
+        },
+      });
+
+      const unreadField = buyerId === req.user!.id ? 'unreadSellerCount' : 'unreadBuyerCount';
+      await prisma.conversation.update({
+        where: { id: conversation.id },
+        data: {
+          lastMessageAt: new Date(),
+          [unreadField]: { increment: 1 },
+        },
+      });
+    }
+
+    res.status(201).json({
+      success: true,
+      data: { conversationId: conversation.id, conversation },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Start new conversation
 router.post(
   '/',

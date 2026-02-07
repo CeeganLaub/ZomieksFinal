@@ -209,7 +209,7 @@ export const createAutoTriggerSchema = z.object({
 });
 
 export const createNoteSchema = z.object({
-  conversationId: z.string(),
+  conversationId: z.string().optional(),
   content: z.string().min(1).max(2000),
   isPinned: z.boolean().default(false),
 });

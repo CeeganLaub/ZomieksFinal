@@ -11,6 +11,7 @@ import {
   DocumentTextIcon,
   ChartBarIcon,
   ExclamationTriangleIcon,
+  ShieldCheckIcon,
 } from '@heroicons/react/24/outline';
 import { cn } from '../lib/utils';
 
@@ -21,6 +22,7 @@ export default function AdminLayout() {
   const navItems = [
     { href: '/admin', label: 'Dashboard', icon: HomeIcon },
     { href: '/admin/users', label: 'Users', icon: UsersIcon },
+    { href: '/admin/kyc', label: 'KYC Verifications', icon: ShieldCheckIcon },
     { href: '/admin/services', label: 'Services', icon: DocumentTextIcon },
     { href: '/admin/orders', label: 'Orders', icon: ShoppingBagIcon },
     { href: '/admin/disputes', label: 'Disputes', icon: ExclamationTriangleIcon },

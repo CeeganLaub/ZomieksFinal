@@ -84,7 +84,19 @@ export default function BecomeSeller() {
     },
     onSuccess: async () => {
       await refreshUser();
-      toast.success('Welcome to Zomieks as a seller!');
+
+      // If Pro plan selected, initiate fee payment
+      if (selectedPlan === 'pro') {
+        try {
+          await api.post('/users/seller/pay-fee');
+          toast.success('Welcome to Zomieks Pro! Your seller account is now active.');
+        } catch {
+          toast.success('Seller profile created! You can pay for the Pro plan later from your dashboard.');
+        }
+      } else {
+        toast.success('Welcome to Zomieks as a seller!');
+      }
+
       navigate('/seller');
     },
     onError: (error: any) => {

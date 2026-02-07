@@ -49,6 +49,8 @@ import BioLinkBuilderPage from './pages/BioLinkBuilderPage';
 
 // Admin pages
 import AdminDashboardPage from './pages/admin/AdminDashboardPage';
+import AdminUsersPage from './pages/admin/AdminUsersPage';
+import AdminKYCPage from './pages/admin/AdminKYCPage';
 import FeesPage from './pages/admin/FeesPage';
 import ConfigurationPage from './pages/admin/ConfigurationPage';
 
@@ -130,6 +132,8 @@ function App() {
         {/* Admin routes */}
         <Route element={<AdminRoute><AdminLayout /></AdminRoute>}>
           <Route path="/admin" element={<AdminDashboardPage />} />
+          <Route path="/admin/users" element={<AdminUsersPage />} />
+          <Route path="/admin/kyc" element={<AdminKYCPage />} />
           <Route path="/admin/fees" element={<FeesPage />} />
           <Route path="/admin/configuration" element={<ConfigurationPage />} />
         </Route>
