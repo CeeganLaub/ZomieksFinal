@@ -12,7 +12,8 @@ router.get('/stats', async (req, res, next) => {
   try {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay()));
+    const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay());
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
     const [
       totalUsers,
@@ -22,8 +23,11 @@ router.get('/stats', async (req, res, next) => {
       monthlyOrders,
       monthlyRevenue,
       weeklyOrders,
+      todayRevenue,
       pendingDisputes,
       pendingPayouts,
+      totalServices,
+      totalCourses,
     ] = await Promise.all([
       prisma.user.count(),
       prisma.user.count({ where: { isSeller: true } }),
@@ -51,8 +55,17 @@ router.get('/stats', async (req, res, next) => {
           status: { not: 'PENDING_PAYMENT' },
         },
       }),
+      prisma.order.aggregate({
+        where: {
+          createdAt: { gte: startOfToday },
+          status: 'COMPLETED',
+        },
+        _sum: { platformRevenue: true },
+      }),
       prisma.order.count({ where: { status: 'DISPUTED' } }),
       prisma.sellerPayout.count({ where: { status: 'PENDING' } }),
+      prisma.service.count({ where: { isActive: true } }),
+      prisma.course.count({ where: { status: 'PUBLISHED' } }),
     ]);
 
     res.json({
@@ -67,11 +80,14 @@ router.get('/stats', async (req, res, next) => {
         revenue: {
           total: totalRevenue._sum.platformRevenue || 0,
           monthly: monthlyRevenue._sum.platformRevenue || 0,
+          today: todayRevenue._sum.platformRevenue || 0,
         },
         pending: {
           disputes: pendingDisputes,
           payouts: pendingPayouts,
         },
+        services: totalServices,
+        courses: totalCourses,
       },
     });
   } catch (error) {
@@ -544,6 +560,282 @@ router.delete('/categories/:id', async (req, res, next) => {
   try {
     await prisma.category.delete({ where: { id: req.params.id } });
     res.json({ success: true, data: { message: 'Category deleted' } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ============ PLATFORM ANALYTICS ============
+
+router.get('/analytics', async (req, res, next) => {
+  try {
+    const now = new Date();
+
+    // Monthly revenue and orders for last 6 months
+    const monthlyData: { month: string; revenue: number; orders: number; users: number; isPartial?: boolean }[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const start = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const end = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
+      const isPartial = i === 0;
+
+      const [revenue, orderCount, newUsers] = await Promise.all([
+        prisma.order.aggregate({
+          where: { status: 'COMPLETED', completedAt: { gte: start, lt: end } },
+          _sum: { platformRevenue: true, totalAmount: true },
+        }),
+        prisma.order.count({
+          where: { createdAt: { gte: start, lt: end }, status: { not: 'PENDING_PAYMENT' } },
+        }),
+        prisma.user.count({
+          where: { createdAt: { gte: start, lt: end } },
+        }),
+      ]);
+
+      const key = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}`;
+      monthlyData.push({
+        month: key,
+        revenue: Number(revenue._sum.platformRevenue || 0),
+        orders: orderCount,
+        users: newUsers,
+        isPartial,
+      });
+    }
+
+    // Order status breakdown
+    const ordersByStatus = await prisma.order.groupBy({
+      by: ['status'],
+      _count: { id: true },
+      _sum: { totalAmount: true },
+    });
+
+    // Top services by orders
+    const topServices = await prisma.service.findMany({
+      where: { isActive: true },
+      orderBy: { orderCount: 'desc' },
+      take: 10,
+      select: {
+        id: true,
+        title: true,
+        orderCount: true,
+        viewCount: true,
+        rating: true,
+        reviewCount: true,
+        seller: { select: { username: true } },
+        packages: { where: { tier: 'BASIC' }, select: { price: true } },
+      },
+    });
+
+    // Top courses by enrollments
+    const topCourses = await prisma.course.findMany({
+      where: { status: 'PUBLISHED' },
+      orderBy: { enrollCount: 'desc' },
+      take: 10,
+      select: {
+        id: true,
+        title: true,
+        enrollCount: true,
+        rating: true,
+        reviewCount: true,
+        price: true,
+        seller: {
+          select: { displayName: true, user: { select: { username: true } } },
+        },
+      },
+    });
+
+    // Platform totals
+    const [totalUsers, totalSellers, totalOrders, totalRevenue, totalServices, totalCourses, totalEnrollments, totalConversations] = await Promise.all([
+      prisma.user.count(),
+      prisma.user.count({ where: { isSeller: true } }),
+      prisma.order.count({ where: { status: { not: 'PENDING_PAYMENT' } } }),
+      prisma.order.aggregate({
+        where: { status: 'COMPLETED' },
+        _sum: { platformRevenue: true, totalAmount: true, sellerPayout: true },
+      }),
+      prisma.service.count({ where: { isActive: true } }),
+      prisma.course.count({ where: { status: 'PUBLISHED' } }),
+      prisma.courseEnrollment.count(),
+      prisma.conversation.count(),
+    ]);
+
+    // Conversion rate: orders / total service views
+    const totalViews = await prisma.service.aggregate({ _sum: { viewCount: true } });
+    const platformConversionRate = (totalViews._sum.viewCount || 0) > 0
+      ? ((totalOrders / (totalViews._sum.viewCount || 1)) * 100)
+      : 0;
+
+    res.json({
+      success: true,
+      data: {
+        overview: {
+          totalUsers,
+          totalSellers,
+          totalOrders,
+          totalGMV: Number(totalRevenue._sum.totalAmount || 0),
+          totalPlatformRevenue: Number(totalRevenue._sum.platformRevenue || 0),
+          totalSellerPayouts: Number(totalRevenue._sum.sellerPayout || 0),
+          totalServices,
+          totalCourses,
+          totalEnrollments,
+          totalConversations,
+          platformConversionRate: Number(platformConversionRate.toFixed(2)),
+        },
+        monthlyData,
+        ordersByStatus: ordersByStatus.map((s) => ({
+          status: s.status,
+          count: s._count.id,
+          totalAmount: Number(s._sum.totalAmount || 0),
+        })),
+        topServices: topServices.map((s) => ({
+          id: s.id,
+          title: s.title,
+          seller: s.seller?.username || 'Unknown',
+          orderCount: s.orderCount,
+          viewCount: s.viewCount,
+          rating: Number(s.rating),
+          reviewCount: s.reviewCount,
+          startingPrice: s.packages[0] ? Number(s.packages[0].price) : 0,
+        })),
+        topCourses: topCourses.map((c) => ({
+          id: c.id,
+          title: c.title,
+          instructor: c.seller?.displayName || c.seller?.user?.username || 'Unknown',
+          enrollCount: c.enrollCount,
+          rating: Number(c.rating),
+          reviewCount: c.reviewCount,
+          price: Number(c.price),
+        })),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ============ ADMIN INBOX / CONVERSATION MANAGEMENT ============
+
+// List all conversations for admin review
+router.get('/conversations', async (req, res, next) => {
+  try {
+    const { search, flagged, page = '1', limit = '20' } = req.query;
+
+    const where: any = {};
+    if (flagged === 'true') {
+      where.adminFlagged = true;
+    }
+    if (search) {
+      where.OR = [
+        { buyer: { username: { contains: search as string, mode: 'insensitive' } } },
+        { seller: { username: { contains: search as string, mode: 'insensitive' } } },
+        { buyer: { email: { contains: search as string, mode: 'insensitive' } } },
+        { seller: { email: { contains: search as string, mode: 'insensitive' } } },
+      ];
+    }
+
+    const [conversations, total] = await Promise.all([
+      prisma.conversation.findMany({
+        where,
+        orderBy: { lastMessageAt: 'desc' },
+        skip: (parseInt(page as string) - 1) * parseInt(limit as string),
+        take: parseInt(limit as string),
+        include: {
+          buyer: { select: { id: true, username: true, email: true, firstName: true, avatar: true } },
+          seller: { select: { id: true, username: true, email: true, firstName: true, avatar: true } },
+          order: { select: { id: true, orderNumber: true, status: true, totalAmount: true } },
+          messages: {
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+            select: {
+              id: true,
+              content: true,
+              type: true,
+              senderId: true,
+              createdAt: true,
+            },
+          },
+          _count: { select: { messages: true } },
+        },
+      }),
+      prisma.conversation.count({ where }),
+    ]);
+
+    res.json({
+      success: true,
+      data: { conversations },
+      meta: {
+        page: parseInt(page as string),
+        limit: parseInt(limit as string),
+        total,
+        totalPages: Math.ceil(total / parseInt(limit as string)),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get full conversation messages for admin review
+router.get('/conversations/:id', async (req, res, next) => {
+  try {
+    const conversation = await prisma.conversation.findUnique({
+      where: { id: req.params.id },
+      include: {
+        buyer: { select: { id: true, username: true, email: true, firstName: true, avatar: true } },
+        seller: { select: { id: true, username: true, email: true, firstName: true, avatar: true } },
+        order: { select: { id: true, orderNumber: true, status: true, totalAmount: true } },
+        messages: {
+          orderBy: { createdAt: 'asc' },
+          include: {
+            sender: { select: { id: true, username: true, firstName: true, avatar: true } },
+          },
+        },
+      },
+    });
+
+    if (!conversation) {
+      return res.status(404).json({
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Conversation not found' },
+      });
+    }
+
+    res.json({ success: true, data: { conversation } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Flag a conversation for admin review
+router.post('/conversations/:id/flag', async (req, res, next) => {
+  try {
+    const { reason } = req.body;
+
+    const conversation = await prisma.conversation.update({
+      where: { id: req.params.id },
+      data: {
+        adminFlagged: true,
+        adminNotes: reason || 'Flagged by admin for review',
+      },
+    });
+
+    res.json({ success: true, data: { conversation } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Unflag a conversation
+router.post('/conversations/:id/unflag', async (req, res, next) => {
+  try {
+    const conversation = await prisma.conversation.update({
+      where: { id: req.params.id },
+      data: {
+        adminFlagged: false,
+        adminNotes: null,
+      },
+    });
+
+    res.json({ success: true, data: { conversation } });
   } catch (error) {
     next(error);
   }

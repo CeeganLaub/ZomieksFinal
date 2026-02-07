@@ -44,12 +44,12 @@ export default function AdminDashboardPage() {
       setStats({
         totalUsers: d?.users?.total || 0,
         totalSellers: d?.users?.sellers || 0,
-        totalServices: 0,
+        totalServices: d?.services || 0,
         totalOrders: d?.orders?.total || 0,
         pendingDisputes: d?.pending?.disputes || 0,
         pendingPayouts: d?.pending?.payouts || 0,
         pendingKYC: kycRes.data?.sellers?.length || 0,
-        revenueToday: 0,
+        revenueToday: Number(d?.revenue?.today) || 0,
         revenueWeek: Number(d?.revenue?.total) || 0,
         revenueMonth: Number(d?.revenue?.monthly) || 0,
       });

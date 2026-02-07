@@ -14,6 +14,7 @@ import {
   CurrencyDollarIcon,
   ArrowPathIcon,
   CreditCardIcon,
+  ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline';
 import { toast } from 'sonner';
 
@@ -56,6 +57,7 @@ export default function ConversationPage() {
   const [offerData, setOfferData] = useState({ description: '', price: '', deliveryDays: '', revisions: '0', offerType: 'ONE_TIME' as 'ONE_TIME' | 'MONTHLY' });
   const [isSending, setIsSending] = useState(false);
   const [showGatewayPicker, setShowGatewayPicker] = useState<string | null>(null);
+  const [showOffPlatformWarning, setShowOffPlatformWarning] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -189,6 +191,28 @@ export default function ConversationPage() {
           </span>
         </div>
       </div>
+
+      {/* Off-Platform Warning Banner */}
+      {showOffPlatformWarning && (
+        <div className="bg-amber-50 border-b border-amber-200 px-4 py-3 flex items-start gap-3">
+          <ExclamationTriangleIcon className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-amber-900">
+              Stay safe — keep all communication on Zomieks
+            </p>
+            <p className="text-xs text-amber-700 mt-0.5">
+              Do not share personal contact details or move conversations off-platform.
+              Zomieks cannot manage disputes, process refunds, or protect transactions that occur outside our platform.
+            </p>
+          </div>
+          <button
+            onClick={() => setShowOffPlatformWarning(false)}
+            className="p-1 hover:bg-amber-100 rounded text-amber-600 shrink-0"
+          >
+            <XMarkIcon className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       {/* Messages area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-muted/20">

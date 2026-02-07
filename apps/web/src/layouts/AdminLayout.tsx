@@ -13,6 +13,7 @@ import {
   ExclamationTriangleIcon,
   ShieldCheckIcon,
   AcademicCapIcon,
+  ChatBubbleLeftRightIcon,
 } from '@heroicons/react/24/outline';
 import { cn } from '../lib/utils';
 
@@ -28,6 +29,7 @@ export default function AdminLayout() {
     { href: '/admin/courses', label: 'Courses', icon: AcademicCapIcon },
     { href: '/admin/orders', label: 'Orders', icon: ShoppingBagIcon },
     { href: '/admin/disputes', label: 'Disputes', icon: ExclamationTriangleIcon },
+    { href: '/admin/inbox', label: 'Inbox', icon: ChatBubbleLeftRightIcon },
     { href: '/admin/payouts', label: 'Payouts', icon: BanknotesIcon },
     { href: '/admin/analytics', label: 'Analytics', icon: ChartBarIcon },
     { divider: true },

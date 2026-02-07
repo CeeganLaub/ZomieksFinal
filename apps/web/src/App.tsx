@@ -54,6 +54,8 @@ import AdminUsersPage from './pages/admin/AdminUsersPage';
 import AdminKYCPage from './pages/admin/AdminKYCPage';
 import AdminServicesPage from './pages/admin/AdminServicesPage';
 import AdminCoursesPage from './pages/admin/AdminCoursesPage';
+import AdminAnalyticsPage from './pages/admin/AdminAnalyticsPage';
+import AdminInboxPage from './pages/admin/AdminInboxPage';
 import FeesPage from './pages/admin/FeesPage';
 import ConfigurationPage from './pages/admin/ConfigurationPage';
 
@@ -140,6 +142,8 @@ function App() {
           <Route path="/admin/kyc" element={<AdminKYCPage />} />
           <Route path="/admin/services" element={<AdminServicesPage />} />
           <Route path="/admin/courses" element={<AdminCoursesPage />} />
+          <Route path="/admin/analytics" element={<AdminAnalyticsPage />} />
+          <Route path="/admin/inbox" element={<AdminInboxPage />} />
           <Route path="/admin/fees" element={<FeesPage />} />
           <Route path="/admin/configuration" element={<ConfigurationPage />} />
         </Route>
