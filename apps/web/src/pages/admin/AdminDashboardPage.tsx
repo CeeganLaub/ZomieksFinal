@@ -9,6 +9,7 @@ import {
   ExclamationTriangleIcon,
   ArrowTrendingUpIcon,
   ArrowPathIcon,
+  ShieldCheckIcon,
 } from '@heroicons/react/24/outline';
 
 interface DashboardStats {
@@ -18,6 +19,7 @@ interface DashboardStats {
   totalOrders: number;
   pendingDisputes: number;
   pendingPayouts: number;
+  pendingKYC: number;
   revenueToday: number;
   revenueWeek: number;
   revenueMonth: number;
@@ -34,16 +36,20 @@ export default function AdminDashboardPage() {
   async function loadStats() {
     try {
       setLoading(true);
-      const res = await api.get<{ success: boolean; data: any }>('/admin/stats');
-      const d = res.data;
+      const [statsRes, kycRes] = await Promise.all([
+        api.get<{ success: boolean; data: any }>('/admin/stats'),
+        api.get<{ success: boolean; data: { sellers: any[] } }>('/admin/sellers/pending-kyc').catch(() => ({ data: { sellers: [] } })),
+      ]);
+      const d = statsRes.data;
       setStats({
         totalUsers: d?.users?.total || 0,
         totalSellers: d?.users?.sellers || 0,
-        totalServices: 0,
+        totalServices: d?.services || 0,
         totalOrders: d?.orders?.total || 0,
         pendingDisputes: d?.pending?.disputes || 0,
         pendingPayouts: d?.pending?.payouts || 0,
-        revenueToday: 0,
+        pendingKYC: kycRes.data?.sellers?.length || 0,
+        revenueToday: Number(d?.revenue?.today) || 0,
         revenueWeek: Number(d?.revenue?.total) || 0,
         revenueMonth: Number(d?.revenue?.monthly) || 0,
       });
@@ -55,6 +61,7 @@ export default function AdminDashboardPage() {
         totalOrders: 0,
         pendingDisputes: 0,
         pendingPayouts: 0,
+        pendingKYC: 0,
         revenueToday: 0,
         revenueWeek: 0,
         revenueMonth: 0,
@@ -115,6 +122,13 @@ export default function AdminDashboardPage() {
       href: '/admin/payouts',
       color: 'text-yellow-600 bg-yellow-100',
     },
+    { 
+      label: 'Pending KYC', 
+      value: stats?.pendingKYC || 0, 
+      icon: ShieldCheckIcon,
+      href: '/admin/kyc',
+      color: 'text-indigo-600 bg-indigo-100',
+    },
   ];
 
   return (
@@ -171,7 +185,7 @@ export default function AdminDashboardPage() {
       {/* Quick Actions */}
       <div className="bg-background border rounded-lg p-6">
         <h2 className="font-semibold mb-4">Quick Actions</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <Link
             to="/admin/fees"
             className="p-4 border rounded-lg text-center hover:border-primary/50 transition-colors"
@@ -202,6 +216,13 @@ export default function AdminDashboardPage() {
           >
             <BanknotesIcon className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
             <p className="text-sm font-medium">Process Payouts</p>
+          </Link>
+          <Link
+            to="/admin/kyc"
+            className="p-4 border rounded-lg text-center hover:border-primary/50 transition-colors"
+          >
+            <ShieldCheckIcon className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+            <p className="text-sm font-medium">Review KYC</p>
           </Link>
         </div>
       </div>

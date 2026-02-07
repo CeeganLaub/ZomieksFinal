@@ -58,7 +58,7 @@ const CATEGORY_DEFINITIONS: Record<string, { name: string; description: string; 
   },
   cloudflare: {
     name: 'Cloudflare',
-    description: 'Cloudflare API credentials for CDN and R2 storage',
+    description: 'Cloudflare API credentials for CDN, R2 storage, and email routing',
     fields: [
       { key: 'account_id', label: 'Account ID', isSecret: false, description: 'Cloudflare Account ID' },
       { key: 'api_token', label: 'API Token', isSecret: true, description: 'Cloudflare API Token' },
@@ -66,6 +66,10 @@ const CATEGORY_DEFINITIONS: Record<string, { name: string; description: string; 
       { key: 'r2_secret_key', label: 'R2 Secret Key', isSecret: true, description: 'R2 Secret Access Key' },
       { key: 'r2_bucket', label: 'R2 Bucket Name', isSecret: false, description: 'R2 storage bucket name' },
       { key: 'r2_public_url', label: 'R2 Public URL', isSecret: false, description: 'Public URL for R2 bucket' },
+      { key: 'zone_id', label: 'Zone ID', isSecret: false, description: 'Cloudflare Zone ID for your domain' },
+      { key: 'email_routing_enabled', label: 'Email Routing', isSecret: false, description: 'true to enable Cloudflare email routing' },
+      { key: 'email_routing_domain', label: 'Email Domain', isSecret: false, description: 'Domain for email routing (e.g., zomieks.co.za)' },
+      { key: 'email_catch_all', label: 'Catch-All Address', isSecret: false, description: 'Catch-all email forwarding address' },
     ],
   },
   sms: {

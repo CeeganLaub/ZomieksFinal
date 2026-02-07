@@ -205,6 +205,230 @@ router.post('/seller/pay-fee', authenticate, async (req, res, next) => {
   }
 });
 
+// ============ SELLER ANALYTICS ============
+
+// Get seller analytics data
+router.get('/seller/analytics', authenticate, requireSeller, async (req, res, next) => {
+  try {
+    const userId = req.user!.id;
+
+    // Fetch seller profile for biolink and profile stats
+    const sellerProfile = await prisma.sellerProfile.findUnique({
+      where: { userId },
+      select: {
+        id: true,
+        rating: true,
+        reviewCount: true,
+        completedOrders: true,
+        onTimeDeliveryRate: true,
+        responseTimeMinutes: true,
+        level: true,
+        bioEnabled: true,
+      },
+    });
+
+    if (!sellerProfile) {
+      return res.status(404).json({
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Seller profile not found' },
+      });
+    }
+
+    // Fetch services with stats
+    const services = await prisma.service.findMany({
+      where: { sellerId: userId },
+      select: {
+        id: true,
+        title: true,
+        slug: true,
+        status: true,
+        isActive: true,
+        rating: true,
+        reviewCount: true,
+        orderCount: true,
+        viewCount: true,
+        favoriteCount: true,
+        createdAt: true,
+        packages: {
+          where: { tier: 'BASIC' },
+          select: { price: true },
+        },
+      },
+      orderBy: { orderCount: 'desc' },
+    });
+
+    // Fetch courses with stats
+    const courses = await prisma.course.findMany({
+      where: { sellerId: sellerProfile.id },
+      select: {
+        id: true,
+        title: true,
+        slug: true,
+        status: true,
+        rating: true,
+        reviewCount: true,
+        enrollCount: true,
+        price: true,
+        totalDuration: true,
+        createdAt: true,
+        _count: {
+          select: { reviews: true },
+        },
+      },
+      orderBy: { enrollCount: 'desc' },
+    });
+
+    // Aggregate order stats by status
+    const ordersByStatus = await prisma.order.groupBy({
+      by: ['status'],
+      where: { sellerId: userId },
+      _count: { id: true },
+      _sum: { totalAmount: true, sellerPayout: true },
+    });
+
+    // Monthly earnings (last 6 months)
+    // Use first-of-month to avoid setMonth edge cases with varying month lengths
+    const now = new Date();
+    const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 6, 1);
+
+    const completedOrders = await prisma.order.findMany({
+      where: {
+        sellerId: userId,
+        status: 'COMPLETED',
+        completedAt: { gte: sixMonthsAgo },
+      },
+      select: {
+        sellerPayout: true,
+        completedAt: true,
+      },
+      orderBy: { completedAt: 'asc' },
+    });
+
+    // Group monthly earnings — includes current month (partial)
+    const monthlyEarnings: Record<string, number> = {};
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      monthlyEarnings[key] = 0;
+    }
+    completedOrders.forEach((o) => {
+      if (o.completedAt) {
+        const key = `${o.completedAt.getFullYear()}-${String(o.completedAt.getMonth() + 1).padStart(2, '0')}`;
+        if (key in monthlyEarnings) {
+          monthlyEarnings[key] += Number(o.sellerPayout || 0);
+        }
+      }
+    });
+
+    // Total revenue and order stats
+    const totalRevenue = ordersByStatus.reduce(
+      (sum, s) => sum + Number(s._sum.sellerPayout || 0),
+      0
+    );
+    const totalOrders = ordersByStatus.reduce(
+      (sum, s) => sum + s._count.id,
+      0
+    );
+
+    // Service aggregate stats
+    const totalServiceViews = services.reduce((sum, s) => sum + s.viewCount, 0);
+    const totalServiceOrders = services.reduce((sum, s) => sum + s.orderCount, 0);
+    const totalServiceFavorites = services.reduce((sum, s) => sum + s.favoriteCount, 0);
+    const conversionRate = totalServiceViews > 0
+      ? ((totalServiceOrders / totalServiceViews) * 100)
+      : 0;
+
+    // Course aggregate stats
+    const totalEnrollments = courses.reduce((sum, c) => sum + c.enrollCount, 0);
+    const totalCourseRevenue = courses.reduce(
+      (sum, c) => sum + (c.enrollCount * Number(c.price)),
+      0
+    );
+
+    res.json({
+      success: true,
+      data: {
+        overview: {
+          totalRevenue,
+          totalOrders,
+          totalServiceViews,
+          conversionRate: Number(conversionRate.toFixed(2)),
+          totalEnrollments,
+          rating: Number(sellerProfile.rating),
+          reviewCount: sellerProfile.reviewCount,
+          completedOrders: sellerProfile.completedOrders,
+          onTimeDeliveryRate: Number(sellerProfile.onTimeDeliveryRate),
+          responseTimeMinutes: sellerProfile.responseTimeMinutes,
+          level: sellerProfile.level,
+        },
+        services: services.map((s) => ({
+          id: s.id,
+          title: s.title,
+          slug: s.slug,
+          status: s.status,
+          isActive: s.isActive,
+          rating: Number(s.rating),
+          reviewCount: s.reviewCount,
+          orderCount: s.orderCount,
+          viewCount: s.viewCount,
+          favoriteCount: s.favoriteCount,
+          startingPrice: s.packages[0] ? Number(s.packages[0].price) : 0,
+          conversionRate: s.viewCount > 0
+            ? Number(((s.orderCount / s.viewCount) * 100).toFixed(2))
+            : 0,
+          createdAt: s.createdAt,
+        })),
+        courses: courses.map((c) => ({
+          id: c.id,
+          title: c.title,
+          slug: c.slug,
+          status: c.status,
+          rating: Number(c.rating),
+          reviewCount: c.reviewCount,
+          enrollCount: c.enrollCount,
+          price: Number(c.price),
+          totalDuration: c.totalDuration,
+          estimatedRevenue: c.enrollCount * Number(c.price),
+          createdAt: c.createdAt,
+        })),
+        biolink: {
+          enabled: sellerProfile.bioEnabled,
+        },
+        ordersByStatus: ordersByStatus.map((s) => ({
+          status: s.status,
+          count: s._count.id,
+          totalAmount: Number(s._sum.totalAmount || 0),
+        })),
+        monthlyEarnings: Object.entries(monthlyEarnings).map(([month, amount]) => {
+          const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+          return {
+            month,
+            amount,
+            isPartial: month === currentMonthKey,
+          };
+        }),
+        totals: {
+          services: {
+            count: services.length,
+            activeCount: services.filter((s) => s.isActive && s.status === 'ACTIVE').length,
+            totalViews: totalServiceViews,
+            totalOrders: totalServiceOrders,
+            totalFavorites: totalServiceFavorites,
+          },
+          courses: {
+            count: courses.length,
+            publishedCount: courses.filter((c) => c.status === 'PUBLISHED').length,
+            totalEnrollments,
+            estimatedRevenue: totalCourseRevenue,
+          },
+        },
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // ============ BIOLINK ENDPOINTS ============
 
 // Get own BioLink settings (for builder)

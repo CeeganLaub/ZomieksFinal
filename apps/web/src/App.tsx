@@ -45,10 +45,17 @@ import EarningsPage from './pages/seller/EarningsPage';
 import BecomeSeller from './pages/seller/BecomeSeller';
 import SellerCoursesPage from './pages/seller/SellerCoursesPage';
 import CreateCoursePage from './pages/seller/CreateCoursePage';
+import SellerAnalyticsPage from './pages/seller/SellerAnalyticsPage';
 import BioLinkBuilderPage from './pages/BioLinkBuilderPage';
 
 // Admin pages
 import AdminDashboardPage from './pages/admin/AdminDashboardPage';
+import AdminUsersPage from './pages/admin/AdminUsersPage';
+import AdminKYCPage from './pages/admin/AdminKYCPage';
+import AdminServicesPage from './pages/admin/AdminServicesPage';
+import AdminCoursesPage from './pages/admin/AdminCoursesPage';
+import AdminAnalyticsPage from './pages/admin/AdminAnalyticsPage';
+import AdminInboxPage from './pages/admin/AdminInboxPage';
 import FeesPage from './pages/admin/FeesPage';
 import ConfigurationPage from './pages/admin/ConfigurationPage';
 
@@ -124,12 +131,19 @@ function App() {
           <Route path="/seller/earnings" element={<EarningsPage />} />
           <Route path="/seller/courses" element={<SellerCoursesPage />} />
           <Route path="/seller/courses/new" element={<CreateCoursePage />} />
+          <Route path="/seller/analytics" element={<SellerAnalyticsPage />} />
           <Route path="/seller/biolink" element={<BioLinkBuilderPage />} />
         </Route>
 
         {/* Admin routes */}
         <Route element={<AdminRoute><AdminLayout /></AdminRoute>}>
           <Route path="/admin" element={<AdminDashboardPage />} />
+          <Route path="/admin/users" element={<AdminUsersPage />} />
+          <Route path="/admin/kyc" element={<AdminKYCPage />} />
+          <Route path="/admin/services" element={<AdminServicesPage />} />
+          <Route path="/admin/courses" element={<AdminCoursesPage />} />
+          <Route path="/admin/analytics" element={<AdminAnalyticsPage />} />
+          <Route path="/admin/inbox" element={<AdminInboxPage />} />
           <Route path="/admin/fees" element={<FeesPage />} />
           <Route path="/admin/configuration" element={<ConfigurationPage />} />
         </Route>
