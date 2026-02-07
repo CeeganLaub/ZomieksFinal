@@ -33,6 +33,11 @@ interface SellerKYC {
   };
 }
 
+function maskAccountNumber(accountNumber: string): string {
+  if (accountNumber.length <= 4) return accountNumber;
+  return '•'.repeat(accountNumber.length - 4) + accountNumber.slice(-4);
+}
+
 export default function AdminKYCPage() {
   const [sellers, setSellers] = useState<SellerKYC[]>([]);
   const [loading, setLoading] = useState(true);
@@ -156,8 +161,7 @@ export default function AdminKYCPage() {
                       <div className="text-sm">
                         <span className="text-muted-foreground">Account:</span>{' '}
                         <span className="font-medium font-mono">
-                          {'•'.repeat(Math.max(0, seller.user.bankDetails.accountNumber.length - 4))}
-                          {seller.user.bankDetails.accountNumber.slice(-4)}
+                          {maskAccountNumber(seller.user.bankDetails.accountNumber)}
                         </span>
                       </div>
                       <div className="text-sm">

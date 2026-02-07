@@ -6,7 +6,7 @@ import {
   ArrowPathIcon,
   CheckCircleIcon,
   XCircleIcon,
-  ShieldCheckIcon,
+  ClockIcon,
 } from '@heroicons/react/24/outline';
 
 interface AdminUser {
@@ -28,7 +28,7 @@ interface AdminUser {
 }
 
 export default function AdminUsersPage() {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -193,7 +193,7 @@ export default function AdminUsersPage() {
                           </span>
                         ) : (
                           <span className="flex items-center gap-1 text-xs text-yellow-600">
-                            <ShieldCheckIcon className="h-4 w-4" /> Unverified
+                            <ClockIcon className="h-4 w-4" /> Email Unverified
                           </span>
                         )}
                       </td>
