@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/Button';
 import {
   BanknotesIcon,
@@ -9,6 +10,8 @@ import {
   ClockIcon,
   CheckCircleIcon,
   ArrowDownTrayIcon,
+  ShieldExclamationIcon,
+  ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline';
 
 interface Wallet {
@@ -62,6 +65,16 @@ export default function EarningsPage() {
       return (res as any).data.data;
     },
   });
+
+  // Fetch KYC status for withdrawal banner
+  const { data: kycData } = useQuery<{ kycStatus: string }>({
+    queryKey: ['kyc-status'],
+    queryFn: async () => {
+      const res = await api.get('/users/seller/fee-status');
+      return (res as any).data;
+    },
+  });
+  const kycStatus = kycData?.kycStatus || 'PENDING';
 
   const requestPayoutMutation = useMutation({
     mutationFn: async (amount: number) => {
@@ -162,6 +175,36 @@ export default function EarningsPage() {
           <p className="text-2xl font-bold">R{summary?.totalEarnings.toFixed(2) || '0.00'}</p>
         </div>
       </div>
+
+      {/* KYC Withdrawal Notice */}
+      {kycStatus !== 'VERIFIED' && (
+        <div className={cn(
+          'border rounded-lg p-4 mb-8 flex items-start gap-3',
+          kycStatus === 'PENDING' ? 'bg-yellow-50 border-yellow-200' : 'bg-red-50 border-red-200'
+        )}>
+          {kycStatus === 'PENDING' ? (
+            <ExclamationTriangleIcon className="h-6 w-6 text-yellow-600 shrink-0 mt-0.5" />
+          ) : (
+            <ShieldExclamationIcon className="h-6 w-6 text-red-600 shrink-0 mt-0.5" />
+          )}
+          <div>
+            <h3 className={cn(
+              'font-semibold mb-1',
+              kycStatus === 'PENDING' ? 'text-yellow-900' : 'text-red-900'
+            )}>
+              {kycStatus === 'PENDING' ? 'KYC Verification Pending' : 'KYC Verification Required'}
+            </h3>
+            <p className={cn(
+              'text-sm',
+              kycStatus === 'PENDING' ? 'text-yellow-800' : 'text-red-800'
+            )}>
+              {kycStatus === 'PENDING'
+                ? 'Your identity verification is being reviewed. You can receive payments but withdrawals require verified KYC status. This usually takes 1-2 business days.'
+                : 'Your identity verification was rejected. Please update your KYC documents in Settings to enable withdrawals. Contact support if you need help.'}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Fee Breakdown Info */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-8">

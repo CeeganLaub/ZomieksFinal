@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useChatStore } from '../../stores/chat.store';
 import { useAuthStore } from '../../stores/auth.store';
 import { api } from '../../lib/api';
@@ -12,6 +12,8 @@ import {
   CheckIcon,
   XMarkIcon,
   CurrencyDollarIcon,
+  ArrowPathIcon,
+  CreditCardIcon,
 } from '@heroicons/react/24/outline';
 import { toast } from 'sonner';
 
@@ -22,6 +24,7 @@ interface QuickOffer {
   revisions?: number;
   buyerFee?: number;
   totalAmount?: number;
+  offerType?: 'ONE_TIME' | 'MONTHLY';
   status: 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'EXPIRED';
   orderId?: string;
 }
@@ -45,12 +48,14 @@ interface Message {
 
 export default function ConversationPage() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const { user } = useAuthStore();
   const { activeConversation, messages, fetchConversation, sendMessage, isLoading } = useChatStore();
   const [newMessage, setNewMessage] = useState('');
   const [showOfferForm, setShowOfferForm] = useState(false);
-  const [offerData, setOfferData] = useState({ description: '', price: '', deliveryDays: '', revisions: '0' });
+  const [offerData, setOfferData] = useState({ description: '', price: '', deliveryDays: '', revisions: '0', offerType: 'ONE_TIME' as 'ONE_TIME' | 'MONTHLY' });
   const [isSending, setIsSending] = useState(false);
+  const [showGatewayPicker, setShowGatewayPicker] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -90,8 +95,9 @@ export default function ConversationPage() {
         price,
         deliveryDays,
         revisions,
+        offerType: offerData.offerType,
       });
-      setOfferData({ description: '', price: '', deliveryDays: '', revisions: '0' });
+      setOfferData({ description: '', price: '', deliveryDays: '', revisions: '0', offerType: 'ONE_TIME' });
       setShowOfferForm(false);
       fetchConversation(id);
       toast.success('Custom offer sent!');
@@ -102,18 +108,20 @@ export default function ConversationPage() {
     }
   };
 
-  const handleAcceptOffer = async (messageId: string) => {
+  const handleAcceptOffer = async (messageId: string, gateway: 'PAYFAST' | 'OZOW') => {
     if (!id) return;
     setIsSending(true);
     try {
       const res = await api.post<{ success: boolean; data: { order: any; paymentUrl: string } }>(
         `/conversations/${id}/offer/${messageId}/accept`,
-        { paymentGateway: 'PAYFAST' }
+        { paymentGateway: gateway }
       );
-      toast.success('Offer accepted! Order created.');
+      toast.success('Offer accepted! Redirecting to payment...');
       fetchConversation(id);
+      setShowGatewayPicker(null);
       if (res.data?.paymentUrl) {
-        toast.info(`Proceed to payment: ${res.data.paymentUrl}`);
+        // Navigate to the payment initiation URL
+        window.location.href = `${window.location.origin}${res.data.paymentUrl}`;
       }
     } catch (err: any) {
       toast.error(err?.message || 'Failed to accept offer');
@@ -206,9 +214,11 @@ export default function ConversationPage() {
                 message={message}
                 isOwn={isOwn}
                 isBuyer={isBuyer}
-                onAccept={() => handleAcceptOffer(message.id)}
+                onAccept={(gateway) => handleAcceptOffer(message.id, gateway)}
                 onDecline={() => handleDeclineOffer(message.id)}
                 isSending={isSending}
+                showGatewayPicker={showGatewayPicker === message.id}
+                onToggleGatewayPicker={() => setShowGatewayPicker(showGatewayPicker === message.id ? null : message.id)}
               />
             );
           }
@@ -253,6 +263,31 @@ export default function ConversationPage() {
                 <XMarkIcon className="h-4 w-4" />
               </button>
             </div>
+
+            {/* Offer Type Toggle */}
+            <div className="flex p-1 bg-muted rounded-lg">
+              <button
+                type="button"
+                onClick={() => setOfferData(p => ({ ...p, offerType: 'ONE_TIME' }))}
+                className={cn(
+                  'flex-1 py-2 px-3 rounded-md text-xs font-medium transition-colors',
+                  offerData.offerType === 'ONE_TIME' ? 'bg-background shadow text-foreground' : 'text-muted-foreground'
+                )}
+              >
+                One-time
+              </button>
+              <button
+                type="button"
+                onClick={() => setOfferData(p => ({ ...p, offerType: 'MONTHLY' }))}
+                className={cn(
+                  'flex-1 py-2 px-3 rounded-md text-xs font-medium transition-colors',
+                  offerData.offerType === 'MONTHLY' ? 'bg-background shadow text-foreground' : 'text-muted-foreground'
+                )}
+              >
+                Monthly Subscription
+              </button>
+            </div>
+
             <textarea
               value={offerData.description}
               onChange={(e) => setOfferData(p => ({ ...p, description: e.target.value }))}
@@ -263,7 +298,9 @@ export default function ConversationPage() {
             />
             <div className="grid grid-cols-3 gap-3">
               <div>
-                <label className="text-xs text-muted-foreground block mb-1">Price (ZAR)</label>
+                <label className="text-xs text-muted-foreground block mb-1">
+                  {offerData.offerType === 'MONTHLY' ? 'Price/month (ZAR)' : 'Price (ZAR)'}
+                </label>
                 <input
                   type="number"
                   min="50"
@@ -303,11 +340,11 @@ export default function ConversationPage() {
             </div>
             {offerData.price && parseFloat(offerData.price) >= 50 && (
               <div className="text-xs text-muted-foreground bg-muted/50 rounded-lg p-2">
-                Buyer pays: <span className="font-medium text-foreground">R{(parseFloat(offerData.price) * 1.03).toFixed(2)}</span>
+                Buyer pays: <span className="font-medium text-foreground">R{(parseFloat(offerData.price) * 1.03).toFixed(2)}{offerData.offerType === 'MONTHLY' ? '/mo' : ''}</span>
                 <span className="mx-1">·</span>
-                You earn: <span className="font-medium text-green-600">R{(parseFloat(offerData.price) * 0.92).toFixed(2)}</span>
+                You earn: <span className="font-medium text-green-600">R{(parseFloat(offerData.price) * 0.92).toFixed(2)}{offerData.offerType === 'MONTHLY' ? '/mo' : ''}</span>
                 <span className="mx-1">·</span>
-                <span className="text-muted-foreground">Fees applied at checkout</span>
+                <span className="text-muted-foreground">{offerData.offerType === 'MONTHLY' ? 'Recurring monthly' : 'Fees applied at checkout'}</span>
               </div>
             )}
             <button
@@ -315,7 +352,7 @@ export default function ConversationPage() {
               disabled={isSending}
               className="w-full h-10 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
             >
-              {isSending ? 'Sending...' : 'Send Offer'}
+              {isSending ? 'Sending...' : offerData.offerType === 'MONTHLY' ? 'Send Subscription Offer' : 'Send Offer'}
             </button>
           </form>
         </div>
@@ -361,18 +398,23 @@ function OfferMessageCard({
   onAccept,
   onDecline,
   isSending,
+  showGatewayPicker,
+  onToggleGatewayPicker,
 }: {
   message: Message;
   isOwn: boolean;
   isBuyer: boolean;
-  onAccept: () => void;
+  onAccept: (gateway: 'PAYFAST' | 'OZOW') => void;
   onDecline: () => void;
   isSending: boolean;
+  showGatewayPicker: boolean;
+  onToggleGatewayPicker: () => void;
 }) {
   const offer = message.quickOffer!;
   const isPending = offer.status === 'PENDING';
   const isAccepted = offer.status === 'ACCEPTED';
   const isDeclined = offer.status === 'DECLINED';
+  const isMonthly = offer.offerType === 'MONTHLY';
 
   return (
     <div className={cn('flex gap-2', isOwn ? 'justify-end' : 'justify-start')}>
@@ -395,6 +437,11 @@ function OfferMessageCard({
         )}>
           <TagIcon className="h-3.5 w-3.5" />
           Custom Offer
+          {isMonthly && (
+            <span className="ml-1 px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded text-[10px]">
+              Monthly
+            </span>
+          )}
           {isAccepted && <span className="ml-auto flex items-center gap-1"><CheckIcon className="h-3.5 w-3.5" /> Accepted</span>}
           {isDeclined && <span className="ml-auto flex items-center gap-1"><XMarkIcon className="h-3.5 w-3.5" /> Declined</span>}
           {isPending && <span className="ml-auto">Pending</span>}
@@ -406,7 +453,7 @@ function OfferMessageCard({
           <div className="grid grid-cols-3 gap-2 text-center">
             <div className="bg-background rounded-lg p-2 border">
               <p className="text-lg font-bold text-primary">R{offer.price.toFixed(2)}</p>
-              <p className="text-[10px] text-muted-foreground">Price</p>
+              <p className="text-[10px] text-muted-foreground">{isMonthly ? 'Per Month' : 'Price'}</p>
             </div>
             <div className="bg-background rounded-lg p-2 border">
               <p className="text-lg font-bold">{offer.deliveryDays}</p>
@@ -420,15 +467,15 @@ function OfferMessageCard({
 
           {offer.totalAmount && (
             <p className="text-xs text-muted-foreground text-center">
-              Total with fees: <span className="font-semibold text-foreground">R{offer.totalAmount.toFixed(2)}</span>
+              Total with fees: <span className="font-semibold text-foreground">R{offer.totalAmount.toFixed(2)}{isMonthly ? '/mo' : ''}</span>
               <span className="ml-1">(incl. 3% buyer fee)</span>
             </p>
           )}
 
-          {isBuyer && isPending && (
+          {isBuyer && isPending && !showGatewayPicker && (
             <div className="flex gap-2 pt-1">
               <button
-                onClick={onAccept}
+                onClick={onToggleGatewayPicker}
                 disabled={isSending}
                 className="flex-1 h-9 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
               >
@@ -442,6 +489,39 @@ function OfferMessageCard({
               >
                 <XMarkIcon className="h-4 w-4" />
                 Decline
+              </button>
+            </div>
+          )}
+
+          {/* Payment Gateway Picker */}
+          {isBuyer && isPending && showGatewayPicker && (
+            <div className="space-y-2 pt-1">
+              <p className="text-xs font-medium text-center text-muted-foreground">Choose payment method:</p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => onAccept('PAYFAST')}
+                  disabled={isSending}
+                  className="flex-1 h-10 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+                >
+                  {isSending ? <ArrowPathIcon className="h-4 w-4 animate-spin" /> : <CreditCardIcon className="h-4 w-4" />}
+                  PayFast
+                </button>
+                {!isMonthly && (
+                  <button
+                    onClick={() => onAccept('OZOW')}
+                    disabled={isSending}
+                    className="flex-1 h-10 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+                  >
+                    {isSending ? <ArrowPathIcon className="h-4 w-4 animate-spin" /> : <CreditCardIcon className="h-4 w-4" />}
+                    Ozow (EFT)
+                  </button>
+                )}
+              </div>
+              <button
+                onClick={onToggleGatewayPicker}
+                className="w-full text-xs text-muted-foreground hover:text-foreground"
+              >
+                ← Back
               </button>
             </div>
           )}

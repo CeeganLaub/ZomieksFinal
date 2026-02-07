@@ -603,6 +603,7 @@ router.post(
       }
 
       const { description, price, deliveryDays, revisions } = req.body;
+      const offerType = req.body.offerType || 'ONE_TIME';
 
       // Calculate fees so buyer can see the total
       const fees = calculateOrderFees(price);
@@ -614,6 +615,7 @@ router.post(
         revisions: revisions || 0,
         buyerFee: fees.buyerFee,
         totalAmount: fees.totalAmount,
+        offerType,
         status: 'PENDING',
       };
 

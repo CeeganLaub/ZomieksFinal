@@ -12,6 +12,7 @@ import {
   ChartBarIcon,
   ExclamationTriangleIcon,
   ShieldCheckIcon,
+  AcademicCapIcon,
 } from '@heroicons/react/24/outline';
 import { cn } from '../lib/utils';
 
@@ -24,6 +25,7 @@ export default function AdminLayout() {
     { href: '/admin/users', label: 'Users', icon: UsersIcon },
     { href: '/admin/kyc', label: 'KYC Verifications', icon: ShieldCheckIcon },
     { href: '/admin/services', label: 'Services', icon: DocumentTextIcon },
+    { href: '/admin/courses', label: 'Courses', icon: AcademicCapIcon },
     { href: '/admin/orders', label: 'Orders', icon: ShoppingBagIcon },
     { href: '/admin/disputes', label: 'Disputes', icon: ExclamationTriangleIcon },
     { href: '/admin/payouts', label: 'Payouts', icon: BanknotesIcon },

@@ -51,6 +51,8 @@ import BioLinkBuilderPage from './pages/BioLinkBuilderPage';
 import AdminDashboardPage from './pages/admin/AdminDashboardPage';
 import AdminUsersPage from './pages/admin/AdminUsersPage';
 import AdminKYCPage from './pages/admin/AdminKYCPage';
+import AdminServicesPage from './pages/admin/AdminServicesPage';
+import AdminCoursesPage from './pages/admin/AdminCoursesPage';
 import FeesPage from './pages/admin/FeesPage';
 import ConfigurationPage from './pages/admin/ConfigurationPage';
 
@@ -134,6 +136,8 @@ function App() {
           <Route path="/admin" element={<AdminDashboardPage />} />
           <Route path="/admin/users" element={<AdminUsersPage />} />
           <Route path="/admin/kyc" element={<AdminKYCPage />} />
+          <Route path="/admin/services" element={<AdminServicesPage />} />
+          <Route path="/admin/courses" element={<AdminCoursesPage />} />
           <Route path="/admin/fees" element={<FeesPage />} />
           <Route path="/admin/configuration" element={<ConfigurationPage />} />
         </Route>
