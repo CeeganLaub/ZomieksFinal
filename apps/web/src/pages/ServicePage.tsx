@@ -6,7 +6,7 @@ import { useAuthStore } from '../stores/auth.store';
 import { Button } from '../components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { StarIcon, ClockIcon, CheckIcon, ArrowsRightLeftIcon } from '@heroicons/react/24/solid';
-import { ChatBubbleLeftRightIcon, HeartIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { ChatBubbleLeftRightIcon, HeartIcon, XMarkIcon, ShieldCheckIcon, CreditCardIcon } from '@heroicons/react/24/outline';
 import { formatCurrency, formatDate } from '../lib/utils';
 import { toast } from 'sonner';
 
@@ -18,6 +18,7 @@ export default function ServicePage() {
   const [showSubscription, setShowSubscription] = useState(false);
   const [showRequirementsModal, setShowRequirementsModal] = useState(false);
   const [requirements, setRequirements] = useState('');
+  const [selectedGateway, setSelectedGateway] = useState<'PAYFAST' | 'OZOW'>('PAYFAST');
 
   const { data, isLoading } = useQuery({
     queryKey: ['service', username, slug],
@@ -93,7 +94,7 @@ export default function ServicePage() {
       serviceId: service.id,
       packageTier: currentPackage.tier,
       requirements: requirements.trim() || undefined,
-      paymentGateway: 'PAYFAST',
+      paymentGateway: selectedGateway,
     });
   };
 
@@ -376,6 +377,18 @@ export default function ServicePage() {
               <HeartIcon className="h-4 w-4 mr-2" />
               Save to favorites
             </Button>
+
+            {/* Trust badges */}
+            <div className="mt-4 space-y-2">
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center gap-2">
+                <ShieldCheckIcon className="h-5 w-5 text-emerald-600 shrink-0" />
+                <span className="text-xs text-emerald-700 font-medium">Secure Payment — Funds held in escrow</span>
+              </div>
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-2">
+                <CreditCardIcon className="h-5 w-5 text-blue-600 shrink-0" />
+                <span className="text-xs text-blue-700 font-medium">PayFast & Ozow accepted</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -449,6 +462,37 @@ export default function ServicePage() {
                 <div className="flex justify-between font-semibold text-foreground pt-2 border-t">
                   <span>Total</span>
                   <span>{formatCurrency((currentPackage?.price || 0) * 1.03)}</span>
+                </div>
+              </div>
+
+              {/* Payment method selection */}
+              <div className="border-t pt-4">
+                <label className="block text-sm font-medium mb-2">Payment Method</label>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedGateway('PAYFAST')}
+                    className={`flex-1 p-3 border rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
+                      selectedGateway === 'PAYFAST'
+                        ? 'border-primary bg-primary/5 text-primary'
+                        : 'hover:bg-muted'
+                    }`}
+                  >
+                    <CreditCardIcon className="h-4 w-4" />
+                    PayFast
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedGateway('OZOW')}
+                    className={`flex-1 p-3 border rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
+                      selectedGateway === 'OZOW'
+                        ? 'border-primary bg-primary/5 text-primary'
+                        : 'hover:bg-muted'
+                    }`}
+                  >
+                    <CreditCardIcon className="h-4 w-4" />
+                    Ozow (EFT)
+                  </button>
                 </div>
               </div>
             </div>
