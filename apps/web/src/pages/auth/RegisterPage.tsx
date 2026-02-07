@@ -32,7 +32,7 @@ const registerSchema = z.object({
   confirmPassword: z.string(),
   firstName: z.string().min(2, 'First name is required'),
   lastName: z.string().min(2, 'Last name is required'),
-  country: z.string().min(2, 'Country is required'),
+  country: z.string().default('ZA'),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ['confirmPassword'],
@@ -58,6 +58,9 @@ export default function RegisterPage() {
     formState: { errors } 
   } = useForm<RegisterForm>({
     resolver: zodResolver(registerSchema),
+    defaultValues: {
+      country: 'ZA',
+    },
   });
 
   const onSubmit = async (data: RegisterForm) => {
@@ -158,6 +161,8 @@ export default function RegisterPage() {
               </div>
             </motion.div>
 
+            {/* Country is fixed to South Africa */}
+            <input type="hidden" {...register('country')} />
             <motion.div
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
@@ -165,28 +170,10 @@ export default function RegisterPage() {
             >
               <div className="relative">
                 <GlobeAltIcon className="absolute left-3 top-[38px] h-5 w-5 text-muted-foreground" />
-                <label htmlFor="country" className="block text-sm font-medium mb-1.5">Country</label>
-                <select
-                  id="country"
-                  {...register('country')}
-                  className="w-full h-10 pl-10 pr-3 border rounded-md bg-background focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm"
-                >
-                  <option value="">Select your country</option>
-                  <option value="ZA">🇿🇦 South Africa</option>
-                  <option value="US">🇺🇸 United States</option>
-                  <option value="GB">🇬🇧 United Kingdom</option>
-                  <option value="CA">🇨🇦 Canada</option>
-                  <option value="AU">🇦🇺 Australia</option>
-                  <option value="DE">🇩🇪 Germany</option>
-                  <option value="NG">🇳🇬 Nigeria</option>
-                  <option value="KE">🇰🇪 Kenya</option>
-                  <option value="GH">🇬🇭 Ghana</option>
-                  <option value="IN">🇮🇳 India</option>
-                  <option value="OTHER">Other</option>
-                </select>
-                {errors.country && (
-                  <p className="text-destructive text-sm mt-1">{errors.country.message}</p>
-                )}
+                <label className="block text-sm font-medium mb-1.5">Country</label>
+                <div className="w-full h-10 pl-10 pr-3 border rounded-md bg-muted/50 flex items-center text-sm">
+                  🇿🇦 South Africa
+                </div>
               </div>
             </motion.div>
 

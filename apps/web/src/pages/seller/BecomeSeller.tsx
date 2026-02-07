@@ -12,6 +12,15 @@ import { Textarea } from '../../components/ui/Textarea';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../components/ui/Card';
 import { CheckIcon, ExclamationTriangleIcon } from '@heroicons/react/24/solid';
 import { toast } from 'sonner';
+import {
+  SparklesIcon,
+  Squares2X2Icon,
+  AcademicCapIcon,
+  LinkIcon,
+  MagnifyingGlassIcon,
+  ChatBubbleLeftRightIcon,
+  BanknotesIcon,
+} from '@heroicons/react/24/outline';
 
 const becomeSellerSchema = z.object({
   displayName: z.string().min(2, 'Display name is required'),
@@ -33,6 +42,7 @@ export default function BecomeSeller() {
   const navigate = useNavigate();
   const { refreshUser, user } = useAuthStore();
   const [step, setStep] = useState(1);
+  const [selectedPlan, setSelectedPlan] = useState<'free' | 'pro'>('free');
 
   const isSouthAfrican = user?.country?.toUpperCase() === 'ZA';
 
@@ -185,17 +195,136 @@ export default function BecomeSeller() {
   }
 
   if (step === 2) {
+    const freePlanFeatures = [
+      { icon: Squares2X2Icon, text: 'List unlimited services', included: true },
+      { icon: ChatBubbleLeftRightIcon, text: 'Built-in CRM & messaging', included: true },
+      { icon: BanknotesIcon, text: '8% commission on sales', included: true },
+      { icon: AcademicCapIcon, text: 'Create & sell courses', included: false },
+      { icon: LinkIcon, text: 'BioLink storefront page', included: false },
+      { icon: MagnifyingGlassIcon, text: 'Priority search ranking', included: false },
+    ];
+
+    const proPlanFeatures = [
+      { icon: Squares2X2Icon, text: 'List unlimited services', included: true },
+      { icon: ChatBubbleLeftRightIcon, text: 'Built-in CRM & messaging', included: true },
+      { icon: BanknotesIcon, text: '8% commission on sales', included: true },
+      { icon: AcademicCapIcon, text: 'Create & sell video courses', included: true },
+      { icon: LinkIcon, text: 'Custom BioLink storefront', included: true },
+      { icon: MagnifyingGlassIcon, text: 'Priority search ranking', included: true },
+    ];
+
+    return (
+      <div className="max-w-4xl mx-auto">
+        <div className="text-center mb-8">
+          <h1 className="text-2xl font-bold">Choose Your Plan</h1>
+          <p className="text-muted-foreground mt-1">Step 2 of 4: Select the plan that works for you</p>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-6">
+          {/* Free Plan */}
+          <div
+            onClick={() => setSelectedPlan('free')}
+            className={`relative cursor-pointer rounded-xl border-2 p-6 transition-all ${
+              selectedPlan === 'free'
+                ? 'border-primary bg-primary/5 shadow-lg'
+                : 'border-border hover:border-muted-foreground/30'
+            }`}
+          >
+            {selectedPlan === 'free' && (
+              <div className="absolute -top-3 left-4 bg-primary text-white text-xs font-bold px-3 py-1 rounded-full">
+                Selected
+              </div>
+            )}
+            <div className="mb-4">
+              <h3 className="text-xl font-bold">Starter</h3>
+              <p className="text-muted-foreground text-sm">Get started selling services</p>
+            </div>
+            <div className="mb-6">
+              <span className="text-3xl font-bold">Free</span>
+              <span className="text-muted-foreground ml-1">forever</span>
+            </div>
+            <ul className="space-y-3">
+              {freePlanFeatures.map((f, i) => (
+                <li key={i} className="flex items-center gap-3 text-sm">
+                  {f.included ? (
+                    <CheckIcon className="h-5 w-5 text-green-500 shrink-0" />
+                  ) : (
+                    <span className="h-5 w-5 flex items-center justify-center shrink-0">
+                      <span className="block w-3 h-0.5 bg-muted-foreground/30" />
+                    </span>
+                  )}
+                  <f.icon className={`h-4 w-4 shrink-0 ${f.included ? 'text-foreground' : 'text-muted-foreground/40'}`} />
+                  <span className={f.included ? '' : 'text-muted-foreground/40'}>{f.text}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Pro Plan */}
+          <div
+            onClick={() => setSelectedPlan('pro')}
+            className={`relative cursor-pointer rounded-xl border-2 p-6 transition-all ${
+              selectedPlan === 'pro'
+                ? 'border-primary bg-primary/5 shadow-lg'
+                : 'border-border hover:border-muted-foreground/30'
+            }`}
+          >
+            <div className="absolute -top-3 right-4 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1">
+              <SparklesIcon className="h-3 w-3" /> Recommended
+            </div>
+            {selectedPlan === 'pro' && (
+              <div className="absolute -top-3 left-4 bg-primary text-white text-xs font-bold px-3 py-1 rounded-full">
+                Selected
+              </div>
+            )}
+            <div className="mb-4">
+              <h3 className="text-xl font-bold">Zomieks Pro</h3>
+              <p className="text-muted-foreground text-sm">Full access to everything</p>
+            </div>
+            <div className="mb-6">
+              <span className="text-3xl font-bold">R399</span>
+              <span className="text-muted-foreground ml-1">/month</span>
+            </div>
+            <ul className="space-y-3">
+              {proPlanFeatures.map((f, i) => (
+                <li key={i} className="flex items-center gap-3 text-sm">
+                  <CheckIcon className="h-5 w-5 text-green-500 shrink-0" />
+                  <f.icon className="h-4 w-4 shrink-0 text-foreground" />
+                  <span>{f.text}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+
+        <div className="mt-4 text-center text-xs text-muted-foreground">
+          {selectedPlan === 'pro'
+            ? 'You can subscribe to Pro after creating your profile, or upgrade anytime from your dashboard.'
+            : 'You can always upgrade to Pro later from your seller dashboard.'}
+        </div>
+
+        <div className="flex justify-center gap-4 mt-6">
+          <Button variant="outline" onClick={() => setStep(1)}>Back</Button>
+          <Button className="min-w-[200px]" size="lg" onClick={() => setStep(3)}>
+            Continue
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (step === 3) {
     return (
       <div className="max-w-2xl mx-auto">
         <Card>
           <CardHeader>
             <CardTitle className="text-2xl">Create Your Seller Profile</CardTitle>
             <CardDescription>
-              Step 2 of 3: Tell buyers about yourself and your skills
+              Step 3 of 4: Tell buyers about yourself and your skills
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={(e) => { e.preventDefault(); setStep(3); }} className="space-y-6">
+            <form onSubmit={(e) => { e.preventDefault(); setStep(4); }} className="space-y-6">
               <Input
                 id="displayName"
                 label="Display Name"
@@ -238,7 +367,7 @@ export default function BecomeSeller() {
               />
 
               <div className="flex space-x-4">
-                <Button type="button" variant="outline" onClick={() => setStep(1)}>
+                <Button type="button" variant="outline" onClick={() => setStep(2)}>
                   Back
                 </Button>
                 <Button type="submit" className="flex-1">
@@ -258,7 +387,7 @@ export default function BecomeSeller() {
         <CardHeader>
           <CardTitle className="text-2xl">KYC & Bank Details</CardTitle>
           <CardDescription>
-            Step 3 of 3: Verify your identity and add bank details for payouts
+            Step 4 of 4: Verify your identity and add bank details for payouts
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -343,7 +472,7 @@ export default function BecomeSeller() {
             </div>
 
             <div className="flex space-x-4">
-              <Button type="button" variant="outline" onClick={() => setStep(2)}>
+              <Button type="button" variant="outline" onClick={() => setStep(3)}>
                 Back
               </Button>
               <Button type="submit" className="flex-1" isLoading={becomeSeller.isPending}>
