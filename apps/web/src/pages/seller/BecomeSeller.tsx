@@ -303,6 +303,140 @@ export default function BecomeSeller() {
             : 'You can always upgrade to Pro later from your seller dashboard.'}
         </div>
 
+        {/* Fees Breakdown */}
+        <div className="mt-10 p-6 rounded-2xl border bg-muted/30">
+          <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
+            <BanknotesIcon className="h-5 w-5 text-primary" />
+            Transparent Fees
+          </h3>
+          <div className="grid sm:grid-cols-3 gap-4">
+            <div className="p-4 rounded-xl bg-background border text-center">
+              <div className="text-2xl font-bold text-primary">8%</div>
+              <div className="text-sm font-medium mt-1">Seller Commission</div>
+              <div className="text-xs text-muted-foreground mt-1">On every completed order</div>
+            </div>
+            <div className="p-4 rounded-xl bg-background border text-center">
+              <div className="text-2xl font-bold text-primary">3%</div>
+              <div className="text-sm font-medium mt-1">Buyer Service Fee</div>
+              <div className="text-xs text-muted-foreground mt-1">Paid by the buyer, not you</div>
+            </div>
+            <div className="p-4 rounded-xl bg-background border text-center">
+              <div className="text-2xl font-bold text-primary">20%</div>
+              <div className="text-sm font-medium mt-1">Course Platform Fee</div>
+              <div className="text-xs text-muted-foreground mt-1">On course sales (Pro only)</div>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground text-center mt-3">
+            Example: You list a service for R1,000 → You keep R920. The buyer pays R1,030 (R1,000 + 3% service fee).
+          </p>
+        </div>
+
+        {/* What You Can Do */}
+        <div className="mt-10">
+          <h3 className="font-bold text-lg mb-6 text-center">What You Can Do on Zomieks</h3>
+          <div className="grid sm:grid-cols-3 gap-4">
+            {/* Services */}
+            <div className="p-5 rounded-2xl border bg-background text-center group hover:shadow-lg hover:border-primary/20 transition-all">
+              <div className="w-14 h-14 rounded-2xl bg-emerald-100 flex items-center justify-center mx-auto mb-3">
+                <Squares2X2Icon className="h-7 w-7 text-emerald-600" />
+              </div>
+              <h4 className="font-bold mb-1">Sell Services</h4>
+              <p className="text-xs text-muted-foreground">
+                Create gigs with tiered packages (Basic, Standard, Premium). Buyers order and you deliver.
+              </p>
+              <div className="mt-3 p-2 rounded-lg bg-muted/50 text-xs">
+                <span className="font-medium">Free + Pro</span>
+              </div>
+            </div>
+            {/* Courses */}
+            <div className="p-5 rounded-2xl border bg-background text-center group hover:shadow-lg hover:border-purple-300/30 transition-all">
+              <div className="w-14 h-14 rounded-2xl bg-purple-100 flex items-center justify-center mx-auto mb-3">
+                <AcademicCapIcon className="h-7 w-7 text-purple-600" />
+              </div>
+              <h4 className="font-bold mb-1">Create Courses</h4>
+              <p className="text-xs text-muted-foreground">
+                Build video courses with lessons and modules. Students enroll and learn at their own pace.
+              </p>
+              <div className="mt-3 p-2 rounded-lg bg-purple-50 text-xs">
+                <span className="font-medium text-purple-700">Pro Only</span>
+              </div>
+            </div>
+            {/* BioLink */}
+            <div className="p-5 rounded-2xl border bg-background text-center group hover:shadow-lg hover:border-blue-300/30 transition-all">
+              <div className="w-14 h-14 rounded-2xl bg-blue-100 flex items-center justify-center mx-auto mb-3">
+                <LinkIcon className="h-7 w-7 text-blue-600" />
+              </div>
+              <h4 className="font-bold mb-1">BioLink Page</h4>
+              <p className="text-xs text-muted-foreground">
+                Your custom link-in-bio storefront. Showcase services, courses, portfolio & social links.
+              </p>
+              <div className="mt-3 p-2 rounded-lg bg-blue-50 text-xs">
+                <span className="font-medium text-blue-700">Pro Only</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* BioLink Preview */}
+        <div className="mt-10 p-6 rounded-2xl border bg-gradient-to-br from-emerald-50 to-blue-50 dark:from-emerald-950/30 dark:to-blue-950/20">
+          <div className="grid md:grid-cols-2 gap-8 items-center">
+            <div>
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium mb-3">
+                <LinkIcon className="h-3 w-3" />
+                BioLink Preview
+              </div>
+              <h3 className="font-bold text-lg mb-2">Your own digital storefront</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                With Zomieks Pro, you get a custom BioLink page at <strong>zomieks.co.za/your-name</strong>. 
+                Share it on Instagram, WhatsApp, Twitter, email signatures — anywhere.
+              </p>
+              <ul className="space-y-2 text-sm">
+                {[
+                  'Customize your theme and colors',
+                  'Display all your services and courses',
+                  'Add portfolio images',
+                  'Link your social profiles',
+                  'Contact button for direct inquiries',
+                ].map((item, i) => (
+                  <li key={i} className="flex items-center gap-2">
+                    <CheckIcon className="h-4 w-4 text-primary shrink-0" />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            {/* Mini Phone Mockup */}
+            <div className="flex justify-center">
+              <div className="w-[200px] h-[400px] bg-gray-900 rounded-[2rem] p-2 shadow-xl border-2 border-gray-800">
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-20 h-4 bg-gray-900 rounded-b-xl" />
+                <div className="w-full h-full bg-gradient-to-b from-emerald-500 to-teal-600 rounded-[1.5rem] overflow-hidden">
+                  <div className="pt-8 px-3 text-center text-white">
+                    <div className="w-14 h-14 rounded-full bg-white/20 mx-auto mb-2 flex items-center justify-center text-2xl">
+                      👩‍💻
+                    </div>
+                    <h4 className="font-bold text-sm">Your Name</h4>
+                    <p className="text-[10px] text-emerald-200 mb-3">Your Title Here</p>
+                    <div className="space-y-1.5">
+                      {['My Service 1', 'My Service 2', 'My Course'].map((item, i) => (
+                        <div key={i} className="bg-white/15 backdrop-blur-sm rounded-lg py-2 px-3 text-[11px] font-medium">
+                          {item}
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex justify-center gap-2 mt-3">
+                      {['🌐', '📸', '🐦'].map((icon, i) => (
+                        <div key={i} className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center text-sm">
+                          {icon}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div className="flex justify-center gap-4 mt-6">
           <Button variant="outline" onClick={() => setStep(1)}>Back</Button>
           <Button className="min-w-[200px]" size="lg" onClick={() => setStep(3)}>
