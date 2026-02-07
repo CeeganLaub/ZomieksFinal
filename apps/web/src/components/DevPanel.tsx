@@ -78,7 +78,7 @@ export function DevPanel() {
     const user = JSON.parse(localStorage.getItem('auth-storage') || '{}')?.state?.user;
     
     setInfo({
-      apiUrl: import.meta.env.VITE_API_URL || 'http://localhost:8787',
+      apiUrl: import.meta.env.VITE_API_URL || 'http://localhost:3001',
       environment: import.meta.env.MODE,
       user,
       errors: [],
