@@ -37,8 +37,8 @@ export default function AdminDashboardPage() {
     try {
       setLoading(true);
       const [statsRes, kycRes] = await Promise.all([
-        api.get<{ success: boolean; data: any }>('/admin/stats'),
-        api.get<{ success: boolean; data: { sellers: any[] } }>('/admin/sellers/pending-kyc').catch(() => ({ data: { sellers: [] } })),
+        api.get<{ success: boolean; data: Record<string, Record<string, number>> }>('/admin/stats'),
+        api.get<{ success: boolean; data: { sellers: unknown[] } }>('/admin/sellers/pending-kyc').catch(() => ({ data: { sellers: [] } })),
       ]);
       const d = statsRes.data;
       setStats({
@@ -169,15 +169,15 @@ export default function AdminDashboardPage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="p-4 bg-muted/50 rounded-lg">
             <p className="text-sm text-muted-foreground">Today</p>
-            <p className="text-2xl font-bold">R{((stats?.revenueToday || 0) / 100).toFixed(2)}</p>
+            <p className="text-2xl font-bold">R{(stats?.revenueToday || 0).toFixed(2)}</p>
           </div>
           <div className="p-4 bg-muted/50 rounded-lg">
-            <p className="text-sm text-muted-foreground">This Week</p>
-            <p className="text-2xl font-bold">R{((stats?.revenueWeek || 0) / 100).toFixed(2)}</p>
+            <p className="text-sm text-muted-foreground">Total</p>
+            <p className="text-2xl font-bold">R{(stats?.revenueWeek || 0).toFixed(2)}</p>
           </div>
           <div className="p-4 bg-muted/50 rounded-lg">
             <p className="text-sm text-muted-foreground">This Month</p>
-            <p className="text-2xl font-bold">R{((stats?.revenueMonth || 0) / 100).toFixed(2)}</p>
+            <p className="text-2xl font-bold">R{(stats?.revenueMonth || 0).toFixed(2)}</p>
           </div>
         </div>
       </div>

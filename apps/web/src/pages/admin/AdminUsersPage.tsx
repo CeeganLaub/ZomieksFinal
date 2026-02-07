@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../../lib/api';
+import { toast } from 'sonner';
 import {
   MagnifyingGlassIcon,
   ArrowPathIcon,
   CheckCircleIcon,
   XCircleIcon,
   ClockIcon,
+  NoSymbolIcon,
+  ShieldCheckIcon,
 } from '@heroicons/react/24/outline';
 
 interface AdminUser {
@@ -65,6 +68,28 @@ export default function AdminUsersPage() {
     e.preventDefault();
     setPage(1);
     loadUsers();
+  }
+
+  async function suspendUser(userId: string) {
+    const reason = window.prompt('Enter suspension reason:');
+    if (!reason) return;
+    try {
+      await api.post(`/admin/users/${userId}/suspend`, { reason });
+      toast.success('User suspended');
+      loadUsers();
+    } catch {
+      toast.error('Failed to suspend user');
+    }
+  }
+
+  async function unsuspendUser(userId: string) {
+    try {
+      await api.post(`/admin/users/${userId}/unsuspend`);
+      toast.success('User unsuspended');
+      loadUsers();
+    } catch {
+      toast.error('Failed to unsuspend user');
+    }
   }
 
   return (
@@ -136,12 +161,13 @@ export default function AdminUsersPage() {
                   <th className="text-left px-4 py-3 font-medium">Orders</th>
                   <th className="text-left px-4 py-3 font-medium">Status</th>
                   <th className="text-left px-4 py-3 font-medium">Joined</th>
+                  <th className="text-left px-4 py-3 font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
                 {users.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
+                    <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
                       No users found
                     </td>
                   </tr>
@@ -199,6 +225,25 @@ export default function AdminUsersPage() {
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">
                         {new Date(u.createdAt).toLocaleDateString()}
+                      </td>
+                      <td className="px-4 py-3">
+                        {!u.isAdmin && (
+                          u.isSuspended ? (
+                            <button
+                              onClick={() => unsuspendUser(u.id)}
+                              className="flex items-center gap-1 px-2 py-1 text-xs rounded bg-green-50 text-green-600 hover:bg-green-100"
+                            >
+                              <ShieldCheckIcon className="h-3.5 w-3.5" /> Unsuspend
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => suspendUser(u.id)}
+                              className="flex items-center gap-1 px-2 py-1 text-xs rounded bg-red-50 text-red-600 hover:bg-red-100"
+                            >
+                              <NoSymbolIcon className="h-3.5 w-3.5" /> Suspend
+                            </button>
+                          )
+                        )}
                       </td>
                     </tr>
                   ))

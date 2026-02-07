@@ -460,4 +460,70 @@ export const sellerFeeApi = {
     api.post<ApiResponse<{ message: string }>>('/users/seller/pay-fee'),
 };
 
+// Admin API
+export const adminApi = {
+  // Dashboard
+  stats: () => api.get<ApiResponse<Record<string, unknown>>>('/admin/stats'),
+  analytics: () => api.get<ApiResponse<Record<string, unknown>>>('/admin/analytics'),
+
+  // Users
+  users: (params?: { search?: string; isSeller?: string; status?: string; page?: number; limit?: number }) =>
+    api.get<ApiResponse<{ users: unknown[] }>>('/admin/users', { params }),
+  suspendUser: (userId: string, reason: string) =>
+    api.post<ApiResponse<{ user: unknown }>>(`/admin/users/${userId}/suspend`, { reason }),
+  unsuspendUser: (userId: string) =>
+    api.post<ApiResponse<{ user: unknown }>>(`/admin/users/${userId}/unsuspend`),
+
+  // Orders & Disputes
+  orders: (params?: { status?: string; startDate?: string; endDate?: string; page?: number; limit?: number }) =>
+    api.get<ApiResponse<{ orders: unknown[] }>>('/admin/orders', { params }),
+  disputes: (params?: { page?: number; limit?: number }) =>
+    api.get<ApiResponse<{ disputes: unknown[] }>>('/admin/disputes', { params }),
+  resolveDispute: (orderId: string, data: { resolution: string; refundBuyer: boolean; refundAmount?: number; notes?: string }) =>
+    api.post<ApiResponse<{ message: string }>>(`/admin/disputes/${orderId}/resolve`, data),
+
+  // Payouts
+  payouts: (params?: { status?: string; page?: number; limit?: number }) =>
+    api.get<ApiResponse<{ payouts: unknown[] }>>('/admin/payouts', { params }),
+  processPayout: (payoutId: string, bankReference: string) =>
+    api.post<ApiResponse<{ payout: unknown }>>(`/admin/payouts/${payoutId}/process`, { bankReference }),
+  rejectPayout: (payoutId: string, reason?: string) =>
+    api.post<ApiResponse<{ payout: unknown }>>(`/admin/payouts/${payoutId}/reject`, { reason }),
+
+  // KYC
+  pendingKYC: () =>
+    api.get<ApiResponse<{ sellers: unknown[] }>>('/admin/sellers/pending-kyc'),
+  verifyKYC: (sellerId: string, status: 'VERIFIED' | 'REJECTED') =>
+    api.post<ApiResponse<{ profile: unknown }>>(`/admin/sellers/${sellerId}/verify-kyc`, { status }),
+
+  // Services & Courses
+  services: (params?: { search?: string; status?: string; page?: number; limit?: number }) =>
+    api.get<ApiResponse<{ services: unknown[] }>>('/admin/services', { params }),
+  updateService: (serviceId: string, data: { isActive?: boolean }) =>
+    api.patch<ApiResponse<{ service: unknown }>>(`/admin/services/${serviceId}`, data),
+  courses: (params?: { search?: string; status?: string; page?: number; limit?: number }) =>
+    api.get<ApiResponse<{ courses: unknown[] }>>('/admin/courses', { params }),
+  updateCourse: (courseId: string, data: { status?: string }) =>
+    api.patch<ApiResponse<{ course: unknown }>>(`/admin/courses/${courseId}`, data),
+
+  // Categories
+  categories: () => api.get<ApiResponse<{ categories: unknown[] }>>('/admin/categories'),
+  createCategory: (data: { name: string; slug: string; description?: string; icon?: string; parentId?: string; order?: number }) =>
+    api.post<ApiResponse<{ category: unknown }>>('/admin/categories', data),
+  updateCategory: (categoryId: string, data: Record<string, unknown>) =>
+    api.patch<ApiResponse<{ category: unknown }>>(`/admin/categories/${categoryId}`, data),
+  deleteCategory: (categoryId: string) =>
+    api.delete<ApiResponse<{ message: string }>>(`/admin/categories/${categoryId}`),
+
+  // Conversations
+  conversations: (params?: { search?: string; flagged?: string; page?: number; limit?: number }) =>
+    api.get<ApiResponse<{ conversations: unknown[] }>>('/admin/conversations', { params }),
+  conversation: (id: string) =>
+    api.get<ApiResponse<{ conversation: unknown }>>(`/admin/conversations/${id}`),
+  flagConversation: (id: string, reason?: string) =>
+    api.post<ApiResponse<{ conversation: unknown }>>(`/admin/conversations/${id}/flag`, { reason }),
+  unflagConversation: (id: string) =>
+    api.post<ApiResponse<{ conversation: unknown }>>(`/admin/conversations/${id}/unflag`),
+};
+
 export { setAuthToken, getAuthToken };
