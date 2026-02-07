@@ -209,6 +209,134 @@ router.post('/payfast/subscription', async (req, res) => {
   }
 });
 
+// PayFast seller subscription ITN (Zomieks Pro R399/month)
+router.post('/payfast/seller-subscription', async (req, res) => {
+  try {
+    // Verify source IP in production
+    if (!env.PAYFAST_SANDBOX) {
+      const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+      const ip = Array.isArray(clientIp) ? clientIp[0] : clientIp?.split(',')[0];
+      
+      if (!ip || !PAYFAST_IPS.includes(ip.trim())) {
+        console.error('PayFast seller-sub webhook: Invalid source IP', ip);
+        return res.status(403).send('Invalid source');
+      }
+    }
+
+    const data = req.body;
+
+    if (!validatePayFastSignature({ ...data }, env.PAYFAST_PASSPHRASE)) {
+      console.error('PayFast seller-sub webhook: Invalid signature');
+      return res.status(400).send('Invalid signature');
+    }
+
+    const subscriptionId = data.m_payment_id;
+    const token = data.token;
+    const paymentStatus = data.payment_status;
+    const grossAmount = parseFloat(data.amount_gross);
+    const pfPaymentId = data.pf_payment_id;
+
+    const subscription = await prisma.sellerSubscription.findUnique({
+      where: { id: subscriptionId },
+      include: { sellerProfile: true },
+    });
+
+    if (!subscription) {
+      console.error('PayFast seller-sub webhook: Subscription not found', subscriptionId);
+      return res.status(404).send('Subscription not found');
+    }
+
+    if (paymentStatus === 'COMPLETE') {
+      // Store PayFast token on first payment
+      if (token && !subscription.payFastToken) {
+        await prisma.sellerSubscription.update({
+          where: { id: subscription.id },
+          data: {
+            payFastToken: token,
+            payFastSubscriptionId: token,
+          },
+        });
+      }
+
+      // Record payment
+      await prisma.sellerSubscriptionPayment.create({
+        data: {
+          sellerSubscriptionId: subscription.id,
+          amount: grossAmount,
+          gateway: 'PAYFAST',
+          gatewayPaymentId: pfPaymentId,
+          periodStart: subscription.currentPeriodStart,
+          periodEnd: subscription.currentPeriodEnd,
+          paidAt: new Date(),
+        },
+      });
+
+      if (subscription.status === 'PENDING' || subscription.status === 'EXPIRED' || subscription.status === 'PAST_DUE') {
+        // First payment or reactivation — activate
+        await prisma.sellerSubscription.update({
+          where: { id: subscription.id },
+          data: { status: 'ACTIVE' },
+        });
+
+        // Also mark legacy field for backward compatibility
+        await prisma.sellerProfile.update({
+          where: { id: subscription.sellerProfileId },
+          data: { sellerFeePaid: true, sellerFeePaidAt: new Date() },
+        });
+
+        await sendNotification({
+          userId: subscription.sellerProfile.userId,
+          type: 'SUBSCRIPTION_STARTED',
+          title: 'Zomieks Pro Activated',
+          message: 'Your Zomieks Pro subscription is now active. You can sell services, courses, and customise your BioLink!',
+          data: { subscriptionId: subscription.id },
+        });
+      } else if (subscription.status === 'ACTIVE') {
+        // Renewal — extend period by 1 month
+        const newPeriodStart = new Date(subscription.currentPeriodEnd);
+        const newPeriodEnd = new Date(subscription.currentPeriodEnd);
+        newPeriodEnd.setMonth(newPeriodEnd.getMonth() + 1);
+
+        await prisma.sellerSubscription.update({
+          where: { id: subscription.id },
+          data: {
+            currentPeriodStart: newPeriodStart,
+            currentPeriodEnd: newPeriodEnd,
+            nextBillingDate: newPeriodEnd,
+            // If was set to cancel, check and enforce
+            ...(subscription.cancelAtPeriodEnd
+              ? { status: 'CANCELLED', cancelledAt: new Date() }
+              : {}),
+          },
+        });
+      }
+    } else if (paymentStatus === 'CANCELLED') {
+      await prisma.sellerSubscription.update({
+        where: { id: subscription.id },
+        data: { status: 'CANCELLED', cancelledAt: new Date() },
+      });
+
+      await sendNotification({
+        userId: subscription.sellerProfile.userId,
+        type: 'SUBSCRIPTION_CANCELLED',
+        title: 'Subscription Cancelled',
+        message: 'Your Zomieks Pro subscription has been cancelled.',
+        data: { subscriptionId: subscription.id },
+      });
+    } else if (paymentStatus === 'FAILED') {
+      await prisma.sellerSubscription.update({
+        where: { id: subscription.id },
+        data: { status: 'PAST_DUE' },
+      });
+    }
+
+    res.status(200).send('OK');
+  } catch (error) {
+    console.error('PayFast seller subscription webhook error:', error);
+    res.status(500).send('Error');
+  }
+});
+
 // OZOW webhook
 router.post('/ozow', async (req, res) => {
   try {

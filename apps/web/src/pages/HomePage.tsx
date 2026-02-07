@@ -521,7 +521,7 @@ export default function HomePage() {
                           </div>
                           <h3 className="font-semibold text-white line-clamp-2 mb-2 group-hover:text-purple-300 transition-colors">{course.title}</h3>
                           <div className="flex items-center justify-between">
-                            <span className="font-bold text-lg text-white">R{course.price?.toFixed(0) || '0'}</span>
+                            <span className="font-bold text-lg text-white">R{Number(course.price || 0).toFixed(0)}</span>
                             <span className="text-xs text-gray-400">{course.enrollCount || 0} students</span>
                           </div>
                         </div>

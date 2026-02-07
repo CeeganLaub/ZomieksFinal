@@ -13,6 +13,7 @@ import {
   BanknotesIcon,
   UserGroupIcon,
   AcademicCapIcon,
+  LinkIcon,
 } from '@heroicons/react/24/outline';
 import { cn } from '../lib/utils';
 
@@ -39,6 +40,7 @@ export default function DashboardLayout({ isSeller = false }: Props) {
     { href: '/seller/crm', label: 'CRM', icon: UserGroupIcon },
     { href: '/seller/earnings', label: 'Earnings', icon: BanknotesIcon },
     { href: '/seller/courses', label: 'Courses', icon: AcademicCapIcon },
+    { href: '/seller/biolink', label: 'BioLink', icon: LinkIcon },
     { href: '/settings', label: 'Settings', icon: Cog6ToothIcon },
   ];
 
@@ -52,6 +54,7 @@ export default function DashboardLayout({ isSeller = false }: Props) {
     '/seller/crm',
     '/seller/services',
     '/seller/courses',
+    '/seller/biolink',
   ].some(path => location.pathname.startsWith(path));
 
   return (

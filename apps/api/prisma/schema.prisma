@@ -117,7 +117,7 @@ model SellerProfile {
   isVerified Boolean   @default(false)
   verifiedAt DateTime?
 
-  // Seller Fee (R399 one-time)
+  // Legacy fee fields (replaced by SellerSubscription)
   sellerFeePaid          Boolean   @default(false)
   sellerFeeTransactionId String?
   sellerFeePaidAt        DateTime?
@@ -127,14 +127,86 @@ model SellerProfile {
   vacationMode  Boolean   @default(false)
   vacationUntil DateTime?
 
+  // BioLink customization
+  bioHeadline        String?
+  bioCoverImage      String?
+  bioThemeColor      String   @default("#10B981")   // emerald-500
+  bioBackgroundColor String   @default("#0a0a0a")   // near-black
+  bioTextColor       String   @default("#ffffff")
+  bioButtonStyle     String   @default("rounded")   // rounded | pill | square | outline
+  bioFont            String   @default("Inter")
+  bioSocialLinks     Json?    // [{ platform, url, icon }]
+  bioFeaturedItems   Json?    // [{ type: 'service'|'course', id, order }]
+  bioCtaText         String   @default("Get in Touch")
+  bioEnabled         Boolean  @default(false)
+
   // Relations
-  courses Course[]
+  courses      Course[]
+  subscription SellerSubscription?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([rating])
   @@index([level])
+}
+
+// ============ SELLER SUBSCRIPTION (R399/month Pro Plan) ============
+
+model SellerSubscription {
+  id              String @id @default(cuid())
+  sellerProfileId String @unique
+  sellerProfile   SellerProfile @relation(fields: [sellerProfileId], references: [id], onDelete: Cascade)
+
+  status SellerSubscriptionStatus @default(PENDING)
+
+  // Billing cycle
+  currentPeriodStart DateTime
+  currentPeriodEnd   DateTime
+  nextBillingDate    DateTime?
+
+  // PayFast recurring integration
+  payFastToken          String? @unique
+  payFastSubscriptionId String?
+
+  // Lifecycle
+  cancelAtPeriodEnd Boolean   @default(false)
+  cancelledAt       DateTime?
+  cancelReason      String?
+
+  // Relations
+  payments SellerSubscriptionPayment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+}
+
+enum SellerSubscriptionStatus {
+  PENDING
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  EXPIRED
+}
+
+model SellerSubscriptionPayment {
+  id                   String             @id @default(cuid())
+  sellerSubscriptionId String
+  sellerSubscription   SellerSubscription @relation(fields: [sellerSubscriptionId], references: [id], onDelete: Cascade)
+
+  amount           Decimal        @db.Decimal(10, 2)
+  gateway          PaymentGateway
+  gatewayPaymentId String         @unique
+
+  periodStart DateTime
+  periodEnd   DateTime
+  paidAt      DateTime
+
+  createdAt DateTime @default(now())
+
+  @@index([sellerSubscriptionId])
 }
 
 model BankDetails {

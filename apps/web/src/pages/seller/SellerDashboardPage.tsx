@@ -9,6 +9,7 @@ import {
   ClockIcon,
   CheckCircleIcon,
   PlusIcon,
+  LinkIcon,
 } from '@heroicons/react/24/outline';
 
 interface DashboardStats {
@@ -241,6 +242,13 @@ export default function SellerDashboardPage() {
               >
                 <CurrencyDollarIcon className="h-5 w-5 text-muted-foreground" />
                 <span>View Earnings</span>
+              </Link>
+              <Link
+                to="/seller/biolink"
+                className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                <LinkIcon className="h-5 w-5 text-muted-foreground" />
+                <span>BioLink Page</span>
               </Link>
             </div>
           </div>

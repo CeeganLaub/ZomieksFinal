@@ -253,6 +253,24 @@ export const usersApi = {
   addFavorite: (serviceId: string) => api.post<ApiResponse<null>>(`/users/favorites/${serviceId}`),
   
   removeFavorite: (serviceId: string) => api.delete<ApiResponse<null>>(`/users/favorites/${serviceId}`),
+
+  // BioLink
+  getBiolink: () => api.get<ApiResponse<any>>('/users/seller/biolink'),
+  
+  updateBiolink: (data: any) => api.put<ApiResponse<any>>('/users/seller/biolink', data),
+  
+  toggleBiolink: () => api.post<ApiResponse<{ bioEnabled: boolean }>>('/users/seller/biolink/toggle'),
+};
+
+// Seller Subscription API
+export const sellerSubscriptionApi = {
+  status: () => api.get<ApiResponse<any>>('/seller-subscription/status'),
+  
+  subscribe: () => api.post<ApiResponse<{ subscriptionId: string; paymentUrl: string }>>('/seller-subscription/subscribe'),
+  
+  cancel: (reason?: string) => api.post<ApiResponse<any>>('/seller-subscription/cancel', { reason }),
+  
+  reactivate: () => api.post<ApiResponse<any>>('/seller-subscription/reactivate'),
 };
 
 // Conversations API

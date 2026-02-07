@@ -170,3 +170,38 @@ export const requireAdmin = (req: Request, _res: Response, next: NextFunction) =
   
   next();
 };
+
+// Require active seller subscription (R399/month Pro plan)
+export const requireActiveSubscription = async (req: Request, _res: Response, next: NextFunction) => {
+  try {
+    if (!req.user) {
+      return next(new AppError(401, 'UNAUTHORIZED', 'Authentication required'));
+    }
+
+    if (!req.user.isSeller) {
+      return next(new AppError(403, 'NOT_A_SELLER', 'Seller account required'));
+    }
+
+    const sellerProfile = await prisma.sellerProfile.findUnique({
+      where: { userId: req.user.id },
+      include: { subscription: true },
+    });
+
+    if (!sellerProfile?.subscription || sellerProfile.subscription.status !== 'ACTIVE') {
+      return next(new AppError(403, 'SUBSCRIPTION_REQUIRED', 'An active Zomieks Pro subscription is required'));
+    }
+
+    // Check if subscription period has expired
+    if (new Date() > sellerProfile.subscription.currentPeriodEnd) {
+      await prisma.sellerSubscription.update({
+        where: { id: sellerProfile.subscription.id },
+        data: { status: 'EXPIRED' },
+      });
+      return next(new AppError(403, 'SUBSCRIPTION_EXPIRED', 'Your Zomieks Pro subscription has expired'));
+    }
+
+    next();
+  } catch (error) {
+    next(error);
+  }
+};

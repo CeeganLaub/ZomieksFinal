@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authenticate, optionalAuth } from '@/middleware/auth.js';
+import { authenticate, optionalAuth, requireSeller } from '@/middleware/auth.js';
 import { prisma } from '@/lib/prisma.js';
 import { validate } from '@/middleware/validate.js';
 import { updateProfileSchema, sellerOnboardingSchema, SELLER_FEE_AMOUNT } from '@zomieks/shared';
@@ -205,6 +205,124 @@ router.post('/seller/pay-fee', authenticate, async (req, res, next) => {
   }
 });
 
+// ============ BIOLINK ENDPOINTS ============
+
+// Get own BioLink settings (for builder)
+router.get('/seller/biolink', authenticate, requireSeller, async (req, res, next) => {
+  try {
+    const profile = await prisma.sellerProfile.findUnique({
+      where: { userId: req.user!.id },
+      select: {
+        bioHeadline: true,
+        bioCoverImage: true,
+        bioThemeColor: true,
+        bioBackgroundColor: true,
+        bioTextColor: true,
+        bioButtonStyle: true,
+        bioFont: true,
+        bioSocialLinks: true,
+        bioFeaturedItems: true,
+        bioCtaText: true,
+        bioEnabled: true,
+        displayName: true,
+        professionalTitle: true,
+        subscription: { select: { status: true } },
+      },
+    });
+
+    if (!profile) {
+      return res.status(404).json({
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Seller profile not found' },
+      });
+    }
+
+    res.json({ success: true, data: { biolink: profile } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Update BioLink settings
+router.put('/seller/biolink', authenticate, requireSeller, async (req, res, next) => {
+  try {
+    const {
+      bioHeadline,
+      bioCoverImage,
+      bioThemeColor,
+      bioBackgroundColor,
+      bioTextColor,
+      bioButtonStyle,
+      bioFont,
+      bioSocialLinks,
+      bioFeaturedItems,
+      bioCtaText,
+      bioEnabled,
+    } = req.body;
+
+    const profile = await prisma.sellerProfile.update({
+      where: { userId: req.user!.id },
+      data: {
+        ...(bioHeadline !== undefined && { bioHeadline }),
+        ...(bioCoverImage !== undefined && { bioCoverImage }),
+        ...(bioThemeColor !== undefined && { bioThemeColor }),
+        ...(bioBackgroundColor !== undefined && { bioBackgroundColor }),
+        ...(bioTextColor !== undefined && { bioTextColor }),
+        ...(bioButtonStyle !== undefined && { bioButtonStyle }),
+        ...(bioFont !== undefined && { bioFont }),
+        ...(bioSocialLinks !== undefined && { bioSocialLinks }),
+        ...(bioFeaturedItems !== undefined && { bioFeaturedItems }),
+        ...(bioCtaText !== undefined && { bioCtaText }),
+        ...(bioEnabled !== undefined && { bioEnabled }),
+      },
+      select: {
+        bioHeadline: true,
+        bioCoverImage: true,
+        bioThemeColor: true,
+        bioBackgroundColor: true,
+        bioTextColor: true,
+        bioButtonStyle: true,
+        bioFont: true,
+        bioSocialLinks: true,
+        bioFeaturedItems: true,
+        bioCtaText: true,
+        bioEnabled: true,
+      },
+    });
+
+    res.json({ success: true, data: { biolink: profile } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Toggle BioLink on/off
+router.post('/seller/biolink/toggle', authenticate, requireSeller, async (req, res, next) => {
+  try {
+    const profile = await prisma.sellerProfile.findUnique({
+      where: { userId: req.user!.id },
+      select: { bioEnabled: true, id: true },
+    });
+
+    if (!profile) {
+      return res.status(404).json({
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Seller profile not found' },
+      });
+    }
+
+    const updated = await prisma.sellerProfile.update({
+      where: { id: profile.id },
+      data: { bioEnabled: !profile.bioEnabled },
+      select: { bioEnabled: true },
+    });
+
+    res.json({ success: true, data: { bioEnabled: updated.bioEnabled } });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Get user profile by username
 router.get('/:username', optionalAuth, async (req, res, next) => {
   try {
@@ -222,6 +340,7 @@ router.get('/:username', optionalAuth, async (req, res, next) => {
         createdAt: true,
         sellerProfile: {
           select: {
+            id: true,
             displayName: true,
             professionalTitle: true,
             description: true,
@@ -233,6 +352,38 @@ router.get('/:username', optionalAuth, async (req, res, next) => {
             level: true,
             isVerified: true,
             isAvailable: true,
+            // BioLink fields
+            bioHeadline: true,
+            bioCoverImage: true,
+            bioThemeColor: true,
+            bioBackgroundColor: true,
+            bioTextColor: true,
+            bioButtonStyle: true,
+            bioFont: true,
+            bioSocialLinks: true,
+            bioFeaturedItems: true,
+            bioCtaText: true,
+            bioEnabled: true,
+            // Courses from this seller
+            courses: {
+              where: { status: 'PUBLISHED' },
+              select: {
+                id: true,
+                title: true,
+                slug: true,
+                thumbnail: true,
+                price: true,
+                rating: true,
+                reviewCount: true,
+                enrollCount: true,
+                level: true,
+              },
+              take: 10,
+            },
+            // Subscription status (for BioLink display logic)
+            subscription: {
+              select: { status: true },
+            },
           },
         },
         services: {

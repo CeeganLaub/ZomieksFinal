@@ -93,7 +93,8 @@ export default function BecomeSeller() {
     'Get paid securely through PayFast/OZOW',
     'Build your reputation with reviews',
     'Manage clients with our built-in CRM',
-    'Create & sell video courses (R399 one-time unlock)',
+    'Create & sell video courses',
+    'Custom BioLink storefront page',
   ];
 
   if (!isSouthAfrican) {
@@ -159,8 +160,8 @@ export default function BecomeSeller() {
                   You keep 92% of what you earn!
                 </p>
                 <p className="text-sm text-muted-foreground mt-2">
-                  Want to sell courses? Unlock course creation for a <strong>one-time fee of R399</strong>. 
-                  Create unlimited video courses and earn from your knowledge!
+                  Upgrade to <strong>Zomieks Pro (R399/month)</strong> to unlock courses, 
+                  your BioLink storefront page, and priority search ranking!
                 </p>
               </div>
 

@@ -1570,25 +1570,100 @@ I have helped over 50 businesses grow their social media presence and increase e
     ],
   });
 
-  // Mark seller fee as paid for seller1 (so they can create courses)
+  // Mark seller fee as paid + BioLink + Subscription for seller1
+  const now = new Date();
+  const periodEnd1 = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
   await prisma.sellerProfile.update({
     where: { id: sellerUser1.sellerProfile!.id },
     data: {
       sellerFeePaid: true,
-      sellerFeePaidAt: new Date(),
+      sellerFeePaidAt: now,
       sellerFeeTransactionId: 'SEED-FEE-001',
+      bioEnabled: true,
+      bioHeadline: 'Creative designer helping brands stand out ✨',
+      bioThemeColor: '#F59E0B',
+      bioBackgroundColor: '#1a1a2e',
+      bioTextColor: '#ffffff',
+      bioButtonStyle: 'rounded',
+      bioFont: 'Poppins',
+      bioCtaText: 'Let\'s Work Together',
+      bioSocialLinks: [
+        { platform: 'instagram', url: 'https://instagram.com/johndesigner' },
+        { platform: 'twitter', url: 'https://twitter.com/johndesigner' },
+        { platform: 'linkedin', url: 'https://linkedin.com/in/johnsmith' },
+        { platform: 'website', url: 'https://johnsmithdesign.co.za' },
+      ],
     },
   });
+
+  await prisma.sellerSubscription.create({
+    data: {
+      sellerProfileId: sellerUser1.sellerProfile!.id,
+      status: 'ACTIVE',
+      currentPeriodStart: now,
+      currentPeriodEnd: periodEnd1,
+      nextBillingDate: periodEnd1,
+      payments: {
+        create: {
+          amount: 399,
+          gateway: 'PAYFAST',
+          gatewayPaymentId: 'SEED-SUB-PAY-001',
+          periodStart: now,
+          periodEnd: periodEnd1,
+          paidAt: now,
+        },
+      },
+    },
+  });
+
+  // Mark seller fee as paid + BioLink + Subscription for seller2
+  const periodEnd2 = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
   await prisma.sellerProfile.update({
     where: { id: sellerUser2.sellerProfile!.id },
     data: {
       sellerFeePaid: true,
-      sellerFeePaidAt: new Date(),
+      sellerFeePaidAt: now,
       sellerFeeTransactionId: 'SEED-FEE-002',
+      bioEnabled: true,
+      bioHeadline: 'Full-stack dev building your next big thing 🚀',
+      bioThemeColor: '#3B82F6',
+      bioBackgroundColor: '#0f172a',
+      bioTextColor: '#f1f5f9',
+      bioButtonStyle: 'pill',
+      bioFont: 'Inter',
+      bioCtaText: 'Start Your Project',
+      bioSocialLinks: [
+        { platform: 'twitter', url: 'https://twitter.com/sarahdev' },
+        { platform: 'linkedin', url: 'https://linkedin.com/in/sarahjohnson' },
+        { platform: 'youtube', url: 'https://youtube.com/@sarahdev' },
+        { platform: 'website', url: 'https://sarahtech.dev' },
+      ],
     },
   });
 
+  await prisma.sellerSubscription.create({
+    data: {
+      sellerProfileId: sellerUser2.sellerProfile!.id,
+      status: 'ACTIVE',
+      currentPeriodStart: now,
+      currentPeriodEnd: periodEnd2,
+      nextBillingDate: periodEnd2,
+      payments: {
+        create: {
+          amount: 399,
+          gateway: 'PAYFAST',
+          gatewayPaymentId: 'SEED-SUB-PAY-002',
+          periodStart: now,
+          periodEnd: periodEnd2,
+          paidAt: now,
+        },
+      },
+    },
+  });
+
+  console.log('✅ Created seller subscriptions and BioLink data');
   console.log(`✅ Created ${2 + additionalCourses.length} courses with realistic enrollment data`);
 
   console.log('\n🎉 Seed completed successfully!\n');

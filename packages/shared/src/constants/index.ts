@@ -144,7 +144,25 @@ export const COURSE_STATUS = {
   ARCHIVED: 'ARCHIVED',
 } as const;
 
-export const SELLER_FEE_AMOUNT = 399; // R399 one-time seller fee
+export const SELLER_FEE_AMOUNT = 399; // Legacy - kept for backward compat
+export const SELLER_MONTHLY_FEE = 399; // R399/month Pro subscription
+
+export const SELLER_PLAN = {
+  NAME: 'Zomieks Pro',
+  AMOUNT: 399,
+  CURRENCY: 'ZAR',
+  FREQUENCY: 3, // PAYFAST_FREQUENCY.MONTHLY
+  DESCRIPTION: 'Monthly seller subscription - sell services, courses & BioLink access',
+} as const;
+
+// Seller subscription statuses
+export const SELLER_SUBSCRIPTION_STATUS = {
+  PENDING: 'PENDING',
+  ACTIVE: 'ACTIVE',
+  PAST_DUE: 'PAST_DUE',
+  CANCELLED: 'CANCELLED',
+  EXPIRED: 'EXPIRED',
+} as const;
 
 // Course fee configuration (Udemy-style: baked into price)
 export const COURSE_FEES = {

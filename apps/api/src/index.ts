@@ -28,6 +28,7 @@ import webhookRoutes from '@/routes/webhook.routes.js';
 import uploadRoutes from '@/routes/upload.routes.js';
 import adminRoutes from '@/routes/admin.routes.js';
 import courseRoutes from '@/routes/course.routes.js';
+import sellerSubscriptionRoutes from '@/routes/seller-subscription.routes.js';
 
 const app = express();
 const httpServer = createServer(app);
@@ -113,6 +114,7 @@ app.use('/api/v1/payments', paymentRoutes);
 app.use('/api/v1/uploads', uploadRoutes);
 app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v1/courses', courseRoutes);
+app.use('/api/v1/seller-subscription', sellerSubscriptionRoutes);
 
 // Webhooks (no auth, signature validation instead)
 app.use('/webhooks', webhookRoutes);
