@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { authenticate } from '@/middleware/auth.js';
 import { prisma } from '@/lib/prisma.js';
 import { validate } from '@/middleware/validate.js';
+import { releaseOrderEscrow, processOrderRefund } from '@/services/escrow.service.js';
+import { notificationQueue } from '@/lib/queue.js';
 import { createOrderSchema, orderDeliverySchema, orderRevisionSchema, calculateOrderFees, generateOrderNumber, calculateDeliveryDueDate, calculateServiceRefund } from '@zomieks/shared';
 
 const router = Router();
@@ -394,7 +396,6 @@ router.post('/:id/accept', authenticate, async (req, res, next) => {
     });
 
     // Release escrow (handled by escrow service)
-    const { releaseOrderEscrow } = await import('@/services/escrow.service.js');
     await releaseOrderEscrow(order.id);
 
     res.json({ success: true, data: { order: updated } });
@@ -439,7 +440,6 @@ router.post('/:id/cancel', authenticate, async (req, res, next) => {
       const feeBreakdown = calculateServiceRefund(baseAmount, buyerFee, totalAmount);
 
       // Process escrow refund
-      const { processOrderRefund } = await import('@/services/escrow.service.js');
       await processOrderRefund(order.id, req.body.reason || 'Buyer cancelled', {
         refundAmount: feeBreakdown.refundAmount,
         processingFee: feeBreakdown.processingFee,
@@ -555,7 +555,6 @@ router.post('/:id/dispute', authenticate, async (req, res, next) => {
     ]);
     
     // Notify the other party
-    const { notificationQueue } = await import('@/lib/queue.js');
     await notificationQueue.add('notification', {
       userId: isBuyer ? order.sellerId : order.buyerId,
       type: 'DISPUTE_RAISED',

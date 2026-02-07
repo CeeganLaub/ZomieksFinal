@@ -119,16 +119,16 @@ app.use('/api/v1/seller-subscription', sellerSubscriptionRoutes);
 // Webhooks (no auth, signature validation instead)
 app.use('/webhooks', webhookRoutes);
 
-// Error handling
-app.use(errorHandler);
-
-// 404 handler
+// 404 handler (must come before error handler)
 app.use((_req, res) => {
   res.status(404).json({ 
     success: false, 
     error: { code: 'NOT_FOUND', message: 'Route not found' } 
   });
 });
+
+// Error handling (must be last middleware)
+app.use(errorHandler);
 
 // Socket.io handlers
 setupSocketHandlers(io);

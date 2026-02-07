@@ -2,6 +2,7 @@ import { Queue, Worker, Job } from 'bullmq';
 import { Redis } from 'ioredis';
 import { env } from '@/config/env.js';
 import { logger } from '@/lib/logger.js';
+import { prisma } from '@/lib/prisma.js';
 
 // BullMQ requires maxRetriesPerRequest: null
 const bullmqConnection = new Redis(env.REDIS_URL, {
@@ -89,9 +90,6 @@ export const subscriptionWorker = new Worker(
   async (job: Job) => {
     const { type, subscriptionId, userId } = job.data;
     logger.info(`Processing subscription job: ${type} for ${subscriptionId}`);
-    
-    const { prisma } = await import('@/lib/prisma.js');
-    const { notificationQueue } = await import('@/lib/queue.js');
     
     switch (type) {
       case 'RENEWAL_REMINDER': {

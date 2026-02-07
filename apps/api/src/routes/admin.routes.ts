@@ -544,9 +544,10 @@ router.post('/categories', async (req, res, next) => {
 
 router.patch('/categories/:id', async (req, res, next) => {
   try {
+    const { name, slug, description, icon, parentId, order } = req.body;
     const category = await prisma.category.update({
       where: { id: req.params.id },
-      data: req.body,
+      data: { name, slug, description, icon, parentId, order },
     });
 
     res.json({ success: true, data: { category } });
