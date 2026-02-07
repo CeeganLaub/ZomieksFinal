@@ -45,6 +45,7 @@ import EarningsPage from './pages/seller/EarningsPage';
 import BecomeSeller from './pages/seller/BecomeSeller';
 import SellerCoursesPage from './pages/seller/SellerCoursesPage';
 import CreateCoursePage from './pages/seller/CreateCoursePage';
+import SellerAnalyticsPage from './pages/seller/SellerAnalyticsPage';
 import BioLinkBuilderPage from './pages/BioLinkBuilderPage';
 
 // Admin pages
@@ -128,6 +129,7 @@ function App() {
           <Route path="/seller/earnings" element={<EarningsPage />} />
           <Route path="/seller/courses" element={<SellerCoursesPage />} />
           <Route path="/seller/courses/new" element={<CreateCoursePage />} />
+          <Route path="/seller/analytics" element={<SellerAnalyticsPage />} />
           <Route path="/seller/biolink" element={<BioLinkBuilderPage />} />
         </Route>
 
