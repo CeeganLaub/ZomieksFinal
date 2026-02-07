@@ -120,7 +120,7 @@ export default function ConversationPage() {
       fetchConversation(id);
       setShowGatewayPicker(null);
       if (res.data?.paymentUrl) {
-        // Navigate to the payment initiation URL
+        // Full page redirect needed: payment URL returns 302 to external gateway (PayFast/Ozow)
         window.location.href = `${window.location.origin}${res.data.paymentUrl}`;
       }
     } catch (err: any) {

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
+import { toast } from 'sonner';
 import {
   MagnifyingGlassIcon,
   ArrowPathIcon,
@@ -69,9 +70,10 @@ export default function AdminServicesPage() {
   async function toggleServiceActive(serviceId: string, currentActive: boolean) {
     try {
       await api.patch(`/admin/services/${serviceId}`, { isActive: !currentActive });
+      toast.success(currentActive ? 'Service deactivated' : 'Service activated');
       loadServices();
     } catch {
-      // error handled silently
+      toast.error('Failed to update service status');
     }
   }
 

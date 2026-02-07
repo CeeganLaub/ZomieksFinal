@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
+import { toast } from 'sonner';
 import {
   MagnifyingGlassIcon,
   ArrowPathIcon,
@@ -68,9 +69,10 @@ export default function AdminCoursesPage() {
   async function updateCourseStatus(courseId: string, status: string) {
     try {
       await api.patch(`/admin/courses/${courseId}`, { status });
+      toast.success(`Course ${status.toLowerCase()}`);
       loadCourses();
     } catch {
-      // error handled silently
+      toast.error('Failed to update course status');
     }
   }
 
