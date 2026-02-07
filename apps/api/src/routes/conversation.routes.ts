@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { authenticate, requireSeller } from '@/middleware/auth.js';
 import { prisma } from '@/lib/prisma.js';
 import { validate } from '@/middleware/validate.js';
+import { processAutoTriggers } from '@/services/crm.service.js';
+import { notificationQueue } from '@/lib/queue.js';
 import { 
   sendMessageSchema, 
   createConversationSchema,
@@ -26,7 +28,7 @@ router.get('/', authenticate, async (req, res, next) => {
     const { status, pipelineStageId, labelId, page = '1', limit = '20' } = req.query;
 
     const isSeller = req.user!.isSeller;
-    const where: any = isSeller
+    const where: Record<string, unknown> = isSeller
       ? { sellerId: req.user!.id }
       : { buyerId: req.user!.id };
 
@@ -304,12 +306,10 @@ router.post(
       });
 
       // Process auto-triggers for new conversation (async, don't block response)
-      import('@/services/crm.service.js').then(({ processAutoTriggers }) => {
-        processAutoTriggers(sellerId, 'NEW_CONVERSATION', {
-          conversationId: conversation!.id,
-          messageContent: initialMessage,
-        }).catch(console.error);
-      });
+      processAutoTriggers(sellerId, 'NEW_CONVERSATION', {
+        conversationId: conversation!.id,
+        messageContent: initialMessage,
+      }).catch(console.error);
 
       res.status(201).json({
         success: true,
@@ -378,13 +378,11 @@ router.patch(
 
       // Process stage change auto-triggers if stage was changed
       if (updateData.pipelineStageId && updateData.pipelineStageId !== conversation.pipelineStageId) {
-        import('@/services/crm.service.js').then(({ processAutoTriggers }) => {
-          processAutoTriggers(req.user!.id, 'STAGE_CHANGE', {
-            conversationId: conversation.id,
-            newStageId: updateData.pipelineStageId,
-            oldStageId: conversation.pipelineStageId || undefined,
-          }).catch(console.error);
-        });
+        processAutoTriggers(req.user!.id, 'STAGE_CHANGE', {
+          conversationId: conversation.id,
+          newStageId: updateData.pipelineStageId,
+          oldStageId: conversation.pipelineStageId || undefined,
+        }).catch(console.error);
       }
 
       res.json({ success: true, data: { conversation: updated } });
@@ -644,7 +642,6 @@ router.post(
       });
 
       // Notify buyer
-      const { notificationQueue } = await import('@/lib/queue.js');
       await notificationQueue.add('notification', {
         userId: conversation.buyerId,
         type: 'CUSTOM_OFFER',
@@ -768,7 +765,6 @@ router.post(
       });
 
       // Notify seller
-      const { notificationQueue } = await import('@/lib/queue.js');
       await notificationQueue.add('notification', {
         userId: conversation.sellerId,
         type: 'OFFER_ACCEPTED',
@@ -862,7 +858,6 @@ router.post(
       });
 
       // Notify seller
-      const { notificationQueue } = await import('@/lib/queue.js');
       await notificationQueue.add('notification', {
         userId: conversation.sellerId,
         type: 'OFFER_DECLINED',
