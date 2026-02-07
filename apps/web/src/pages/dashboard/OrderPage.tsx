@@ -56,8 +56,8 @@ export default function OrderPage() {
 
   const payMutation = useMutation({
     mutationFn: async (gateway: string) => {
-      const res = await api.post<any>(`/orders/${id}/pay`, { gateway });
-      return res.data.data;
+      const res = await api.get<any>(`/payments/initiate`, { params: { orderId: id, gateway } });
+      return res.data;
     },
     onSuccess: (data) => {
       if (data.paymentUrl) {
