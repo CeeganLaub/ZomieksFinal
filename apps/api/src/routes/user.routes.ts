@@ -287,8 +287,9 @@ router.get('/seller/analytics', authenticate, requireSeller, async (req, res, ne
     });
 
     // Monthly earnings (last 6 months)
-    const sixMonthsAgo = new Date();
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    // Use first-of-month to avoid setMonth edge cases with varying month lengths
+    const now = new Date();
+    const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 6, 1);
 
     const completedOrders = await prisma.order.findMany({
       where: {
@@ -303,11 +304,10 @@ router.get('/seller/analytics', authenticate, requireSeller, async (req, res, ne
       orderBy: { completedAt: 'asc' },
     });
 
-    // Group monthly earnings
+    // Group monthly earnings — includes current month (partial)
     const monthlyEarnings: Record<string, number> = {};
     for (let i = 5; i >= 0; i--) {
-      const d = new Date();
-      d.setMonth(d.getMonth() - i);
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       monthlyEarnings[key] = 0;
     }
@@ -399,10 +399,14 @@ router.get('/seller/analytics', authenticate, requireSeller, async (req, res, ne
           count: s._count.id,
           totalAmount: Number(s._sum.totalAmount || 0),
         })),
-        monthlyEarnings: Object.entries(monthlyEarnings).map(([month, amount]) => ({
-          month,
-          amount,
-        })),
+        monthlyEarnings: Object.entries(monthlyEarnings).map(([month, amount]) => {
+          const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+          return {
+            month,
+            amount,
+            isPartial: month === currentMonthKey,
+          };
+        }),
         totals: {
           services: {
             count: services.length,

@@ -71,6 +71,7 @@ interface AnalyticsData {
   monthlyEarnings: {
     month: string;
     amount: number;
+    isPartial?: boolean;
   }[];
   totals: {
     services: {
@@ -127,7 +128,7 @@ function StatCard({
   );
 }
 
-function EarningsChart({ data }: { data: { month: string; amount: number }[] }) {
+function EarningsChart({ data }: { data: { month: string; amount: number; isPartial?: boolean }[] }) {
   const maxAmount = Math.max(...data.map((d) => d.amount), 1);
 
   return (
@@ -153,15 +154,22 @@ function EarningsChart({ data }: { data: { month: string; amount: number }[] }) 
               <div
                 className={cn(
                   'w-full rounded-t-md transition-all',
-                  item.amount > 0 ? 'bg-primary/80' : 'bg-muted'
+                  item.amount > 0
+                    ? item.isPartial ? 'bg-primary/40 border border-dashed border-primary' : 'bg-primary/80'
+                    : 'bg-muted'
                 )}
                 style={{ height: `${Math.max(height, 4)}%` }}
               />
-              <span className="text-xs text-muted-foreground">{monthLabel}</span>
+              <span className="text-xs text-muted-foreground">
+                {monthLabel}{item.isPartial ? '*' : ''}
+              </span>
             </div>
           );
         })}
       </div>
+      {data.some(d => d.isPartial) && (
+        <p className="text-xs text-muted-foreground mt-2">* Current month (partial data)</p>
+      )}
     </div>
   );
 }
