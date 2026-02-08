@@ -1,6 +1,10 @@
 import { Router } from 'express';
 import { authenticate, requireAdmin } from '@/middleware/auth.js';
 import { prisma } from '@/lib/prisma.js';
+import { Prisma } from '@prisma/client';
+import { calculateServiceRefund } from '@zomieks/shared';
+import { processOrderRefund, releaseOrderEscrow } from '@/services/escrow.service.js';
+import { sendNotification } from '@/services/notification.service.js';
 
 const router = Router();
 
@@ -110,7 +114,7 @@ router.get('/users', async (req, res, next) => {
       sortOrder = 'desc',
     } = req.query;
 
-    const where: any = {};
+    const where: Prisma.UserWhereInput = {};
     
     if (search) {
       where.OR = [
@@ -204,7 +208,7 @@ router.get('/orders', async (req, res, next) => {
   try {
     const { status, startDate, endDate, page = '1', limit = '20' } = req.query;
 
-    const where: any = {};
+    const where: Prisma.OrderWhereInput = {};
     if (status) where.status = status as string;
     if (startDate || endDate) {
       where.createdAt = {};
@@ -294,13 +298,11 @@ router.post('/disputes/:orderId/resolve', async (req, res, next) => {
 
     if (refundBuyer) {
       // Calculate fees on dispute refund
-      const { calculateServiceRefund } = await import('@zomieks/shared');
       const baseAmount = Number(order.baseAmount);
       const buyerFee = Number(order.buyerFee);
       const totalAmount = Number(order.totalAmount);
       const feeBreakdown = calculateServiceRefund(baseAmount, buyerFee, totalAmount);
 
-      const { processOrderRefund } = await import('@/services/escrow.service.js');
       await processOrderRefund(order.id, notes || resolution, {
         refundAmount: feeBreakdown.refundAmount,
         processingFee: feeBreakdown.processingFee,
@@ -313,7 +315,6 @@ router.post('/disputes/:orderId/resolve', async (req, res, next) => {
         data: { creditBalance: { increment: feeBreakdown.refundAmount } },
       });
     } else {
-      const { releaseOrderEscrow } = await import('@/services/escrow.service.js');
       await releaseOrderEscrow(order.id);
       
       await prisma.order.update({
@@ -344,7 +345,7 @@ router.get('/payouts', async (req, res, next) => {
   try {
     const { status, page = '1', limit = '20' } = req.query;
 
-    const where: any = {};
+    const where: Prisma.SellerPayoutWhereInput = {};
     if (status) where.status = status as string;
 
     const [payouts, total] = await Promise.all([
@@ -403,7 +404,6 @@ router.post('/payouts/:id/process', async (req, res, next) => {
     });
 
     // Notify seller
-    const { sendNotification } = await import('@/services/notification.service.js');
     await sendNotification({
       userId: payout.sellerId,
       type: 'PAYOUT_COMPLETED',
@@ -432,7 +432,6 @@ router.post('/payouts/:id/reject', async (req, res, next) => {
       },
     });
 
-    const { sendNotification } = await import('@/services/notification.service.js');
     await sendNotification({
       userId: payout.sellerId,
       type: 'PAYOUT_FAILED',
@@ -468,7 +467,6 @@ router.post('/sellers/:id/verify-kyc', async (req, res, next) => {
       },
     });
 
-    const { sendNotification } = await import('@/services/notification.service.js');
     await sendNotification({
       userId: req.params.id,
       type: 'KYC_UPDATE',
@@ -546,9 +544,10 @@ router.post('/categories', async (req, res, next) => {
 
 router.patch('/categories/:id', async (req, res, next) => {
   try {
+    const { name, slug, description, icon, parentId, order } = req.body;
     const category = await prisma.category.update({
       where: { id: req.params.id },
-      data: req.body,
+      data: { name, slug, description, icon, parentId, order },
     });
 
     res.json({ success: true, data: { category } });
@@ -561,6 +560,152 @@ router.delete('/categories/:id', async (req, res, next) => {
   try {
     await prisma.category.delete({ where: { id: req.params.id } });
     res.json({ success: true, data: { message: 'Category deleted' } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ============ SERVICES MANAGEMENT ============
+
+router.get('/services', async (req, res, next) => {
+  try {
+    const { search, status, page = '1', limit = '20' } = req.query;
+
+    const where: Prisma.ServiceWhereInput = {};
+    if (search) {
+      where.OR = [
+        { title: { contains: search as string, mode: 'insensitive' } },
+        { seller: { username: { contains: search as string, mode: 'insensitive' } } },
+      ];
+    }
+    if (status === 'active') where.isActive = true;
+    if (status === 'inactive') where.isActive = false;
+
+    const pageNum = Math.max(1, parseInt(page as string) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit as string) || 20));
+
+    const [services, total] = await Promise.all([
+      prisma.service.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (pageNum - 1) * limitNum,
+        take: limitNum,
+        include: {
+          seller: {
+            select: {
+              id: true,
+              username: true,
+              firstName: true,
+              lastName: true,
+              sellerProfile: { select: { displayName: true } },
+            },
+          },
+          category: { select: { name: true } },
+          packages: { select: { tier: true, price: true } },
+        },
+      }),
+      prisma.service.count({ where }),
+    ]);
+
+    res.json({
+      success: true,
+      data: { services },
+      meta: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages: Math.ceil(total / limitNum),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.patch('/services/:id', async (req, res, next) => {
+  try {
+    const { isActive } = req.body;
+
+    const service = await prisma.service.update({
+      where: { id: req.params.id },
+      data: { isActive },
+    });
+
+    res.json({ success: true, data: { service } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ============ COURSES MANAGEMENT ============
+
+router.get('/courses', async (req, res, next) => {
+  try {
+    const { search, status, page = '1', limit = '20' } = req.query;
+
+    const where: Prisma.CourseWhereInput = {};
+    if (search) {
+      where.OR = [
+        { title: { contains: search as string, mode: 'insensitive' } },
+        { seller: { displayName: { contains: search as string, mode: 'insensitive' } } },
+      ];
+    }
+    if (status) where.status = status as string;
+
+    const pageNum = Math.max(1, parseInt(page as string) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit as string) || 20));
+
+    const [courses, total] = await Promise.all([
+      prisma.course.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (pageNum - 1) * limitNum,
+        take: limitNum,
+        include: {
+          seller: {
+            select: {
+              displayName: true,
+              user: { select: { username: true } },
+            },
+          },
+          category: { select: { name: true } },
+        },
+      }),
+      prisma.course.count({ where }),
+    ]);
+
+    res.json({
+      success: true,
+      data: { courses },
+      meta: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages: Math.ceil(total / limitNum),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.patch('/courses/:id', async (req, res, next) => {
+  try {
+    const { status } = req.body;
+
+    if (status && !['PUBLISHED', 'DRAFT', 'ARCHIVED'].includes(status)) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'INVALID_STATUS', message: 'Status must be PUBLISHED, DRAFT, or ARCHIVED' },
+      });
+    }
+
+    const course = await prisma.course.update({
+      where: { id: req.params.id },
+      data: { status },
+    });
+
+    res.json({ success: true, data: { course } });
   } catch (error) {
     next(error);
   }
@@ -720,7 +865,7 @@ router.get('/conversations', async (req, res, next) => {
   try {
     const { search, flagged, page = '1', limit = '20' } = req.query;
 
-    const where: any = {};
+    const where: Prisma.ConversationWhereInput = {};
     if (flagged === 'true') {
       where.adminFlagged = true;
     }

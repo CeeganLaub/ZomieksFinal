@@ -3,7 +3,7 @@ import { authenticate } from '@/middleware/auth.js';
 import { prisma } from '@/lib/prisma.js';
 import { env } from '@/config/env.js';
 import { calculateOrderFees, withdrawRequestSchema } from '@zomieks/shared';
-import { createPayFastPayment, createOzowPayment } from '@/services/payment.service.js';
+import { createPayFastPayment, createOzowPayment, createPayFastSubscription } from '@/services/payment.service.js';
 import { validate } from '@/middleware/validate.js';
 
 const router = Router();
@@ -101,7 +101,6 @@ router.get('/initiate-subscription', authenticate, async (req, res, next) => {
       });
     }
 
-    const { createPayFastSubscription } = await import('@/services/payment.service.js');
     const paymentUrl = await createPayFastSubscription({
       paymentId: subscription.id,
       subscriptionId: subscription.id,

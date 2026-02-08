@@ -45,24 +45,24 @@ export default function EarningsPage() {
   const { data: wallet, isLoading: walletLoading } = useQuery<Wallet>({
     queryKey: ['wallet'],
     queryFn: async () => {
-      const res = await api.get('/wallet');
-      return (res as any).data.data.wallet;
+      const res = await api.get('/payments/balance');
+      return (res as any).data;
     },
   });
 
   const { data: payouts, isLoading: payoutsLoading } = useQuery<Payout[]>({
     queryKey: ['payouts'],
     queryFn: async () => {
-      const res = await api.get('/wallet/payouts');
-      return (res as any).data.data.payouts;
+      const res = await api.get('/payments/payouts');
+      return (res as any).data?.payouts || [];
     },
   });
 
   const { data: summary } = useQuery<EarningsSummary>({
     queryKey: ['earnings-summary'],
     queryFn: async () => {
-      const res = await api.get('/wallet/earnings-summary');
-      return (res as any).data.data;
+      const res = await api.get('/payments/earnings');
+      return (res as any).data;
     },
   });
 
@@ -78,7 +78,7 @@ export default function EarningsPage() {
 
   const requestPayoutMutation = useMutation({
     mutationFn: async (amount: number) => {
-      await api.post('/wallet/payout', { amount, method: 'BANK_TRANSFER' });
+      await api.post('/payments/withdraw', { amount, method: 'BANK_TRANSFER' });
     },
     onSuccess: () => {
       toast.success('Payout request submitted');

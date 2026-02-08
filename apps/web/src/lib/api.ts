@@ -175,6 +175,8 @@ export const authApi = {
   
   logout: () => api.post<ApiResponse<null>>('/auth/logout'),
   
+  logoutAll: () => api.post<ApiResponse<null>>('/auth/logout-all'),
+  
   me: () => api.get<ApiResponse<{ user: any }>>('/auth/me'),
   
   refresh: (refreshToken: string) =>
@@ -184,6 +186,9 @@ export const authApi = {
   
   resetPassword: (token: string, password: string) =>
     api.post<ApiResponse<null>>('/auth/reset-password', { token, password }),
+
+  changePassword: (data: { currentPassword: string; newPassword: string }) =>
+    api.post<ApiResponse<null>>('/auth/change-password', data),
 };
 
 // Services API
@@ -238,6 +243,12 @@ export const ordersApi = {
   
   cancelAndRefund: (id: string, reason?: string) =>
     api.post<ApiResponse<any>>(`/orders/${id}/cancel`, { reason }),
+
+  dispute: (id: string, data: { reason: string; details?: string }) =>
+    api.post<ApiResponse<any>>(`/orders/${id}/dispute`, data),
+
+  getDispute: (id: string) =>
+    api.get<ApiResponse<any>>(`/orders/${id}/dispute`),
 };
 
 // Users API
@@ -304,62 +315,71 @@ export const conversationsApi = {
   createLabel: (data: { name: string; color: string }) =>
     api.post<ApiResponse<{ id: string }>>('/conversations/crm/labels', data),
   
-  pipeline: () => api.get<ApiResponse<any[]>>('/conversations/crm/pipeline'),
+  pipelineStages: () => api.get<ApiResponse<any[]>>('/conversations/crm/pipeline-stages'),
+  createPipelineStage: (data: { name: string; order: number; color?: string }) =>
+    api.post<ApiResponse<{ id: string }>>('/conversations/crm/pipeline-stages', data),
+
+  autoTriggers: () => api.get<ApiResponse<any[]>>('/conversations/crm/auto-triggers'),
+  createAutoTrigger: (data: { event: string; action: string; config?: any }) =>
+    api.post<ApiResponse<{ id: string }>>('/conversations/crm/auto-triggers', data),
+
+  crmAnalytics: () => api.get<ApiResponse<any>>('/conversations/crm/analytics'),
+
+  // Custom offers
+  sendOffer: (conversationId: string, data: { description: string; price: number; deliveryDays: number; revisions?: number; offerType?: string }) =>
+    api.post<ApiResponse<any>>(`/conversations/${conversationId}/offer`, data),
+
+  acceptOffer: (conversationId: string, messageId: string, data?: { paymentGateway?: string }) =>
+    api.post<ApiResponse<any>>(`/conversations/${conversationId}/offer/${messageId}/accept`, data),
+
+  declineOffer: (conversationId: string, messageId: string) =>
+    api.post<ApiResponse<any>>(`/conversations/${conversationId}/offer/${messageId}/decline`),
 };
 
 // Payments API
 export const paymentsApi = {
-  createPayment: (data: { orderId: string; provider?: 'PAYFAST' | 'OZOW' }) =>
-    api.post<ApiResponse<{ transactionId: string; paymentUrl: string }>>('/payments/create', data),
-  
-  transactions: (params?: { type?: string; page?: number; limit?: number }) =>
-    api.get<ApiResponse<any[]>>('/payments/transactions', { params }),
-  
+  initiate: (params: { orderId: string; gateway: 'payfast' | 'ozow' }) =>
+    api.get<ApiResponse<{ paymentUrl: string }>>('/payments/initiate', { params }),
+
+  initiateSubscription: (params: { subscriptionId: string }) =>
+    api.get<ApiResponse<{ paymentUrl: string }>>('/payments/initiate-subscription', { params }),
+
+  creditBalance: () => api.get<ApiResponse<{ creditBalance: number }>>('/payments/credit-balance'),
+
   balance: () => api.get<ApiResponse<any>>('/payments/balance'),
   
-  creditBalance: () => api.get<ApiResponse<{ creditBalance: number }>>('/payments/credit-balance'),
-  
-  escrow: () => api.get<ApiResponse<any[]>>('/payments/escrow'),
-  
-  withdraw: (data: { amount: number; bankDetailsId?: string }) =>
-    api.post<ApiResponse<{ payoutId: string }>>('/payments/withdraw', data),
+  earnings: (period?: string) =>
+    api.get<ApiResponse<any>>('/payments/earnings', { params: period ? { period } : undefined }),
   
   payouts: (params?: { page?: number; limit?: number }) =>
     api.get<ApiResponse<any[]>>('/payments/payouts', { params }),
   
+  withdraw: (data: { amount: number; bankDetailsId?: string }) =>
+    api.post<ApiResponse<{ payoutId: string }>>('/payments/withdraw', data),
+  
   bankDetails: () => api.get<ApiResponse<any[]>>('/payments/bank-details'),
-  
-  addBankDetails: (data: any) =>
-    api.post<ApiResponse<{ id: string }>>('/payments/bank-details', data),
-  
-  setDefaultBank: (id: string) =>
-    api.patch<ApiResponse<null>>(`/payments/bank-details/${id}/default`),
-  
-  deleteBankDetails: (id: string) =>
-    api.delete<ApiResponse<null>>(`/payments/bank-details/${id}`),
-  
-  earnings: (period?: string) =>
-    api.get<ApiResponse<any>>('/payments/earnings', { params: period ? { period } : undefined }),
 };
 
 // Subscriptions API
 export const subscriptionsApi = {
   tiers: () => api.get<ApiResponse<any[]>>('/subscriptions/tiers'),
   
-  current: () => api.get<ApiResponse<any | null>>('/subscriptions/current'),
+  list: (params?: { status?: string; page?: number; limit?: number }) =>
+    api.get<ApiResponse<any[]>>('/subscriptions', { params }),
   
-  subscribe: (data: { tierId: string; billingCycle?: 'MONTHLY' | 'QUARTERLY' | 'YEARLY' }) =>
-    api.post<ApiResponse<{ subscriptionId: string; paymentUrl: string }>>('/subscriptions/subscribe', data),
+  subscribers: () => api.get<ApiResponse<any[]>>('/subscriptions/subscribers'),
   
-  cancel: (data?: { reason?: string; feedback?: string }) =>
-    api.post<ApiResponse<{ cancelledAt: string; accessUntil: string }>>('/subscriptions/cancel', data),
+  subscribe: (data: { serviceId: string; tierId: string; billingCycle?: string }) =>
+    api.post<ApiResponse<{ subscriptionId: string }>>('/subscriptions', data),
   
-  reactivate: () => api.post<ApiResponse<null>>('/subscriptions/reactivate'),
-  
-  history: (params?: { page?: number; limit?: number }) =>
-    api.get<ApiResponse<any[]>>('/subscriptions/history', { params }),
-  
-  usage: () => api.get<ApiResponse<any>>('/subscriptions/usage'),
+  cancel: (id: string, data?: { reason?: string }) =>
+    api.post<ApiResponse<any>>(`/subscriptions/${id}/cancel`, data),
+
+  pause: (id: string) =>
+    api.post<ApiResponse<any>>(`/subscriptions/${id}/pause`),
+
+  resume: (id: string) =>
+    api.post<ApiResponse<any>>(`/subscriptions/${id}/resume`),
 };
 
 // Uploads helper
@@ -458,6 +478,72 @@ export const sellerFeeApi = {
 
   payFee: () =>
     api.post<ApiResponse<{ message: string }>>('/users/seller/pay-fee'),
+};
+
+// Admin API
+export const adminApi = {
+  // Dashboard
+  stats: () => api.get<ApiResponse<Record<string, unknown>>>('/admin/stats'),
+  analytics: () => api.get<ApiResponse<Record<string, unknown>>>('/admin/analytics'),
+
+  // Users
+  users: (params?: { search?: string; isSeller?: string; status?: string; page?: number; limit?: number }) =>
+    api.get<ApiResponse<{ users: unknown[] }>>('/admin/users', { params }),
+  suspendUser: (userId: string, reason: string) =>
+    api.post<ApiResponse<{ user: unknown }>>(`/admin/users/${userId}/suspend`, { reason }),
+  unsuspendUser: (userId: string) =>
+    api.post<ApiResponse<{ user: unknown }>>(`/admin/users/${userId}/unsuspend`),
+
+  // Orders & Disputes
+  orders: (params?: { status?: string; startDate?: string; endDate?: string; page?: number; limit?: number }) =>
+    api.get<ApiResponse<{ orders: unknown[] }>>('/admin/orders', { params }),
+  disputes: (params?: { page?: number; limit?: number }) =>
+    api.get<ApiResponse<{ disputes: unknown[] }>>('/admin/disputes', { params }),
+  resolveDispute: (orderId: string, data: { resolution: string; refundBuyer: boolean; refundAmount?: number; notes?: string }) =>
+    api.post<ApiResponse<{ message: string }>>(`/admin/disputes/${orderId}/resolve`, data),
+
+  // Payouts
+  payouts: (params?: { status?: string; page?: number; limit?: number }) =>
+    api.get<ApiResponse<{ payouts: unknown[] }>>('/admin/payouts', { params }),
+  processPayout: (payoutId: string, bankReference: string) =>
+    api.post<ApiResponse<{ payout: unknown }>>(`/admin/payouts/${payoutId}/process`, { bankReference }),
+  rejectPayout: (payoutId: string, reason?: string) =>
+    api.post<ApiResponse<{ payout: unknown }>>(`/admin/payouts/${payoutId}/reject`, { reason }),
+
+  // KYC
+  pendingKYC: () =>
+    api.get<ApiResponse<{ sellers: unknown[] }>>('/admin/sellers/pending-kyc'),
+  verifyKYC: (sellerId: string, status: 'VERIFIED' | 'REJECTED') =>
+    api.post<ApiResponse<{ profile: unknown }>>(`/admin/sellers/${sellerId}/verify-kyc`, { status }),
+
+  // Services & Courses
+  services: (params?: { search?: string; status?: string; page?: number; limit?: number }) =>
+    api.get<ApiResponse<{ services: unknown[] }>>('/admin/services', { params }),
+  updateService: (serviceId: string, data: { isActive?: boolean }) =>
+    api.patch<ApiResponse<{ service: unknown }>>(`/admin/services/${serviceId}`, data),
+  courses: (params?: { search?: string; status?: string; page?: number; limit?: number }) =>
+    api.get<ApiResponse<{ courses: unknown[] }>>('/admin/courses', { params }),
+  updateCourse: (courseId: string, data: { status?: string }) =>
+    api.patch<ApiResponse<{ course: unknown }>>(`/admin/courses/${courseId}`, data),
+
+  // Categories
+  categories: () => api.get<ApiResponse<{ categories: unknown[] }>>('/admin/categories'),
+  createCategory: (data: { name: string; slug: string; description?: string; icon?: string; parentId?: string; order?: number }) =>
+    api.post<ApiResponse<{ category: unknown }>>('/admin/categories', data),
+  updateCategory: (categoryId: string, data: Record<string, unknown>) =>
+    api.patch<ApiResponse<{ category: unknown }>>(`/admin/categories/${categoryId}`, data),
+  deleteCategory: (categoryId: string) =>
+    api.delete<ApiResponse<{ message: string }>>(`/admin/categories/${categoryId}`),
+
+  // Conversations
+  conversations: (params?: { search?: string; flagged?: string; page?: number; limit?: number }) =>
+    api.get<ApiResponse<{ conversations: unknown[] }>>('/admin/conversations', { params }),
+  conversation: (id: string) =>
+    api.get<ApiResponse<{ conversation: unknown }>>(`/admin/conversations/${id}`),
+  flagConversation: (id: string, reason?: string) =>
+    api.post<ApiResponse<{ conversation: unknown }>>(`/admin/conversations/${id}/flag`, { reason }),
+  unflagConversation: (id: string) =>
+    api.post<ApiResponse<{ conversation: unknown }>>(`/admin/conversations/${id}/unflag`),
 };
 
 export { setAuthToken, getAuthToken };

@@ -60,7 +60,16 @@ function StatCard({
   );
 }
 
-function OrderItem({ order }: { order: any }) {
+interface OrderData {
+  id: string;
+  status: string;
+  totalAmount: number;
+  buyer?: { avatar?: string; firstName?: string; lastName?: string; username?: string };
+  service?: { title: string };
+  package?: { name: string };
+}
+
+function OrderItem({ order }: { order: OrderData }) {
   const statusColors: Record<string, string> = {
     IN_PROGRESS: 'bg-blue-100 text-blue-800',
     DELIVERED: 'bg-yellow-100 text-yellow-800',
@@ -98,34 +107,34 @@ export default function SellerDashboardPage() {
     queryKey: ['seller-stats'],
     queryFn: async () => {
       const [earnings, orders] = await Promise.all([
-        api.get('/payments/earnings'),
-        api.get('/orders?selling=true'),
+        api.get<{ success: boolean; data: { totalEarnings?: number; pendingEarnings?: number } }>('/payments/earnings'),
+        api.get<{ success: boolean; data: { orders: OrderData[] } }>('/orders/selling'),
       ]);
       
-      const ordersData = (orders as any).data.data.orders;
-      const earningsData = (earnings as any).data.data;
+      const ordersData = orders.data?.orders || [];
+      const earningsData = earnings.data || {};
       
       return {
         totalEarnings: earningsData.totalEarnings || 0,
         pendingEarnings: earningsData.pendingEarnings || 0,
         totalOrders: ordersData.length,
-        activeOrders: ordersData.filter((o: any) => 
+        activeOrders: ordersData.filter((o) => 
           ['IN_PROGRESS', 'DELIVERED', 'REVISION_REQUESTED'].includes(o.status)
         ).length,
-        completedOrders: ordersData.filter((o: any) => o.status === 'COMPLETED').length,
+        completedOrders: ordersData.filter((o) => o.status === 'COMPLETED').length,
         totalReviews: 0,
         averageRating: 0,
-        responseRate: 95,
+        responseRate: 0,
         unreadMessages: 0,
       };
     },
   });
 
-  const { data: recentOrders } = useQuery({
+  const { data: recentOrders } = useQuery<OrderData[]>({
     queryKey: ['seller-recent-orders'],
     queryFn: async () => {
-      const res = await api.get('/orders?selling=true&limit=5');
-      return (res as any).data.data.orders;
+      const res = await api.get<{ success: boolean; data: { orders: OrderData[] } }>('/orders/selling?limit=5');
+      return res.data?.orders || [];
     },
   });
 
@@ -198,7 +207,7 @@ export default function SellerDashboardPage() {
             </div>
             <div className="p-4">
               {recentOrders && recentOrders.length > 0 ? (
-                recentOrders.map((order: any) => (
+                recentOrders.map((order) => (
                   <OrderItem key={order.id} order={order} />
                 ))
               ) : (
