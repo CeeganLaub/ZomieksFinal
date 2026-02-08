@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { authenticate, requireAdmin } from '@/middleware/auth.js';
 import { prisma } from '@/lib/prisma.js';
+import { redis } from '@/lib/redis.js';
 import { Prisma } from '@prisma/client';
 import { calculateServiceRefund } from '@zomieks/shared';
 import { processOrderRefund, releaseOrderEscrow } from '@/services/escrow.service.js';
@@ -180,6 +181,9 @@ router.post('/users/:id/suspend', async (req, res, next) => {
       },
     });
 
+    // Invalidate cached auth data so suspension takes effect immediately
+    await redis.del(`auth:user:${req.params.id}`);
+
     res.json({ success: true, data: { user } });
   } catch (error) {
     next(error);
@@ -196,6 +200,9 @@ router.post('/users/:id/unsuspend', async (req, res, next) => {
         suspendedReason: null,
       },
     });
+
+    // Invalidate cached auth data so unsuspension takes effect immediately
+    await redis.del(`auth:user:${req.params.id}`);
 
     res.json({ success: true, data: { user } });
   } catch (error) {
