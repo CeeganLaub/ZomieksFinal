@@ -70,6 +70,10 @@ interface ManagedUser {
   _count: { reviews: number };
 }
 
+function normalizeUsername(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9_-]/g, '');
+}
+
 // ============ MAIN COMPONENT ============
 
 export default function AdminSellerManagementPage() {
@@ -739,7 +743,7 @@ function CreateSellerModal({ onClose, onCreated }: { onClose: () => void; onCrea
         </div>
         <div className="grid grid-cols-2 gap-3">
           <FormField label="Email" type="email" value={form.email} onChange={(v) => setForm({ ...form, email: v })} required />
-          <FormField label="Username" value={form.username} onChange={(v) => setForm({ ...form, username: v.toLowerCase().replace(/[^a-z0-9_-]/g, '') })} required />
+          <FormField label="Username" value={form.username} onChange={(v) => setForm({ ...form, username: normalizeUsername(v) })} required />
         </div>
         <FormField label="Password" type="password" value={form.password} onChange={(v) => setForm({ ...form, password: v })} required />
         <FormField label="Display Name" value={form.displayName} onChange={(v) => setForm({ ...form, displayName: v })} required />
@@ -812,7 +816,7 @@ function CreateUserModal({ onClose, onCreated }: { onClose: () => void; onCreate
         </div>
         <div className="grid grid-cols-2 gap-3">
           <FormField label="Email" type="email" value={form.email} onChange={(v) => setForm({ ...form, email: v })} required />
-          <FormField label="Username" value={form.username} onChange={(v) => setForm({ ...form, username: v.toLowerCase().replace(/[^a-z0-9_-]/g, '') })} required />
+          <FormField label="Username" value={form.username} onChange={(v) => setForm({ ...form, username: normalizeUsername(v) })} required />
         </div>
         <FormField label="Password" type="password" value={form.password} onChange={(v) => setForm({ ...form, password: v })} required />
         <p className="text-xs text-muted-foreground">This user can be used to leave reviews on seller profiles for marketing purposes.</p>

@@ -20,6 +20,20 @@ const categorySchema = z.object({
   order: z.number().int().min(0).optional(),
 });
 
+// Admin-created subscriptions last 10 years (effectively permanent)
+const ADMIN_SUBSCRIPTION_YEARS = 10;
+
+function createAdminSubscriptionPeriod() {
+  const now = new Date();
+  const periodEnd = new Date(now);
+  periodEnd.setFullYear(periodEnd.getFullYear() + ADMIN_SUBSCRIPTION_YEARS);
+  return { now, periodEnd };
+}
+
+function generateOrderNumber() {
+  return `ZK-${Date.now()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+}
+
 const router = Router();
 
 // All routes require admin
@@ -1110,9 +1124,7 @@ router.post('/sellers/create', validate(createSellerSchema), async (req, res, ne
 
     // Create subscription if pro plan
     if (plan === 'pro' && user.sellerProfile) {
-      const now = new Date();
-      const periodEnd = new Date(now);
-      periodEnd.setFullYear(periodEnd.getFullYear() + 10); // 10 year subscription for admin-created
+      const { now, periodEnd } = createAdminSubscriptionPeriod();
 
       await prisma.sellerSubscription.create({
         data: {
@@ -1274,9 +1286,7 @@ router.patch('/sellers/managed/:id/plan', async (req, res, next) => {
 
     if (plan === 'pro') {
       if (!seller.sellerProfile.subscription) {
-        const now = new Date();
-        const periodEnd = new Date(now);
-        periodEnd.setFullYear(periodEnd.getFullYear() + 10);
+        const { now, periodEnd } = createAdminSubscriptionPeriod();
         await prisma.sellerSubscription.create({
           data: {
             sellerProfileId: seller.sellerProfile.id,
@@ -1485,7 +1495,7 @@ router.post('/reviews/create', validate(createReviewSchema), async (req, res, ne
     const sellerFee = Math.round(baseAmount * 0.08 * 100) / 100;
 
     // Create a simulated completed order
-    const orderNumber = `ZK-${Date.now()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+    const orderNumber = generateOrderNumber();
     const order = await prisma.order.create({
       data: {
         orderNumber,
