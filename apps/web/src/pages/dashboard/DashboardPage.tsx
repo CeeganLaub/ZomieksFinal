@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { api } from '../../lib/api';
+import { api, conversationsApi } from '../../lib/api';
 import { useAuthStore } from '../../stores/auth.store';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -9,6 +9,7 @@ import {
   ChatBubbleLeftRightIcon, 
   CreditCardIcon,
   ArrowRightIcon,
+  EnvelopeIcon,
 } from '@heroicons/react/24/outline';
 import { formatCurrency } from '../../lib/utils';
 
@@ -18,6 +19,11 @@ export default function DashboardPage() {
   const { data: orders } = useQuery({
     queryKey: ['orders', 'recent'],
     queryFn: () => api.get<any>('/orders/buying', { params: { limit: 5 } }),
+  });
+
+  const { data: conversationsData } = useQuery({
+    queryKey: ['conversations', 'dashboard'],
+    queryFn: () => conversationsApi.list({ limit: 10 }),
   });
 
   const activeOrders = orders?.data?.orders?.filter((o: any) => 
@@ -96,6 +102,63 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Inbox / Messages */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="flex items-center gap-2">
+            <EnvelopeIcon className="h-5 w-5" />
+            Inbox
+          </CardTitle>
+          <Link to="/messages" className="text-sm text-primary hover:underline">
+            View all
+          </Link>
+        </CardHeader>
+        <CardContent>
+          {!conversationsData?.data?.conversations?.length ? (
+            <div className="text-center py-8">
+              <ChatBubbleLeftRightIcon className="h-10 w-10 text-muted-foreground/40 mx-auto mb-3" />
+              <p className="text-muted-foreground">No messages yet</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {conversationsData.data.conversations.map((conv: any) => (
+                <Link
+                  key={conv.id}
+                  to={`/messages/${conv.id}`}
+                  className="flex items-center gap-3 p-3 rounded-xl border hover:bg-muted/50 transition-colors"
+                >
+                  <div className="h-10 w-10 rounded-full bg-gradient-to-br from-primary to-purple-500 flex items-center justify-center text-white text-sm font-bold shrink-0">
+                    {conv.otherUser?.firstName?.charAt(0) || conv.otherUser?.username?.charAt(0) || '?'}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <p className="font-medium text-sm truncate">
+                        {conv.otherUser?.firstName
+                          ? `${conv.otherUser.firstName} ${conv.otherUser.lastName || ''}`.trim()
+                          : conv.otherUser?.username || 'User'}
+                      </p>
+                      {conv.lastMessage?.createdAt && (
+                        <span className="text-xs text-muted-foreground shrink-0 ml-2">
+                          {new Date(conv.lastMessage.createdAt).toLocaleDateString()}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {conv.lastMessage?.content || 'No messages yet'}
+                    </p>
+                  </div>
+                  {conv.unreadCount > 0 && (
+                    <span className="bg-primary text-white text-xs font-bold px-2 py-0.5 rounded-full shrink-0">
+                      {conv.unreadCount}
+                    </span>
+                  )}
+                </Link>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Recent orders */}
       <Card>

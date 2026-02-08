@@ -17,6 +17,7 @@ import {
   UserGroupIcon,
   QuestionMarkCircleIcon,
   GlobeAltIcon,
+  LinkIcon,
 } from '@heroicons/react/24/outline';
 
 export default function ProfileDropdown() {
@@ -180,6 +181,14 @@ export default function ProfileDropdown() {
                   >
                     <BanknotesIcon className="h-5 w-5 text-muted-foreground" />
                     Earnings
+                  </Link>
+                  <Link
+                    to="/seller/biolink"
+                    onClick={() => setIsOpen(false)}
+                    className="flex items-center gap-3 px-3 py-2.5 text-sm hover:bg-muted rounded-xl transition-colors"
+                  >
+                    <LinkIcon className="h-5 w-5 text-muted-foreground" />
+                    BioLink
                   </Link>
                 </>
               ) : (

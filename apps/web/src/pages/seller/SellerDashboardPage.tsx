@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { api } from '@/lib/api';
+import { api, conversationsApi } from '@/lib/api';
 import { 
   CurrencyDollarIcon, 
   ShoppingBagIcon, 
@@ -10,6 +10,7 @@ import {
   CheckCircleIcon,
   PlusIcon,
   LinkIcon,
+  EnvelopeIcon,
 } from '@heroicons/react/24/outline';
 
 interface DashboardStats {
@@ -130,6 +131,11 @@ export default function SellerDashboardPage() {
     },
   });
 
+  const { data: conversationsData } = useQuery({
+    queryKey: ['conversations', 'seller-dashboard'],
+    queryFn: () => conversationsApi.list({ limit: 10 }),
+  });
+
   const { data: recentOrders } = useQuery<OrderData[]>({
     queryKey: ['seller-recent-orders'],
     queryFn: async () => {
@@ -147,8 +153,8 @@ export default function SellerDashboardPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
-      <div className="flex items-center justify-between mb-8">
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Seller Dashboard</h1>
           <p className="text-muted-foreground">Welcome back! Here's an overview of your business.</p>
@@ -163,7 +169,7 @@ export default function SellerDashboardPage() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title="Total Earnings"
           value={`R${stats?.totalEarnings ? Number(stats.totalEarnings).toFixed(2) : '0.00'}`}
@@ -192,6 +198,63 @@ export default function SellerDashboardPage() {
           color="yellow"
           subtitle={`${stats?.totalReviews || 0} reviews`}
         />
+      </div>
+
+      {/* Inbox */}
+      <div className="bg-white rounded-lg border">
+        <div className="p-4 border-b flex items-center justify-between">
+          <h2 className="font-semibold flex items-center gap-2">
+            <EnvelopeIcon className="h-5 w-5" />
+            Inbox
+          </h2>
+          <Link to="/seller/inbox" className="text-sm text-primary hover:underline">
+            View all
+          </Link>
+        </div>
+        <div className="p-4">
+          {!conversationsData?.data?.conversations?.length ? (
+            <div className="text-center py-8">
+              <ChatBubbleLeftRightIcon className="h-10 w-10 text-muted-foreground/40 mx-auto mb-3" />
+              <p className="text-muted-foreground">No messages yet</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {conversationsData.data.conversations.map((conv: any) => (
+                <Link
+                  key={conv.id}
+                  to={`/seller/inbox/${conv.id}`}
+                  className="flex items-center gap-3 p-3 rounded-xl border hover:bg-muted/50 transition-colors"
+                >
+                  <div className="h-10 w-10 rounded-full bg-gradient-to-br from-primary to-purple-500 flex items-center justify-center text-white text-sm font-bold shrink-0">
+                    {conv.otherUser?.firstName?.charAt(0) || conv.otherUser?.username?.charAt(0) || '?'}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <p className="font-medium text-sm truncate">
+                        {conv.otherUser?.firstName
+                          ? `${conv.otherUser.firstName} ${conv.otherUser.lastName || ''}`.trim()
+                          : conv.otherUser?.username || 'User'}
+                      </p>
+                      {conv.lastMessage?.createdAt && (
+                        <span className="text-xs text-muted-foreground shrink-0 ml-2">
+                          {new Date(conv.lastMessage.createdAt).toLocaleDateString()}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {conv.lastMessage?.content || 'No messages yet'}
+                    </p>
+                  </div>
+                  {conv.unreadCount > 0 && (
+                    <span className="bg-primary text-white text-xs font-bold px-2 py-0.5 rounded-full shrink-0">
+                      {conv.unreadCount}
+                    </span>
+                  )}
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Quick Actions + Recent Orders */}
@@ -237,6 +300,13 @@ export default function SellerDashboardPage() {
               >
                 <ClockIcon className="h-5 w-5 text-muted-foreground" />
                 <span>View Orders</span>
+              </Link>
+              <Link
+                to="/seller/inbox"
+                className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                <EnvelopeIcon className="h-5 w-5 text-muted-foreground" />
+                <span>Inbox</span>
               </Link>
               <Link
                 to="/seller/crm"

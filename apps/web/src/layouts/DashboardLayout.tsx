@@ -38,9 +38,10 @@ export default function DashboardLayout({ isSeller = false }: Props) {
     { href: '/seller', label: 'Dashboard', icon: HomeIcon },
     { href: '/seller/services', label: 'Services', icon: Squares2X2Icon },
     { href: '/seller/orders', label: 'Orders', icon: DocumentTextIcon },
-    { href: '/seller/crm', label: 'CRM', icon: UserGroupIcon },
+    { href: '/seller/inbox', label: 'Inbox', icon: ChatBubbleLeftRightIcon },
     { href: '/seller/earnings', label: 'Earnings', icon: BanknotesIcon },
     { href: '/seller/courses', label: 'Courses', icon: AcademicCapIcon },
+    { href: '/seller/crm', label: 'CRM', icon: UserGroupIcon },
     { href: '/seller/analytics', label: 'Analytics', icon: ChartBarIcon },
     { href: '/seller/biolink', label: 'BioLink', icon: LinkIcon },
     { href: '/settings', label: 'Settings', icon: Cog6ToothIcon },
@@ -48,17 +49,8 @@ export default function DashboardLayout({ isSeller = false }: Props) {
 
   const navItems = isSeller ? sellerNavItems : buyerNavItems;
 
-  // Determine if we should show sidebar based on current route
-  const showSidebar = [
-    '/orders',
-    '/messages',
-    '/seller/orders',
-    '/seller/crm',
-    '/seller/services',
-    '/seller/courses',
-    '/seller/analytics',
-    '/seller/biolink',
-  ].some(path => location.pathname.startsWith(path));
+  // Always show sidebar on dashboard pages
+  const showSidebar = true;
 
   return (
     <div className="min-h-screen bg-muted/30">

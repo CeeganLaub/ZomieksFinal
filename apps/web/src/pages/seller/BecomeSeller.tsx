@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useMutation } from '@tanstack/react-query';
-import { api } from '../../lib/api';
+import { api, sellerSubscriptionApi } from '../../lib/api';
 import { useAuthStore } from '../../stores/auth.store';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -42,7 +42,7 @@ export default function BecomeSeller() {
   const navigate = useNavigate();
   const { refreshUser, user } = useAuthStore();
   const [step, setStep] = useState(1);
-  const [selectedPlan, setSelectedPlan] = useState<'free' | 'pro'>('free');
+  const [selectedPlan, setSelectedPlan] = useState<'free' | 'pro' | null>(null);
 
   const isSouthAfrican = user?.country?.toUpperCase() === 'ZA';
 
@@ -85,19 +85,27 @@ export default function BecomeSeller() {
     onSuccess: async () => {
       await refreshUser();
 
-      // If Pro plan selected, initiate fee payment
+      // If Pro plan selected, initiate subscription payment
       if (selectedPlan === 'pro') {
         try {
-          await api.post('/users/seller/pay-fee');
-          toast.success('Welcome to Zomieks Pro! Your seller account is now active.');
+          const res = await sellerSubscriptionApi.subscribe();
+          const paymentUrl = res?.data?.paymentUrl;
+          if (paymentUrl) {
+            toast.success('Redirecting to payment...');
+            window.location.href = paymentUrl;
+            return;
+          }
+          // If no payment URL (e.g. PayFast not configured), mark as pending
+          toast.success('Seller profile created! Pro subscription is pending — you\'ll be redirected to pay shortly.');
+          navigate('/seller');
         } catch {
-          toast.success('Seller profile created! You can pay for the Pro plan later from your dashboard.');
+          toast.success('Seller profile created! You can subscribe to Pro from your dashboard.');
+          navigate('/seller');
         }
       } else {
-        toast.success('Welcome to Zomieks as a seller!');
+        toast.success('Welcome to Zomieks! Your free seller account is active.');
+        navigate('/seller');
       }
-
-      navigate('/seller');
     },
     onError: (error: any) => {
       toast.error(error.message || 'Failed to create seller profile');
@@ -244,7 +252,7 @@ export default function BecomeSeller() {
           >
             {selectedPlan === 'free' && (
               <div className="absolute -top-3 left-4 bg-primary text-white text-xs font-bold px-3 py-1 rounded-full">
-                Selected
+                ✓ Selected
               </div>
             )}
             <div className="mb-4">
@@ -255,7 +263,7 @@ export default function BecomeSeller() {
               <span className="text-3xl font-bold">Free</span>
               <span className="text-muted-foreground ml-1">forever</span>
             </div>
-            <ul className="space-y-3">
+            <ul className="space-y-3 mb-6">
               {freePlanFeatures.map((f, i) => (
                 <li key={i} className="flex items-center gap-3 text-sm">
                   {f.included ? (
@@ -270,6 +278,14 @@ export default function BecomeSeller() {
                 </li>
               ))}
             </ul>
+            <Button
+              type="button"
+              variant={selectedPlan === 'free' ? 'default' : 'outline'}
+              className="w-full"
+              onClick={(e) => { e.stopPropagation(); setSelectedPlan('free'); }}
+            >
+              {selectedPlan === 'free' ? '✓ Starter Selected' : 'Choose Starter'}
+            </Button>
           </div>
 
           {/* Pro Plan */}
@@ -286,7 +302,7 @@ export default function BecomeSeller() {
             </div>
             {selectedPlan === 'pro' && (
               <div className="absolute -top-3 left-4 bg-primary text-white text-xs font-bold px-3 py-1 rounded-full">
-                Selected
+                ✓ Selected
               </div>
             )}
             <div className="mb-4">
@@ -297,7 +313,7 @@ export default function BecomeSeller() {
               <span className="text-3xl font-bold">R399</span>
               <span className="text-muted-foreground ml-1">/month</span>
             </div>
-            <ul className="space-y-3">
+            <ul className="space-y-3 mb-6">
               {proPlanFeatures.map((f, i) => (
                 <li key={i} className="flex items-center gap-3 text-sm">
                   <CheckIcon className="h-5 w-5 text-green-500 shrink-0" />
@@ -306,13 +322,23 @@ export default function BecomeSeller() {
                 </li>
               ))}
             </ul>
+            <Button
+              type="button"
+              variant={selectedPlan === 'pro' ? 'default' : 'outline'}
+              className={`w-full ${selectedPlan !== 'pro' ? 'border-amber-500 text-amber-600 hover:bg-amber-50' : ''}`}
+              onClick={(e) => { e.stopPropagation(); setSelectedPlan('pro'); }}
+            >
+              {selectedPlan === 'pro' ? '✓ Zomieks Pro Selected' : 'Choose Zomieks Pro'}
+            </Button>
           </div>
         </div>
 
         <div className="mt-4 text-center text-xs text-muted-foreground">
           {selectedPlan === 'pro'
-            ? 'You can subscribe to Pro after creating your profile, or upgrade anytime from your dashboard.'
-            : 'You can always upgrade to Pro later from your seller dashboard.'}
+            ? 'You\'ll be redirected to complete payment after creating your profile.'
+            : selectedPlan === 'free'
+            ? 'You can always upgrade to Pro later from your seller dashboard.'
+            : 'Click a plan above to select it and continue.'}
         </div>
 
         {/* Fees Breakdown */}
@@ -451,183 +477,231 @@ export default function BecomeSeller() {
 
         <div className="flex justify-center gap-4 mt-6">
           <Button variant="outline" onClick={() => setStep(1)}>Back</Button>
-          <Button className="min-w-[200px]" size="lg" onClick={() => setStep(3)}>
-            Continue
+          <Button
+            className="min-w-[200px]"
+            size="lg"
+            onClick={() => setStep(3)}
+            disabled={!selectedPlan}
+          >
+            {selectedPlan === 'pro'
+              ? 'Continue with Pro'
+              : selectedPlan === 'free'
+              ? 'Continue with Starter'
+              : 'Select a Plan to Continue'}
           </Button>
         </div>
       </div>
     );
   }
 
-  if (step === 3) {
+  if (step === 3 || step === 4) {
     return (
       <div className="max-w-2xl mx-auto">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-2xl">Create Your Seller Profile</CardTitle>
-            <CardDescription>
-              Step 3 of 4: Tell buyers about yourself and your skills
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={(e) => { e.preventDefault(); setStep(4); }} className="space-y-6">
-              <Input
-                id="displayName"
-                label="Display Name"
-                placeholder="e.g., John's Design Studio"
-                error={errors.displayName?.message}
-                {...register('displayName')}
-              />
+        <form onSubmit={handleSubmit(onSubmit)}>
+          {/* Step 3: Profile */}
+          <div className={step === 3 ? '' : 'hidden'}>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-2xl">Create Your Seller Profile</CardTitle>
+                <CardDescription>
+                  Step 3 of 4: Tell buyers about yourself and your skills
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-6">
+                  <Input
+                    id="displayName"
+                    label="Display Name"
+                    placeholder="e.g., John's Design Studio"
+                    error={errors.displayName?.message}
+                    {...register('displayName')}
+                  />
 
-              <Input
-                id="professionalTitle"
-                label="Professional Title"
-                placeholder="e.g., Professional Logo & Brand Designer"
-                error={errors.professionalTitle?.message}
-                {...register('professionalTitle')}
-              />
+                  <Input
+                    id="professionalTitle"
+                    label="Professional Title"
+                    placeholder="e.g., Professional Logo & Brand Designer"
+                    error={errors.professionalTitle?.message}
+                    {...register('professionalTitle')}
+                  />
 
-              <Textarea
-                id="description"
-                label="About You (min 50 characters)"
-                placeholder="Tell buyers about your experience, skills, and what makes you unique..."
-                rows={4}
-                error={errors.description?.message}
-                {...register('description')}
-              />
+                  <Textarea
+                    id="description"
+                    label="About You (min 50 characters)"
+                    placeholder="Tell buyers about your experience, skills, and what makes you unique..."
+                    rows={4}
+                    error={errors.description?.message}
+                    {...register('description')}
+                  />
 
-              <Input
-                id="skills"
-                label="Skills (comma-separated)"
-                placeholder="e.g., Logo Design, Branding, Illustration"
-                error={errors.skills?.message}
-                {...register('skills')}
-              />
+                  <Input
+                    id="skills"
+                    label="Skills (comma-separated)"
+                    placeholder="e.g., Logo Design, Branding, Illustration"
+                    error={errors.skills?.message}
+                    {...register('skills')}
+                  />
 
-              <Input
-                id="languages"
-                label="Languages (comma-separated)"
-                placeholder="e.g., English, Afrikaans"
-                error={errors.languages?.message}
-                {...register('languages')}
-              />
+                  <Input
+                    id="languages"
+                    label="Languages (comma-separated)"
+                    placeholder="e.g., English, Afrikaans"
+                    error={errors.languages?.message}
+                    {...register('languages')}
+                  />
 
-              <div className="flex space-x-4">
-                <Button type="button" variant="outline" onClick={() => setStep(2)}>
-                  Back
-                </Button>
-                <Button type="submit" className="flex-1">
-                  Continue to KYC & Banking
-                </Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
+                  <div className="flex space-x-4">
+                    <Button type="button" variant="outline" onClick={() => setStep(2)}>
+                      Back
+                    </Button>
+                    <Button type="button" className="flex-1" onClick={() => setStep(4)}>
+                      Continue to KYC & Banking
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Step 4: KYC & Bank */}
+          <div className={step === 4 ? '' : 'hidden'}>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-2xl">KYC & Bank Details</CardTitle>
+                <CardDescription>
+                  Step 4 of 4: Verify your identity and add bank details for payouts
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-6">
+                  {/* Selected plan badge */}
+                  <div className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border ${
+                    selectedPlan === 'pro'
+                      ? 'bg-amber-50 border-amber-200'
+                      : 'bg-muted/50 border-border'
+                  }`}>
+                    {selectedPlan === 'pro' ? (
+                      <>
+                        <SparklesIcon className="h-4 w-4 text-amber-500" />
+                        <span className="text-sm font-medium">Plan: <strong>Zomieks Pro</strong> — R399/month (payment after profile creation)</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckIcon className="h-4 w-4 text-green-500" />
+                        <span className="text-sm font-medium">Plan: <strong>Starter</strong> — Free forever</span>
+                      </>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setStep(2)}
+                      className="ml-auto text-xs text-primary hover:underline"
+                    >
+                      Change
+                    </button>
+                  </div>
+
+                  <div className="bg-yellow-50 rounded-lg p-4 border border-yellow-200">
+                    <h4 className="font-medium text-yellow-900 mb-1">🔒 Identity Verification (KYC)</h4>
+                    <p className="text-sm text-yellow-700">
+                      We require your SA ID or passport number to verify your identity. 
+                      This is reviewed by our team and kept secure.
+                    </p>
+                  </div>
+
+                  <Input
+                    id="idNumber"
+                    label="SA ID Number or Passport Number"
+                    placeholder="e.g., 9001015009087"
+                    error={errors.idNumber?.message}
+                    {...register('idNumber')}
+                  />
+
+                  <div className="border-t pt-6">
+                    <h3 className="font-semibold mb-4">Bank Account Details</h3>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Payouts are processed via bank transfer (EFT). Admin will manually process withdrawals.
+                    </p>
+
+                    <div className="space-y-4">
+                      <Input
+                        id="accountHolder"
+                        label="Account Holder Name"
+                        placeholder="Full name as on bank account"
+                        error={errors.accountHolder?.message}
+                        {...register('accountHolder')}
+                      />
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <Input
+                          id="bankName"
+                          label="Bank Name"
+                          placeholder="e.g., FNB, Capitec, Standard Bank"
+                          error={errors.bankName?.message}
+                          {...register('bankName')}
+                        />
+                        <div>
+                          <label htmlFor="accountType" className="block text-sm font-medium mb-2">Account Type</label>
+                          <select
+                            id="accountType"
+                            {...register('accountType')}
+                            className="w-full h-10 px-3 border rounded-md bg-background focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                          >
+                            <option value="SAVINGS">Savings</option>
+                            <option value="CURRENT">Current / Cheque</option>
+                            <option value="TRANSMISSION">Transmission</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <Input
+                          id="accountNumber"
+                          label="Account Number"
+                          placeholder="Your account number"
+                          error={errors.accountNumber?.message}
+                          {...register('accountNumber')}
+                        />
+                        <Input
+                          id="branchCode"
+                          label="Branch Code"
+                          placeholder="e.g., 250655"
+                          error={errors.branchCode?.message}
+                          {...register('branchCode')}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Show profile errors if user skipped fixing them */}
+                  {Object.keys(errors).length > 0 && step === 4 && (
+                    <div className="bg-red-50 rounded-lg p-4 border border-red-200">
+                      <h4 className="font-medium text-red-900 mb-1">Please fix the following errors:</h4>
+                      <ul className="text-sm text-red-700 list-disc list-inside">
+                        {Object.entries(errors).map(([key, err]) => (
+                          <li key={key}>{(err as any)?.message}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  <div className="flex space-x-4">
+                    <Button type="button" variant="outline" onClick={() => setStep(3)}>
+                      Back
+                    </Button>
+                    <Button type="submit" className="flex-1" isLoading={becomeSeller.isPending}>
+                      {selectedPlan === 'pro'
+                        ? 'Create Profile & Subscribe to Pro'
+                        : 'Create Seller Profile'}
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </form>
       </div>
     );
   }
 
-  return (
-    <div className="max-w-2xl mx-auto">
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-2xl">KYC & Bank Details</CardTitle>
-          <CardDescription>
-            Step 4 of 4: Verify your identity and add bank details for payouts
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-            {/* Hidden fields from step 2 that react-hook-form needs */}
-            <input type="hidden" {...register('displayName')} />
-            <input type="hidden" {...register('professionalTitle')} />
-            <input type="hidden" {...register('description')} />
-            <input type="hidden" {...register('skills')} />
-            <input type="hidden" {...register('languages')} />
-
-            <div className="bg-yellow-50 rounded-lg p-4 border border-yellow-200">
-              <h4 className="font-medium text-yellow-900 mb-1">🔒 Identity Verification (KYC)</h4>
-              <p className="text-sm text-yellow-700">
-                We require your SA ID or passport number to verify your identity. 
-                This is reviewed by our team and kept secure.
-              </p>
-            </div>
-
-            <Input
-              id="idNumber"
-              label="SA ID Number or Passport Number"
-              placeholder="e.g., 9001015009087"
-              error={errors.idNumber?.message}
-              {...register('idNumber')}
-            />
-
-            <div className="border-t pt-6">
-              <h3 className="font-semibold mb-4">Bank Account Details</h3>
-              <p className="text-sm text-muted-foreground mb-4">
-                Payouts are processed via bank transfer (EFT). Admin will manually process withdrawals.
-              </p>
-
-              <div className="space-y-4">
-                <Input
-                  id="accountHolder"
-                  label="Account Holder Name"
-                  placeholder="Full name as on bank account"
-                  error={errors.accountHolder?.message}
-                  {...register('accountHolder')}
-                />
-
-                <div className="grid grid-cols-2 gap-4">
-                  <Input
-                    id="bankName"
-                    label="Bank Name"
-                    placeholder="e.g., FNB, Capitec, Standard Bank"
-                    error={errors.bankName?.message}
-                    {...register('bankName')}
-                  />
-                  <div>
-                    <label htmlFor="accountType" className="block text-sm font-medium mb-2">Account Type</label>
-                    <select
-                      id="accountType"
-                      {...register('accountType')}
-                      className="w-full h-10 px-3 border rounded-md bg-background focus:ring-2 focus:ring-primary/20 focus:border-primary"
-                    >
-                      <option value="SAVINGS">Savings</option>
-                      <option value="CURRENT">Current / Cheque</option>
-                      <option value="TRANSMISSION">Transmission</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <Input
-                    id="accountNumber"
-                    label="Account Number"
-                    placeholder="Your account number"
-                    error={errors.accountNumber?.message}
-                    {...register('accountNumber')}
-                  />
-                  <Input
-                    id="branchCode"
-                    label="Branch Code"
-                    placeholder="e.g., 250655"
-                    error={errors.branchCode?.message}
-                    {...register('branchCode')}
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="flex space-x-4">
-              <Button type="button" variant="outline" onClick={() => setStep(3)}>
-                Back
-              </Button>
-              <Button type="submit" className="flex-1" isLoading={becomeSeller.isPending}>
-                Create Seller Profile
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
-  );
+  return null;
 }
