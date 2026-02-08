@@ -209,7 +209,7 @@ router.get('/orders', async (req, res, next) => {
     const { status, startDate, endDate, page = '1', limit = '20' } = req.query;
 
     const where: Prisma.OrderWhereInput = {};
-    if (status) where.status = status as string;
+    if (status) where.status = status as Prisma.OrderWhereInput['status'];
     if (startDate || endDate) {
       where.createdAt = {};
       if (startDate) where.createdAt.gte = new Date(startDate as string);
@@ -346,7 +346,7 @@ router.get('/payouts', async (req, res, next) => {
     const { status, page = '1', limit = '20' } = req.query;
 
     const where: Prisma.SellerPayoutWhereInput = {};
-    if (status) where.status = status as string;
+    if (status) where.status = status as Prisma.SellerPayoutWhereInput['status'];
 
     const [payouts, total] = await Promise.all([
       prisma.sellerPayout.findMany({
@@ -650,7 +650,7 @@ router.get('/courses', async (req, res, next) => {
         { seller: { displayName: { contains: search as string, mode: 'insensitive' } } },
       ];
     }
-    if (status) where.status = status as string;
+    if (status) where.status = status as Prisma.CourseWhereInput['status'];
 
     const pageNum = Math.max(1, parseInt(page as string) || 1);
     const limitNum = Math.min(100, Math.max(1, parseInt(limit as string) || 20));
