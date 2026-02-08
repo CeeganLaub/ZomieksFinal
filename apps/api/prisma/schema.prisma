@@ -67,6 +67,7 @@ model User {
   @@index([email])
   @@index([username])
   @@index([isSeller])
+  @@index([firstName, lastName])
 }
 
 model UserRole {
@@ -332,6 +333,8 @@ model Service {
   @@index([sellerId])
   @@index([status])
   @@index([rating])
+  @@index([sellerId, isActive, status])
+  @@index([title])
 }
 
 enum PricingType {
@@ -482,6 +485,9 @@ model Order {
   @@index([sellerId])
   @@index([status])
   @@index([orderNumber])
+  @@index([buyerId, createdAt])
+  @@index([sellerId, createdAt])
+  @@index([status, createdAt])
 }
 
 enum OrderStatus {
@@ -889,6 +895,8 @@ model Conversation {
   @@unique([buyerId, sellerId])
   @@index([sellerId, status])
   @@index([pipelineStageId])
+  @@index([buyerId, lastMessageAt])
+  @@index([sellerId, lastMessageAt])
 }
 
 enum ConversationStatus {
@@ -1024,6 +1032,8 @@ model AutoTrigger {
   activeHoursOnly Boolean @default(false)
 
   @@index([userId, isActive])
+  @@index([userId, isActive, triggerType])
+  @@index([triggerType, isActive])
 }
 
 enum TriggerType {
@@ -1226,6 +1236,7 @@ model Course {
 
   // Status
   status       CourseStatus @default(DRAFT)
+  isFeatured   Boolean     @default(false)
   publishedAt  DateTime?
 
   // Requirements & what you'll learn
@@ -1244,6 +1255,8 @@ model Course {
   @@index([categoryId])
   @@index([status])
   @@index([rating])
+  @@index([title])
+  @@index([sellerId, status])
 }
 
 model CourseSection {

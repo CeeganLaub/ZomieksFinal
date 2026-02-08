@@ -120,7 +120,7 @@ export async function processAutoTriggers(
         );
         logger.info(`Scheduled auto-trigger ${trigger.id} for ${trigger.delayMinutes} minutes`);
       } else {
-        await executeAutoTrigger(trigger.id, context);
+        await executeAutoTrigger(trigger.id, context, trigger);
       }
     } catch (error) {
       logger.error(`Error processing auto-trigger ${trigger.id}:`, error);
@@ -174,9 +174,10 @@ function evaluateTriggerConditions(
  */
 export async function executeAutoTrigger(
   triggerId: string,
-  context: { conversationId?: string; messageContent?: string; newStageId?: string; oldStageId?: string; }
+  context: { conversationId?: string; messageContent?: string; newStageId?: string; oldStageId?: string; },
+  prefetchedTrigger?: { id: string; isActive: boolean; userId: string; actionType: string; actionPayload: unknown } | null,
 ): Promise<void> {
-  const trigger = await prisma.autoTrigger.findUnique({
+  const trigger = prefetchedTrigger ?? await prisma.autoTrigger.findUnique({
     where: { id: triggerId },
   });
 
@@ -312,7 +313,7 @@ export async function checkInactiveConversations(): Promise<void> {
     });
 
     for (const conversation of inactiveConversations) {
-      await executeAutoTrigger(trigger.id, { conversationId: conversation.id });
+      await executeAutoTrigger(trigger.id, { conversationId: conversation.id }, trigger);
     }
   }
 }

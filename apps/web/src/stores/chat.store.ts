@@ -43,6 +43,7 @@ interface Conversation {
 
 interface ChatState {
   conversations: Conversation[];
+  conversationMap: Map<string, Conversation>;
   activeConversation: Conversation | null;
   messages: Message[];
   typingUsers: Map<string, Set<string>>;
@@ -59,6 +60,7 @@ interface ChatState {
 
 export const useChatStore = create<ChatState>((set, get) => ({
   conversations: [],
+  conversationMap: new Map(),
   activeConversation: null,
   messages: [],
   typingUsers: new Map(),
@@ -68,7 +70,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({ isLoading: true });
     try {
       const response = await api.get<{ success: boolean; data: { conversations: Conversation[] } }>('/conversations');
-      set({ conversations: response.data.conversations });
+      const conversations = response.data.conversations;
+      const conversationMap = new Map(conversations.map(c => [c.id, c]));
+      set({ conversations, conversationMap });
     } finally {
       set({ isLoading: false });
     }
@@ -103,14 +107,37 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   addMessage: (message) => {
-    set((state) => ({
-      messages: [...state.messages, message],
-      conversations: state.conversations.map(c => 
-        c.id === message.conversationId 
-          ? { ...c, messages: [{ content: message.content, type: message.type, createdAt: message.createdAt }], lastMessageAt: message.createdAt }
-          : c
-      ).sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime()),
-    }));
+    set((state) => {
+      const newMap = new Map(state.conversationMap);
+      const existing = newMap.get(message.conversationId);
+
+      let updatedConversations = state.conversations;
+
+      if (existing) {
+        const updated = {
+          ...existing,
+          messages: [{ content: message.content, type: message.type, createdAt: message.createdAt }],
+          lastMessageAt: message.createdAt,
+        };
+        newMap.set(message.conversationId, updated);
+
+        // Update the array in-place: find, remove, and prepend
+        const idx = updatedConversations.findIndex(c => c.id === message.conversationId);
+        if (idx >= 0) {
+          updatedConversations = [
+            updated,
+            ...updatedConversations.slice(0, idx),
+            ...updatedConversations.slice(idx + 1),
+          ];
+        }
+      }
+
+      return {
+        messages: [...state.messages, message],
+        conversations: updatedConversations,
+        conversationMap: newMap,
+      };
+    });
   },
 
   sendMessage: (conversationId, content, _type = 'TEXT', _attachments) => {

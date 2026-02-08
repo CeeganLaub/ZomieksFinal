@@ -46,13 +46,20 @@ export async function sendNotification(params: NotificationParams): Promise<void
   }
 }
 
-// Send to multiple users
+// Send to multiple users (capped at 5000 per call to prevent queue overload)
 export async function sendBulkNotifications(
   userIds: string[],
   notification: Omit<NotificationParams, 'userId'>
 ): Promise<void> {
+  const MAX_BATCH_SIZE = 5000;
+  if (userIds.length > MAX_BATCH_SIZE) {
+    const { logger } = await import('@/lib/logger.js');
+    logger.warn(`sendBulkNotifications: truncated ${userIds.length} userIds to ${MAX_BATCH_SIZE}`);
+  }
+  const batch = userIds.slice(0, MAX_BATCH_SIZE);
+
   await notificationQueue.add('bulk-notify', {
-    userIds,
+    userIds: batch,
     notification,
   });
 }

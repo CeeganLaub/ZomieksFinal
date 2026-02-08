@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { authenticate } from '@/middleware/auth.js';
 import { prisma } from '@/lib/prisma.js';
 import { env } from '@/config/env.js';
-import { calculateOrderFees, withdrawRequestSchema } from '@zomieks/shared';
+import { calculateOrderFees, withdrawRequestSchema, PAYOUT_CONFIG } from '@zomieks/shared';
 import { createPayFastPayment, createOzowPayment, createPayFastSubscription } from '@/services/payment.service.js';
 import { validate } from '@/middleware/validate.js';
 
@@ -273,6 +273,17 @@ router.post('/withdraw', authenticate, validate(withdrawRequestSchema), async (r
     }
 
     const { amount } = req.body;
+
+    // Enforce minimum withdrawal amount
+    if (amount < PAYOUT_CONFIG.MINIMUM_WITHDRAWAL_AMOUNT) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'BELOW_MINIMUM',
+          message: `Minimum withdrawal amount is R${PAYOUT_CONFIG.MINIMUM_WITHDRAWAL_AMOUNT.toFixed(2)}`,
+        },
+      });
+    }
 
     // Check bank details
     const bankDetails = await prisma.bankDetails.findUnique({

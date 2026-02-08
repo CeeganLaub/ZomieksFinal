@@ -186,6 +186,17 @@ export default function CoursePage() {
                   <span className="flex items-center gap-1"><SignalIcon className="h-4 w-4" /> {course.level?.replace('_', ' ')}</span>
                   <span className="flex items-center gap-1"><ClockIcon className="h-4 w-4" /> {formatDuration(course.totalDuration || 0)}</span>
                 </div>
+
+                {/* Tags */}
+                {course.tags && course.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    {course.tags.map((tag: string, i: number) => (
+                      <span key={i} className="text-xs bg-white/10 text-gray-300 px-2 py-1 rounded-full">
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </motion.div>
             </div>
 

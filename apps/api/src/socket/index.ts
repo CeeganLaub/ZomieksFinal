@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma.js';
 import { redis } from '@/lib/redis.js';
 import { logger } from '@/lib/logger.js';
 import type { JwtPayload, AuthUser } from '@/middleware/auth.js';
+import type { MessageType } from '@prisma/client';
 
 interface AuthenticatedSocket extends Socket {
   user?: AuthUser;
@@ -107,7 +108,7 @@ export function setupSocketHandlers(io: SocketServer) {
             conversationId,
             senderId: userId,
             content,
-            type: type as any,
+            type: type as MessageType,
             deliveredAt: new Date(),
           },
           include: {

@@ -23,28 +23,38 @@ interface NotificationState {
   addNotification: (notification: Notification) => void;
 }
 
+let fetchPromise: Promise<void> | null = null;
+
 export const useNotificationStore = create<NotificationState>((set) => ({
   notifications: [],
   unreadCount: 0,
   isLoading: false,
 
   fetchNotifications: async () => {
+    // Deduplicate concurrent fetches
+    if (fetchPromise) return fetchPromise;
+
     set({ isLoading: true });
-    try {
-      const response = await api.get<{ 
-        success: boolean; 
-        data: { notifications: Notification[]; unreadCount: number } 
-      }>('/users/notifications');
-      set({ 
-        notifications: response.data.notifications,
-        unreadCount: response.data.unreadCount,
-      });
-    } catch {
-      // Silently fail - notifications endpoint may not exist yet
-      set({ notifications: [], unreadCount: 0 });
-    } finally {
-      set({ isLoading: false });
-    }
+    fetchPromise = (async () => {
+      try {
+        const response = await api.get<{ 
+          success: boolean; 
+          data: { notifications: Notification[]; unreadCount: number } 
+        }>('/users/notifications');
+        set({ 
+          notifications: response.data.notifications,
+          unreadCount: response.data.unreadCount,
+        });
+      } catch {
+        // Silently fail - notifications endpoint may not exist yet
+        set({ notifications: [], unreadCount: 0 });
+      } finally {
+        set({ isLoading: false });
+        fetchPromise = null;
+      }
+    })();
+
+    return fetchPromise;
   },
 
   markAsRead: async (id: string) => {
@@ -74,9 +84,15 @@ export const useNotificationStore = create<NotificationState>((set) => ({
   },
 
   addNotification: (notification) => {
-    set((state) => ({
-      notifications: [notification, ...state.notifications],
-      unreadCount: state.unreadCount + 1,
-    }));
+    set((state) => {
+      // Prevent duplicate notifications
+      if (state.notifications.some(n => n.id === notification.id)) {
+        return state;
+      }
+      return {
+        notifications: [notification, ...state.notifications],
+        unreadCount: state.unreadCount + 1,
+      };
+    });
   },
 }));

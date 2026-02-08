@@ -117,6 +117,11 @@ export const PAYOUT_STATUS = {
   FAILED: 'FAILED',
 } as const;
 
+// Payout configuration
+export const PAYOUT_CONFIG = {
+  MINIMUM_WITHDRAWAL_AMOUNT: 50, // R50 minimum to cover bank transfer fees
+} as const;
+
 // Service pricing types
 export const PRICING_TYPE = {
   ONE_TIME: 'ONE_TIME',

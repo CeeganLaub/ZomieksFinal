@@ -1,4 +1,4 @@
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { coursesApi, sellerFeeApi } from '../../lib/api';
 import { Button } from '../../components/ui/Button';
@@ -9,7 +9,6 @@ import {
   PlusIcon,
   PencilIcon,
   TrashIcon,
-  EyeIcon,
   ArrowUpOnSquareIcon,
   LockClosedIcon,
   UsersIcon,

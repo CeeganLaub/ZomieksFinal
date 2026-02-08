@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma.js';
 import { validate } from '@/middleware/validate.js';
 import { processAutoTriggers } from '@/services/crm.service.js';
 import { notificationQueue } from '@/lib/queue.js';
+import { logger } from '@/lib/logger.js';
 import { 
   sendMessageSchema, 
   createConversationSchema,
@@ -25,7 +26,7 @@ const router = Router();
 // Get conversations
 router.get('/', authenticate, async (req, res, next) => {
   try {
-    const { status, pipelineStageId, labelId, page = '1', limit = '20' } = req.query;
+    const { status, pipelineStageId, labelId, cursor, page = '1', limit = '20' } = req.query;
 
     const isSeller = req.user!.isSeller;
     const where: Record<string, unknown> = isSeller
@@ -36,12 +37,19 @@ router.get('/', authenticate, async (req, res, next) => {
     if (pipelineStageId) where.pipelineStageId = pipelineStageId as string;
     if (labelId) where.labels = { some: { labelId: labelId as string } };
 
+    const take = parseInt(limit as string);
+
+    // Use cursor-based pagination when cursor is provided for better performance on large datasets
+    const paginationArgs: Record<string, unknown> = cursor
+      ? { cursor: { id: cursor as string }, skip: 1 }
+      : { skip: (parseInt(page as string) - 1) * take };
+
     const [conversations, total] = await Promise.all([
       prisma.conversation.findMany({
         where,
         orderBy: { lastMessageAt: 'desc' },
-        skip: (parseInt(page as string) - 1) * parseInt(limit as string),
-        take: parseInt(limit as string),
+        take,
+        ...paginationArgs,
         include: {
           buyer: {
             select: { id: true, username: true, firstName: true, lastName: true, avatar: true },
@@ -64,14 +72,17 @@ router.get('/', authenticate, async (req, res, next) => {
       prisma.conversation.count({ where }),
     ]);
 
+    const lastItem = conversations[conversations.length - 1];
+
     res.json({
       success: true,
       data: { conversations },
       meta: {
         page: parseInt(page as string),
-        limit: parseInt(limit as string),
+        limit: take,
         total,
-        totalPages: Math.ceil(total / parseInt(limit as string)),
+        totalPages: Math.ceil(total / take),
+        nextCursor: lastItem?.id || null,
       },
     });
   } catch (error) {
@@ -137,12 +148,12 @@ router.get('/:id', authenticate, async (req, res, next) => {
       },
     });
 
-    // Mark as read
+    // Mark as read (fire-and-forget for faster response)
     const unreadField = conversation.buyerId === req.user!.id ? 'unreadBuyerCount' : 'unreadSellerCount';
-    await prisma.conversation.update({
+    prisma.conversation.update({
       where: { id: conversation.id },
       data: { [unreadField]: 0 },
-    });
+    }).catch(() => { /* non-critical */ });
 
     res.json({
       success: true,
@@ -309,7 +320,7 @@ router.post(
       processAutoTriggers(sellerId, 'NEW_CONVERSATION', {
         conversationId: conversation!.id,
         messageContent: initialMessage,
-      }).catch(console.error);
+      }).catch(err => logger.error('Auto-trigger failed:', err));
 
       res.status(201).json({
         success: true,
@@ -382,7 +393,7 @@ router.patch(
           conversationId: conversation.id,
           newStageId: updateData.pipelineStageId,
           oldStageId: conversation.pipelineStageId || undefined,
-        }).catch(console.error);
+        }).catch(err => logger.error('Auto-trigger failed:', err));
       }
 
       res.json({ success: true, data: { conversation: updated } });

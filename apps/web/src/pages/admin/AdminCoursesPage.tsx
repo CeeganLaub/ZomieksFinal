@@ -20,6 +20,7 @@ interface AdminCourse {
   reviewCount: number;
   enrollCount: number;
   level: string;
+  isFeatured?: boolean;
   createdAt: string;
   seller: {
     displayName: string;
@@ -73,6 +74,16 @@ export default function AdminCoursesPage() {
       loadCourses();
     } catch {
       toast.error('Failed to update course status');
+    }
+  }
+
+  async function toggleFeatured(courseId: string, currentFeatured: boolean) {
+    try {
+      await api.patch(`/admin/courses/${courseId}`, { isFeatured: !currentFeatured });
+      toast.success(currentFeatured ? 'Course unfeatured' : 'Course featured');
+      loadCourses();
+    } catch {
+      toast.error('Failed to update featured status');
     }
   }
 
@@ -188,6 +199,17 @@ export default function AdminCoursesPage() {
                           >
                             <EyeIcon className="h-4 w-4" />
                           </a>
+                          <button
+                            onClick={() => toggleFeatured(c.id, !!c.isFeatured)}
+                            className={`px-2 py-1 text-xs rounded ${
+                              c.isFeatured
+                                ? 'bg-yellow-50 text-yellow-600 hover:bg-yellow-100'
+                                : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                            }`}
+                            title={c.isFeatured ? 'Unfeature' : 'Feature'}
+                          >
+                            {c.isFeatured ? '★ Featured' : '☆ Feature'}
+                          </button>
                           {c.status === 'PUBLISHED' ? (
                             <button
                               onClick={() => updateCourseStatus(c.id, 'ARCHIVED')}

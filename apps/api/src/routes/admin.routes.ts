@@ -1,10 +1,23 @@
 import { Router } from 'express';
 import { authenticate, requireAdmin } from '@/middleware/auth.js';
 import { prisma } from '@/lib/prisma.js';
+import { redis } from '@/lib/redis.js';
 import { Prisma } from '@prisma/client';
+import { z } from 'zod';
 import { calculateServiceRefund } from '@zomieks/shared';
 import { processOrderRefund, releaseOrderEscrow } from '@/services/escrow.service.js';
 import { sendNotification } from '@/services/notification.service.js';
+import { validate } from '@/middleware/validate.js';
+
+// Validation schemas for admin endpoints
+const categorySchema = z.object({
+  name: z.string().min(1).max(100),
+  slug: z.string().min(1).max(100).regex(/^[a-z0-9-]+$/),
+  description: z.string().max(500).optional(),
+  icon: z.string().max(50).optional(),
+  parentId: z.string().optional().nullable(),
+  order: z.number().int().min(0).optional(),
+});
 
 const router = Router();
 
@@ -180,6 +193,9 @@ router.post('/users/:id/suspend', async (req, res, next) => {
       },
     });
 
+    // Invalidate cached auth data so suspension takes effect immediately
+    await redis.del(`auth:user:${req.params.id}`);
+
     res.json({ success: true, data: { user } });
   } catch (error) {
     next(error);
@@ -197,6 +213,9 @@ router.post('/users/:id/unsuspend', async (req, res, next) => {
       },
     });
 
+    // Invalidate cached auth data so unsuspension takes effect immediately
+    await redis.del(`auth:user:${req.params.id}`);
+
     res.json({ success: true, data: { user } });
   } catch (error) {
     next(error);
@@ -209,7 +228,7 @@ router.get('/orders', async (req, res, next) => {
     const { status, startDate, endDate, page = '1', limit = '20' } = req.query;
 
     const where: Prisma.OrderWhereInput = {};
-    if (status) where.status = status as string;
+    if (status) where.status = status as Prisma.OrderWhereInput['status'];
     if (startDate || endDate) {
       where.createdAt = {};
       if (startDate) where.createdAt.gte = new Date(startDate as string);
@@ -334,6 +353,28 @@ router.post('/disputes/:orderId/resolve', async (req, res, next) => {
       },
     });
 
+    // Notify both buyer and seller about the resolution
+    const resolutionMessage = refundBuyer
+      ? `Dispute resolved: A refund has been issued for order #${order.orderNumber}`
+      : `Dispute resolved: Funds have been released to the seller for order #${order.orderNumber}`;
+
+    await Promise.all([
+      sendNotification({
+        userId: order.buyerId,
+        type: 'DISPUTE_RESOLVED',
+        title: 'Dispute Resolved',
+        message: resolutionMessage,
+        data: { orderId: order.id, resolution: refundBuyer ? 'REFUND' : 'RELEASED' },
+      }),
+      sendNotification({
+        userId: order.sellerId,
+        type: 'DISPUTE_RESOLVED',
+        title: 'Dispute Resolved',
+        message: resolutionMessage,
+        data: { orderId: order.id, resolution: refundBuyer ? 'REFUND' : 'RELEASED' },
+      }),
+    ]);
+
     res.json({ success: true, data: { message: 'Dispute resolved' } });
   } catch (error) {
     next(error);
@@ -346,7 +387,7 @@ router.get('/payouts', async (req, res, next) => {
     const { status, page = '1', limit = '20' } = req.query;
 
     const where: Prisma.SellerPayoutWhereInput = {};
-    if (status) where.status = status as string;
+    if (status) where.status = status as Prisma.SellerPayoutWhereInput['status'];
 
     const [payouts, total] = await Promise.all([
       prisma.sellerPayout.findMany({
@@ -528,7 +569,7 @@ router.get('/categories', async (req, res, next) => {
   }
 });
 
-router.post('/categories', async (req, res, next) => {
+router.post('/categories', validate(categorySchema), async (req, res, next) => {
   try {
     const { name, slug, description, icon, parentId, order } = req.body;
 
@@ -542,11 +583,11 @@ router.post('/categories', async (req, res, next) => {
   }
 });
 
-router.patch('/categories/:id', async (req, res, next) => {
+router.patch('/categories/:id', validate(categorySchema.partial()), async (req, res, next) => {
   try {
     const { name, slug, description, icon, parentId, order } = req.body;
     const category = await prisma.category.update({
-      where: { id: req.params.id },
+      where: { id: req.params.id as string },
       data: { name, slug, description, icon, parentId, order },
     });
 
@@ -580,6 +621,7 @@ router.get('/services', async (req, res, next) => {
     }
     if (status === 'active') where.isActive = true;
     if (status === 'inactive') where.isActive = false;
+    if (status === 'pending_review') where.status = 'PENDING_REVIEW';
 
     const pageNum = Math.max(1, parseInt(page as string) || 1);
     const limitNum = Math.min(100, Math.max(1, parseInt(limit as string) || 20));
@@ -624,11 +666,16 @@ router.get('/services', async (req, res, next) => {
 
 router.patch('/services/:id', async (req, res, next) => {
   try {
-    const { isActive } = req.body;
+    const { isActive, status } = req.body;
+    const data: any = {};
+    if (isActive !== undefined) data.isActive = isActive;
+    if (status && ['ACTIVE', 'REJECTED', 'PAUSED', 'PENDING_REVIEW'].includes(status)) {
+      data.status = status;
+    }
 
     const service = await prisma.service.update({
       where: { id: req.params.id },
-      data: { isActive },
+      data,
     });
 
     res.json({ success: true, data: { service } });
@@ -650,7 +697,7 @@ router.get('/courses', async (req, res, next) => {
         { seller: { displayName: { contains: search as string, mode: 'insensitive' } } },
       ];
     }
-    if (status) where.status = status as string;
+    if (status) where.status = status as Prisma.CourseWhereInput['status'];
 
     const pageNum = Math.max(1, parseInt(page as string) || 1);
     const limitNum = Math.min(100, Math.max(1, parseInt(limit as string) || 20));
@@ -691,18 +738,24 @@ router.get('/courses', async (req, res, next) => {
 
 router.patch('/courses/:id', async (req, res, next) => {
   try {
-    const { status } = req.body;
+    const { status, isFeatured } = req.body;
+    const data: any = {};
 
-    if (status && !['PUBLISHED', 'DRAFT', 'ARCHIVED'].includes(status)) {
-      return res.status(400).json({
-        success: false,
-        error: { code: 'INVALID_STATUS', message: 'Status must be PUBLISHED, DRAFT, or ARCHIVED' },
-      });
+    if (status) {
+      if (!['PUBLISHED', 'DRAFT', 'ARCHIVED'].includes(status)) {
+        return res.status(400).json({
+          success: false,
+          error: { code: 'INVALID_STATUS', message: 'Status must be PUBLISHED, DRAFT, or ARCHIVED' },
+        });
+      }
+      data.status = status;
     }
+
+    if (isFeatured !== undefined) data.isFeatured = isFeatured;
 
     const course = await prisma.course.update({
       where: { id: req.params.id },
-      data: { status },
+      data,
     });
 
     res.json({ success: true, data: { course } });
@@ -718,13 +771,13 @@ router.get('/analytics', async (req, res, next) => {
     const now = new Date();
 
     // Monthly revenue and orders for last 6 months
-    const monthlyData: { month: string; revenue: number; orders: number; users: number; isPartial?: boolean }[] = [];
-    for (let i = 5; i >= 0; i--) {
+    const monthlyPromises = Array.from({ length: 6 }, (_, idx) => {
+      const i = 5 - idx;
       const start = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const end = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
       const isPartial = i === 0;
 
-      const [revenue, orderCount, newUsers] = await Promise.all([
+      return Promise.all([
         prisma.order.aggregate({
           where: { status: 'COMPLETED', completedAt: { gte: start, lt: end } },
           _sum: { platformRevenue: true, totalAmount: true },
@@ -735,77 +788,81 @@ router.get('/analytics', async (req, res, next) => {
         prisma.user.count({
           where: { createdAt: { gte: start, lt: end } },
         }),
-      ]);
-
-      const key = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}`;
-      monthlyData.push({
-        month: key,
+      ]).then(([revenue, orderCount, newUsers]) => ({
+        month: `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}`,
         revenue: Number(revenue._sum.platformRevenue || 0),
         orders: orderCount,
         users: newUsers,
         isPartial,
-      });
-    }
-
-    // Order status breakdown
-    const ordersByStatus = await prisma.order.groupBy({
-      by: ['status'],
-      _count: { id: true },
-      _sum: { totalAmount: true },
+      }));
     });
 
-    // Top services by orders
-    const topServices = await prisma.service.findMany({
-      where: { isActive: true },
-      orderBy: { orderCount: 'desc' },
-      take: 10,
-      select: {
-        id: true,
-        title: true,
-        orderCount: true,
-        viewCount: true,
-        rating: true,
-        reviewCount: true,
-        seller: { select: { username: true } },
-        packages: { where: { tier: 'BASIC' }, select: { price: true } },
-      },
-    });
+    const monthlyData = await Promise.all(monthlyPromises);
 
-    // Top courses by enrollments
-    const topCourses = await prisma.course.findMany({
-      where: { status: 'PUBLISHED' },
-      orderBy: { enrollCount: 'desc' },
-      take: 10,
-      select: {
-        id: true,
-        title: true,
-        enrollCount: true,
-        rating: true,
-        reviewCount: true,
-        price: true,
-        seller: {
-          select: { displayName: true, user: { select: { username: true } } },
-        },
-      },
-    });
-
-    // Platform totals
-    const [totalUsers, totalSellers, totalOrders, totalRevenue, totalServices, totalCourses, totalEnrollments, totalConversations] = await Promise.all([
-      prisma.user.count(),
-      prisma.user.count({ where: { isSeller: true } }),
-      prisma.order.count({ where: { status: { not: 'PENDING_PAYMENT' } } }),
-      prisma.order.aggregate({
-        where: { status: 'COMPLETED' },
-        _sum: { platformRevenue: true, totalAmount: true, sellerPayout: true },
+    // Run remaining analytics queries in parallel
+    const [ordersByStatus, topServices, topCourses, platformTotals, totalViews] = await Promise.all([
+      // Order status breakdown
+      prisma.order.groupBy({
+        by: ['status'],
+        _count: { id: true },
+        _sum: { totalAmount: true },
       }),
-      prisma.service.count({ where: { isActive: true } }),
-      prisma.course.count({ where: { status: 'PUBLISHED' } }),
-      prisma.courseEnrollment.count(),
-      prisma.conversation.count(),
+
+      // Top services by orders
+      prisma.service.findMany({
+        where: { isActive: true },
+        orderBy: { orderCount: 'desc' },
+        take: 10,
+        select: {
+          id: true,
+          title: true,
+          orderCount: true,
+          viewCount: true,
+          rating: true,
+          reviewCount: true,
+          seller: { select: { username: true } },
+          packages: { where: { tier: 'BASIC' }, select: { price: true } },
+        },
+      }),
+
+      // Top courses by enrollments
+      prisma.course.findMany({
+        where: { status: 'PUBLISHED' },
+        orderBy: { enrollCount: 'desc' },
+        take: 10,
+        select: {
+          id: true,
+          title: true,
+          enrollCount: true,
+          rating: true,
+          reviewCount: true,
+          price: true,
+          seller: {
+            select: { displayName: true, user: { select: { username: true } } },
+          },
+        },
+      }),
+
+      // Platform totals
+      Promise.all([
+        prisma.user.count(),
+        prisma.user.count({ where: { isSeller: true } }),
+        prisma.order.count({ where: { status: { not: 'PENDING_PAYMENT' } } }),
+        prisma.order.aggregate({
+          where: { status: 'COMPLETED' },
+          _sum: { platformRevenue: true, totalAmount: true, sellerPayout: true },
+        }),
+        prisma.service.count({ where: { isActive: true } }),
+        prisma.course.count({ where: { status: 'PUBLISHED' } }),
+        prisma.courseEnrollment.count(),
+        prisma.conversation.count(),
+      ]),
+
+      // Conversion rate data
+      prisma.service.aggregate({ _sum: { viewCount: true } }),
     ]);
 
-    // Conversion rate: orders / total service views
-    const totalViews = await prisma.service.aggregate({ _sum: { viewCount: true } });
+    const [totalUsers, totalSellers, totalOrders, totalRevenue, totalServices, totalCourses, totalEnrollments, totalConversations] = platformTotals;
     const platformConversionRate = (totalViews._sum.viewCount || 0) > 0
       ? ((totalOrders / (totalViews._sum.viewCount || 1)) * 100)
       : 0;

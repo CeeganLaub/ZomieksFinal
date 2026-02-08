@@ -109,13 +109,20 @@ export async function createPayFastSubscription(params: PayFastSubscriptionParam
   return `${baseUrl}?${queryString}`;
 }
 
-// Validate PayFast ITN
+// Validate PayFast ITN (timing-safe comparison to prevent timing attacks)
 export function validatePayFastSignature(data: Record<string, string>, passphrase: string): boolean {
   const receivedSignature = data.signature;
   delete data.signature;
   
+  if (!receivedSignature) return false;
+  
   const calculatedSignature = generatePayFastSignature(data, passphrase);
-  return receivedSignature === calculatedSignature;
+
+  // Use timing-safe comparison to prevent signature timing attacks
+  const a = Buffer.from(receivedSignature, 'utf8');
+  const b = Buffer.from(calculatedSignature, 'utf8');
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
 }
 
 // PayFast allowed IPs
@@ -169,9 +176,10 @@ export async function createOzowPayment(params: OzowPaymentParams): Promise<stri
   return `https://pay.ozow.com/?${queryString}`;
 }
 
-// Validate OZOW hash
+// Validate OZOW hash (timing-safe comparison to prevent timing attacks)
 export function validateOzowHash(data: Record<string, string>): boolean {
   const receivedHash = data.Hash?.toLowerCase();
+  if (!receivedHash) return false;
   
   const hashString = [
     data.SiteCode,
@@ -192,5 +200,9 @@ export function validateOzowHash(data: Record<string, string>): boolean {
 
   const calculatedHash = crypto.createHash('sha512').update(hashString).digest('hex');
   
-  return receivedHash === calculatedHash;
+  // Use timing-safe comparison to prevent hash timing attacks
+  const a = Buffer.from(receivedHash, 'utf8');
+  const b = Buffer.from(calculatedHash, 'utf8');
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
 }

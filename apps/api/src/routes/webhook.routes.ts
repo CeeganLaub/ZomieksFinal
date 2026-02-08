@@ -5,6 +5,7 @@ import { validatePayFastSignature, PAYFAST_IPS, validateOzowHash } from '@/servi
 import { processEscrowHold } from '@/services/escrow.service.js';
 import { sendNotification } from '@/services/notification.service.js';
 import { calculateOrderFees } from '@zomieks/shared';
+import { logger } from '@/lib/logger.js';
 
 const router = Router();
 
@@ -17,7 +18,7 @@ router.post('/payfast', async (req, res) => {
       const ip = Array.isArray(clientIp) ? clientIp[0] : clientIp?.split(',')[0];
       
       if (!ip || !PAYFAST_IPS.includes(ip.trim())) {
-        console.error('PayFast webhook: Invalid source IP', ip);
+        logger.error('PayFast webhook: Invalid source IP', ip);
         return res.status(403).send('Invalid source');
       }
     }
@@ -26,7 +27,7 @@ router.post('/payfast', async (req, res) => {
 
     // Validate signature
     if (!validatePayFastSignature({ ...data }, env.PAYFAST_PASSPHRASE)) {
-      console.error('PayFast webhook: Invalid signature');
+      logger.error('PayFast webhook: Invalid signature');
       return res.status(400).send('Invalid signature');
     }
 
@@ -41,6 +42,18 @@ router.post('/payfast', async (req, res) => {
     const order = await prisma.order.findUnique({ where: { id: paymentId } });
     
     if (order) {
+      // Idempotency guard: skip if already processed
+      if (order.status !== 'PENDING_PAYMENT') {
+        logger.info(`PayFast webhook: Order ${order.id} already processed (status: ${order.status})`);
+        return res.status(200).send('OK');
+      }
+
+      // Verify payment amount matches order total
+      if (Math.abs(grossAmount - Number(order.totalAmount)) > 0.01) {
+        logger.error(`PayFast webhook: Amount mismatch for order ${order.id}. Expected ${order.totalAmount}, received ${grossAmount}`);
+        return res.status(400).send('Amount mismatch');
+      }
+
       // Handle order payment
       if (paymentStatus === 'COMPLETE') {
         await prisma.$transaction(async (tx) => {
@@ -91,7 +104,7 @@ router.post('/payfast', async (req, res) => {
 
     res.status(200).send('OK');
   } catch (error) {
-    console.error('PayFast webhook error:', error);
+    logger.error('PayFast webhook error:', error);
     res.status(500).send('Error');
   }
 });
@@ -204,7 +217,7 @@ router.post('/payfast/subscription', async (req, res) => {
 
     res.status(200).send('OK');
   } catch (error) {
-    console.error('PayFast subscription webhook error:', error);
+    logger.error('PayFast subscription webhook error:', error);
     res.status(500).send('Error');
   }
 });
@@ -218,7 +231,7 @@ router.post('/payfast/seller-subscription', async (req, res) => {
       const ip = Array.isArray(clientIp) ? clientIp[0] : clientIp?.split(',')[0];
       
       if (!ip || !PAYFAST_IPS.includes(ip.trim())) {
-        console.error('PayFast seller-sub webhook: Invalid source IP', ip);
+        logger.error('PayFast seller-sub webhook: Invalid source IP', ip);
         return res.status(403).send('Invalid source');
       }
     }
@@ -226,7 +239,7 @@ router.post('/payfast/seller-subscription', async (req, res) => {
     const data = req.body;
 
     if (!validatePayFastSignature({ ...data }, env.PAYFAST_PASSPHRASE)) {
-      console.error('PayFast seller-sub webhook: Invalid signature');
+      logger.error('PayFast seller-sub webhook: Invalid signature');
       return res.status(400).send('Invalid signature');
     }
 
@@ -242,7 +255,7 @@ router.post('/payfast/seller-subscription', async (req, res) => {
     });
 
     if (!subscription) {
-      console.error('PayFast seller-sub webhook: Subscription not found', subscriptionId);
+      logger.error('PayFast seller-sub webhook: Subscription not found', subscriptionId);
       return res.status(404).send('Subscription not found');
     }
 
@@ -332,7 +345,7 @@ router.post('/payfast/seller-subscription', async (req, res) => {
 
     res.status(200).send('OK');
   } catch (error) {
-    console.error('PayFast seller subscription webhook error:', error);
+    logger.error('PayFast seller subscription webhook error:', error);
     res.status(500).send('Error');
   }
 });
@@ -344,7 +357,7 @@ router.post('/ozow', async (req, res) => {
 
     // Validate hash
     if (!validateOzowHash(data)) {
-      console.error('OZOW webhook: Invalid hash');
+      logger.error('OZOW webhook: Invalid hash');
       return res.status(400).json({ error: 'Invalid hash' });
     }
 
@@ -357,6 +370,18 @@ router.post('/ozow', async (req, res) => {
 
     if (!order) {
       return res.status(404).json({ error: 'Order not found' });
+    }
+
+    // Idempotency guard: skip if already processed
+    if (order.status !== 'PENDING_PAYMENT') {
+      logger.info(`OZOW webhook: Order ${order.id} already processed (status: ${order.status})`);
+      return res.status(200).json({ success: true });
+    }
+
+    // Verify payment amount matches order total
+    if (Math.abs(amount - Number(order.totalAmount)) > 0.01) {
+      logger.error(`OZOW webhook: Amount mismatch for order ${order.id}. Expected ${order.totalAmount}, received ${amount}`);
+      return res.status(400).json({ error: 'Amount mismatch' });
     }
 
     if (status === 'Complete') {
@@ -403,7 +428,7 @@ router.post('/ozow', async (req, res) => {
 
     res.status(200).json({ success: true });
   } catch (error) {
-    console.error('OZOW webhook error:', error);
+    logger.error('OZOW webhook error:', error);
     res.status(500).json({ error: 'Error' });
   }
 });

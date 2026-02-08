@@ -243,13 +243,43 @@ router.get('/:username/:slug', optionalAuth, async (req, res, next) => {
       });
     }
 
-    // Increment view count
-    await prisma.service.update({
-      where: { id: service.id },
-      data: { viewCount: { increment: 1 } },
-    });
+    // Fetch related services from same category (fire-and-forget view count)
+    const [, relatedServices] = await Promise.all([
+      prisma.service.update({
+        where: { id: service.id },
+        data: { viewCount: { increment: 1 } },
+      }).catch(() => { /* non-critical */ }),
+      prisma.service.findMany({
+        where: {
+          categoryId: service.categoryId,
+          id: { not: service.id },
+          isActive: true,
+          status: 'ACTIVE',
+        },
+        select: {
+          id: true,
+          title: true,
+          slug: true,
+          images: true,
+          rating: true,
+          reviewCount: true,
+          seller: {
+            select: {
+              username: true,
+              sellerProfile: { select: { displayName: true } },
+            },
+          },
+          packages: {
+            where: { tier: 'BASIC' },
+            select: { price: true },
+          },
+        },
+        orderBy: { rating: 'desc' },
+        take: 4,
+      }),
+    ]);
 
-    res.json({ success: true, data: { service } });
+    res.json({ success: true, data: { service, relatedServices } });
   } catch (error) {
     next(error);
   }

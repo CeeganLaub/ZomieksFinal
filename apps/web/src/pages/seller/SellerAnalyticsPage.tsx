@@ -10,7 +10,6 @@ import {
   AcademicCapIcon,
   UsersIcon,
   ArrowTrendingUpIcon,
-  ClockIcon,
   HeartIcon,
   CheckCircleIcon,
   LinkIcon,

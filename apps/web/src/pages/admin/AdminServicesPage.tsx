@@ -17,6 +17,7 @@ interface AdminService {
   status: string;
   rating: number;
   reviewCount: number;
+  orderCount: number;
   createdAt: string;
   seller: {
     id: string;
@@ -77,6 +78,16 @@ export default function AdminServicesPage() {
     }
   }
 
+  async function updateServiceStatus(serviceId: string, status: string) {
+    try {
+      await api.patch(`/admin/services/${serviceId}`, { status, isActive: status === 'ACTIVE' });
+      toast.success(`Service ${status === 'ACTIVE' ? 'approved' : status === 'REJECTED' ? 'rejected' : status.toLowerCase()}`);
+      loadServices();
+    } catch {
+      toast.error('Failed to update service status');
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -102,7 +113,7 @@ export default function AdminServicesPage() {
         </form>
 
         <div className="flex gap-2">
-          {['', 'active', 'inactive'].map((filter) => (
+          {['', 'active', 'inactive', 'pending_review'].map((filter) => (
             <button
               key={filter}
               onClick={() => { setStatusFilter(filter); setPage(1); }}
@@ -110,7 +121,7 @@ export default function AdminServicesPage() {
                 statusFilter === filter ? 'bg-primary text-white border-primary' : 'hover:bg-muted'
               }`}
             >
-              {filter === '' ? 'All' : filter === 'active' ? 'Active' : 'Inactive'}
+              {filter === '' ? 'All' : filter === 'active' ? 'Active' : filter === 'inactive' ? 'Inactive' : 'Pending Review'}
             </button>
           ))}
         </div>
@@ -131,6 +142,7 @@ export default function AdminServicesPage() {
                   <th className="text-left px-4 py-3 font-medium">Seller</th>
                   <th className="text-left px-4 py-3 font-medium">Category</th>
                   <th className="text-left px-4 py-3 font-medium">Price Range</th>
+                  <th className="text-left px-4 py-3 font-medium">Orders</th>
                   <th className="text-left px-4 py-3 font-medium">Rating</th>
                   <th className="text-left px-4 py-3 font-medium">Status</th>
                   <th className="text-left px-4 py-3 font-medium">Actions</th>
@@ -139,7 +151,7 @@ export default function AdminServicesPage() {
               <tbody className="divide-y">
                 {services.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
+                    <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">
                       No services found
                     </td>
                   </tr>
@@ -164,13 +176,22 @@ export default function AdminServicesPage() {
                         <td className="px-4 py-3">
                           R{minPrice.toFixed(0)} - R{maxPrice.toFixed(0)}
                         </td>
+                        <td className="px-4 py-3">{s.orderCount || 0}</td>
                         <td className="px-4 py-3">
                           {Number(s.rating) > 0 ? `${Number(s.rating).toFixed(1)} ★` : 'New'}
                         </td>
                         <td className="px-4 py-3">
-                          {s.isActive ? (
+                          {s.status === 'PENDING_REVIEW' ? (
+                            <span className="flex items-center gap-1 text-xs text-yellow-600 font-medium">
+                              ⏳ Pending Review
+                            </span>
+                          ) : s.isActive && s.status === 'ACTIVE' ? (
                             <span className="flex items-center gap-1 text-xs text-green-600">
                               <CheckCircleIcon className="h-4 w-4" /> Active
+                            </span>
+                          ) : s.status === 'REJECTED' ? (
+                            <span className="flex items-center gap-1 text-xs text-red-600">
+                              <XCircleIcon className="h-4 w-4" /> Rejected
                             </span>
                           ) : (
                             <span className="flex items-center gap-1 text-xs text-red-600">
@@ -189,16 +210,33 @@ export default function AdminServicesPage() {
                             >
                               <EyeIcon className="h-4 w-4" />
                             </a>
-                            <button
-                              onClick={() => toggleServiceActive(s.id, s.isActive)}
-                              className={`px-2 py-1 text-xs rounded ${
-                                s.isActive
-                                  ? 'bg-red-50 text-red-600 hover:bg-red-100'
-                                  : 'bg-green-50 text-green-600 hover:bg-green-100'
-                              }`}
-                            >
-                              {s.isActive ? 'Deactivate' : 'Activate'}
-                            </button>
+                            {s.status === 'PENDING_REVIEW' ? (
+                              <>
+                                <button
+                                  onClick={() => updateServiceStatus(s.id, 'ACTIVE')}
+                                  className="px-2 py-1 text-xs rounded bg-green-50 text-green-600 hover:bg-green-100"
+                                >
+                                  Approve
+                                </button>
+                                <button
+                                  onClick={() => updateServiceStatus(s.id, 'REJECTED')}
+                                  className="px-2 py-1 text-xs rounded bg-red-50 text-red-600 hover:bg-red-100"
+                                >
+                                  Reject
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                onClick={() => toggleServiceActive(s.id, s.isActive)}
+                                className={`px-2 py-1 text-xs rounded ${
+                                  s.isActive
+                                    ? 'bg-red-50 text-red-600 hover:bg-red-100'
+                                    : 'bg-green-50 text-green-600 hover:bg-green-100'
+                                }`}
+                              >
+                                {s.isActive ? 'Deactivate' : 'Activate'}
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>

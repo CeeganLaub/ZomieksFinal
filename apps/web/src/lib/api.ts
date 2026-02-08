@@ -37,12 +37,15 @@ function setAuthToken(token: string): void {
 
 class ApiClient {
   private baseUrl: string;
+  private refreshPromise: Promise<boolean> | null = null;
 
   constructor(baseUrl: string) {
     this.baseUrl = baseUrl;
   }
 
-  private async request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
+  private static readonly REQUEST_TIMEOUT_MS = 30000;
+
+  private async request<T>(endpoint: string, options: RequestOptions = {}, isRetry = false): Promise<T> {
     const { params, ...fetchOptions } = options;
 
     let url = `${this.baseUrl}${endpoint}`;
@@ -70,15 +73,48 @@ class ApiClient {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const response = await fetch(url, {
-      ...fetchOptions,
-      credentials: 'include',
-      headers,
-    });
+    // Add timeout via AbortController
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), ApiClient.REQUEST_TIMEOUT_MS);
 
-    const data = await response.json();
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        ...fetchOptions,
+        credentials: 'include',
+        headers,
+        signal: controller.signal,
+      });
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        throw new ApiError('Request timed out', 'TIMEOUT', 408);
+      }
+      throw err;
+    } finally {
+      clearTimeout(timeoutId);
+    }
+
+    // Safe JSON parsing — handle non-JSON responses
+    let data: any;
+    try {
+      data = await response.json();
+    } catch {
+      throw new ApiError(
+        `Server returned non-JSON response (${response.status})`,
+        'PARSE_ERROR',
+        response.status
+      );
+    }
 
     if (!response.ok) {
+      // Auto-refresh token on 401 (expired access token), retry once
+      if (response.status === 401 && !isRetry && token && !endpoint.includes('/auth/')) {
+        const refreshed = await this.tryRefreshToken();
+        if (refreshed) {
+          return this.request<T>(endpoint, options, true);
+        }
+      }
+
       throw new ApiError(
         data.error?.message || 'An error occurred',
         data.error?.code || 'UNKNOWN_ERROR',
@@ -87,6 +123,46 @@ class ApiClient {
     }
 
     return data;
+  }
+
+  private async tryRefreshToken(): Promise<boolean> {
+    // Deduplicate concurrent refresh attempts
+    if (this.refreshPromise) {
+      return this.refreshPromise;
+    }
+
+    this.refreshPromise = (async () => {
+      try {
+        const storage = localStorage.getItem('auth-storage');
+        if (!storage) return false;
+        const parsed = JSON.parse(storage);
+        const refreshToken = parsed.state?.refreshToken;
+        if (!refreshToken) return false;
+
+        const response = await fetch(`${this.baseUrl}/auth/refresh`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ refreshToken }),
+        });
+
+        if (!response.ok) return false;
+
+        const data = await response.json();
+        if (data.data?.accessToken) {
+          setAuthToken(data.data.accessToken);
+          return true;
+        }
+        return false;
+      } catch (e) {
+        console.warn('Token refresh failed:', e instanceof Error ? e.message : 'unknown error');
+        return false;
+      } finally {
+        this.refreshPromise = null;
+      }
+    })();
+
+    return this.refreshPromise;
   }
 
   get<T>(endpoint: string, options?: RequestOptions): Promise<T> {

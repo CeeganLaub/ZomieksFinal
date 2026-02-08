@@ -6,7 +6,7 @@ import { useAuthStore } from '../stores/auth.store';
 import { Button } from '../components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { StarIcon, ClockIcon, CheckIcon, ArrowsRightLeftIcon } from '@heroicons/react/24/solid';
-import { ChatBubbleLeftRightIcon, HeartIcon, XMarkIcon, ShieldCheckIcon, CreditCardIcon } from '@heroicons/react/24/outline';
+import { ChatBubbleLeftRightIcon, HeartIcon, XMarkIcon, ShieldCheckIcon, CreditCardIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
 import { formatCurrency, formatDate } from '../lib/utils';
 import { toast } from 'sonner';
 
@@ -15,6 +15,7 @@ export default function ServicePage() {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuthStore();
   const [selectedPackage, setSelectedPackage] = useState(0);
+  const [selectedImage, setSelectedImage] = useState(0);
   const [showSubscription, setShowSubscription] = useState(false);
   const [showRequirementsModal, setShowRequirementsModal] = useState(false);
   const [requirements, setRequirements] = useState('');
@@ -40,6 +41,7 @@ export default function ServicePage() {
   });
 
   const service = data?.data?.service;
+  const relatedServices = data?.data?.relatedServices || [];
   const packages = service?.packages || [];
   const subscriptionTiers = service?.subscriptionTiers || [];
   const currentPackage = packages[selectedPackage];
@@ -127,16 +129,33 @@ export default function ServicePage() {
           </div>
 
           {/* Image gallery */}
-          <div className="aspect-video bg-muted rounded-lg overflow-hidden">
-            {service.images?.[0] ? (
-              <img 
-                src={service.images[0]} 
-                alt={service.title}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center text-muted-foreground">
-                No image
+          <div>
+            <div className="aspect-video bg-muted rounded-lg overflow-hidden">
+              {service.images?.[selectedImage] ? (
+                <img 
+                  src={service.images[selectedImage]} 
+                  alt={service.title}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+                  No image
+                </div>
+              )}
+            </div>
+            {service.images?.length > 1 && (
+              <div className="flex gap-2 mt-3 overflow-x-auto pb-1">
+                {service.images.map((img: string, index: number) => (
+                  <button
+                    key={index}
+                    onClick={() => setSelectedImage(index)}
+                    className={`shrink-0 w-20 h-14 rounded-md overflow-hidden border-2 transition-colors ${
+                      selectedImage === index ? 'border-primary' : 'border-transparent hover:border-muted-foreground/30'
+                    }`}
+                  >
+                    <img src={img} alt="" className="w-full h-full object-cover" />
+                  </button>
+                ))}
               </div>
             )}
           </div>
@@ -234,6 +253,64 @@ export default function ServicePage() {
               </div>
             )}
           </div>
+
+          {/* FAQs */}
+          {service.faqs && service.faqs.length > 0 && (
+            <div>
+              <h2 className="text-xl font-bold mb-4">Frequently Asked Questions</h2>
+              <div className="space-y-3">
+                {service.faqs.map((faq: { question: string; answer: string }, index: number) => (
+                  <details key={index} className="group border rounded-lg">
+                    <summary className="flex items-center justify-between px-4 py-3 cursor-pointer font-medium text-sm hover:bg-muted/30 transition-colors">
+                      {faq.question}
+                      <ChevronDownIcon className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" />
+                    </summary>
+                    <div className="px-4 pb-3 text-sm text-muted-foreground">
+                      {faq.answer}
+                    </div>
+                  </details>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Related Services */}
+          {relatedServices.length > 0 && (
+            <div>
+              <h2 className="text-xl font-bold mb-4">Related Services</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {relatedServices.map((related: any) => (
+                  <Link
+                    key={related.id}
+                    to={`/services/${related.seller?.username}/${related.slug}`}
+                    className="border rounded-lg overflow-hidden hover:shadow-md transition-shadow"
+                  >
+                    <div className="aspect-video bg-muted">
+                      {related.images?.[0] && (
+                        <img src={related.images[0]} alt={related.title} className="w-full h-full object-cover" />
+                      )}
+                    </div>
+                    <div className="p-3">
+                      <p className="font-medium text-sm line-clamp-2">{related.title}</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {related.seller?.sellerProfile?.displayName || related.seller?.username}
+                      </p>
+                      <div className="flex items-center justify-between mt-2">
+                        <div className="flex items-center gap-1 text-xs">
+                          <StarIcon className="h-3.5 w-3.5 text-yellow-500" />
+                          <span>{related.rating ? Number(related.rating).toFixed(1) : 'New'}</span>
+                          <span className="text-muted-foreground">({related.reviewCount || 0})</span>
+                        </div>
+                        <span className="text-sm font-bold">
+                          {related.packages?.[0] ? formatCurrency(related.packages[0].price) : ''}
+                        </span>
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Right column - Package selector */}

@@ -37,7 +37,7 @@ export default function AdminDashboardPage() {
     try {
       setLoading(true);
       const [statsRes, kycRes] = await Promise.all([
-        api.get<{ success: boolean; data: Record<string, Record<string, number>> }>('/admin/stats'),
+        api.get<{ success: boolean; data: Record<string, any> }>('/admin/stats'),
         api.get<{ success: boolean; data: { sellers: unknown[] } }>('/admin/sellers/pending-kyc').catch(() => ({ data: { sellers: [] } })),
       ]);
       const d = statsRes.data;

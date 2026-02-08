@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma.js';
 import { payoutQueue } from '@/lib/queue.js';
+import { logger } from '@/lib/logger.js';
 import { sendNotification } from './notification.service.js';
 
 // Process weekly payouts
@@ -14,7 +15,7 @@ export async function processWeeklyPayouts(): Promise<void> {
     },
   });
 
-  for (const payout of pendingPayouts) {
+  await Promise.allSettled(pendingPayouts.map(async (payout) => {
     const bankDetails = payout.seller.bankDetails;
     
     if (!bankDetails) {
@@ -34,7 +35,7 @@ export async function processWeeklyPayouts(): Promise<void> {
         message: 'Please add your bank details to receive payouts',
         data: { payoutId: payout.id },
       });
-      continue;
+      return;
     }
 
     // Process payout
@@ -47,7 +48,7 @@ export async function processWeeklyPayouts(): Promise<void> {
 
       // TODO: Integrate with bank payout API (e.g., Stitch, Peach Payments, or manual EFT)
       // For now, we'll simulate the payout
-      const payoutReference = `PAYOUT-${Date.now()}`;
+      const payoutReference = `PAYOUT-${Date.now()}-${payout.id}`;
 
       // Mark as completed
       await prisma.sellerPayout.update({
@@ -67,7 +68,7 @@ export async function processWeeklyPayouts(): Promise<void> {
         data: { payoutId: payout.id, amount: Number(payout.amount) },
       });
     } catch (error) {
-      console.error(`Payout ${payout.id} failed:`, error);
+      logger.error(`Payout ${payout.id} failed:`, error);
 
       await prisma.sellerPayout.update({
         where: { id: payout.id },
@@ -85,7 +86,7 @@ export async function processWeeklyPayouts(): Promise<void> {
         data: { payoutId: payout.id },
       });
     }
-  }
+  }));
 }
 
 // Schedule payout job

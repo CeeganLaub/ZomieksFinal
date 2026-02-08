@@ -45,7 +45,7 @@ router.get('/favorites', authenticate, async (req, res, next) => {
 // Add favorite
 router.post('/favorites/:serviceId', authenticate, async (req, res, next) => {
   try {
-    const { serviceId } = req.params;
+    const serviceId = req.params.serviceId as string;
 
     const service = await prisma.service.findUnique({ where: { id: serviceId } });
     if (!service) {
@@ -75,7 +75,7 @@ router.post('/favorites/:serviceId', authenticate, async (req, res, next) => {
 // Remove favorite
 router.delete('/favorites/:serviceId', authenticate, async (req, res, next) => {
   try {
-    const { serviceId } = req.params;
+    const serviceId = req.params.serviceId as string;
 
     const existing = await prisma.favorite.findUnique({
       where: { userId_serviceId: { userId: req.user!.id, serviceId } },

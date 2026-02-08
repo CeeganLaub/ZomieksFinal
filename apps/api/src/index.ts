@@ -88,9 +88,34 @@ app.use('/uploads', express.static('uploads'));
 // Rate limiting
 app.use('/api', rateLimiter);
 
-// Health check
-app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+// Health check with dependency status
+app.get('/health', async (_req, res) => {
+  const checks: Record<string, string> = { api: 'ok' };
+  let healthy = true;
+
+  // Check database
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    checks.database = 'ok';
+  } catch {
+    checks.database = 'error';
+    healthy = false;
+  }
+
+  // Check Redis
+  try {
+    await redis.ping();
+    checks.redis = 'ok';
+  } catch {
+    checks.redis = 'error';
+    healthy = false;
+  }
+
+  res.status(healthy ? 200 : 503).json({
+    status: healthy ? 'ok' : 'degraded',
+    timestamp: new Date().toISOString(),
+    checks,
+  });
 });
 
 // Root endpoint
@@ -149,17 +174,47 @@ import('@/lib/queue.js').then(({ notificationQueue }) => {
   ).catch(err => logger.error('Failed to schedule CRM inactivity check:', err));
 });
 
+// Schedule expired refresh token cleanup (daily at 3 AM)
+import('@/lib/queue.js').then(({ notificationQueue }) => {
+  notificationQueue.add(
+    'cleanup-expired-tokens',
+    {},
+    {
+      repeat: { pattern: '0 3 * * *' }, // Daily at 3 AM
+    }
+  ).catch(err => logger.error('Failed to schedule token cleanup:', err));
+});
+
 // Graceful shutdown
+const SHUTDOWN_TIMEOUT_MS = 10000;
+
 const shutdown = async () => {
   logger.info('Shutting down gracefully...');
-  
+
+  // Stop accepting new connections
   httpServer.close(() => {
     logger.info('HTTP server closed');
   });
-  
-  await prisma.$disconnect();
-  await redis.quit();
-  
+
+  // Close workers, database, and Redis with a timeout
+  const cleanup = async () => {
+    const { closeWorkers } = await import('@/lib/queue.js');
+    await closeWorkers();
+    await prisma.$disconnect();
+    await redis.quit();
+  };
+
+  try {
+    await Promise.race([
+      cleanup(),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Shutdown timed out')), SHUTDOWN_TIMEOUT_MS)
+      ),
+    ]);
+  } catch (err) {
+    logger.error('Shutdown error:', err);
+  }
+
   process.exit(0);
 };
 

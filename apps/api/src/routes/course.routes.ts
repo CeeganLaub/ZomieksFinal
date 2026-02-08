@@ -103,7 +103,7 @@ router.get('/', optionalAuth, async (req, res, next) => {
 router.get('/:slug', optionalAuth, async (req, res, next) => {
   try {
     const course = await prisma.course.findUnique({
-      where: { slug: req.params.slug, status: 'PUBLISHED' },
+      where: { slug: req.params.slug as string, status: 'PUBLISHED' },
       include: {
         seller: {
           select: {
@@ -185,7 +185,7 @@ router.get('/:slug', optionalAuth, async (req, res, next) => {
 // Enroll in a course (one-time purchase)
 router.post('/:courseId/enroll', authenticate, async (req, res, next) => {
   try {
-    const { courseId } = req.params;
+    const courseId = req.params.courseId as string;
 
     const course = await prisma.course.findUnique({
       where: { id: courseId, status: 'PUBLISHED' },
@@ -304,7 +304,7 @@ router.post('/:courseId/enroll', authenticate, async (req, res, next) => {
 // Refund a course (credit to balance with fee deductions)
 router.post('/:courseId/refund', authenticate, async (req, res, next) => {
   try {
-    const { courseId } = req.params;
+    const courseId = req.params.courseId as string;
     const { reason } = req.body;
 
     const enrollment = await prisma.courseEnrollment.findUnique({
@@ -419,7 +419,7 @@ router.post('/:courseId/refund', authenticate, async (req, res, next) => {
 // Get enrolled course content (full lessons with video URLs)
 router.get('/:courseId/learn', authenticate, async (req, res, next) => {
   try {
-    const { courseId } = req.params;
+    const courseId = req.params.courseId as string;
 
     // Verify enrollment
     const enrollment = await prisma.courseEnrollment.findUnique({
@@ -484,7 +484,8 @@ router.get('/:courseId/learn', authenticate, async (req, res, next) => {
 // Mark lesson as completed
 router.post('/:courseId/lessons/:lessonId/complete', authenticate, async (req, res, next) => {
   try {
-    const { courseId, lessonId } = req.params;
+    const courseId = req.params.courseId as string;
+    const lessonId = req.params.lessonId as string;
 
     const enrollment = await prisma.courseEnrollment.findUnique({
       where: { userId_courseId: { userId: req.user!.id, courseId } },
@@ -541,7 +542,7 @@ router.post('/:courseId/lessons/:lessonId/complete', authenticate, async (req, r
 // Leave a review
 router.post('/:courseId/reviews', authenticate, validate(courseReviewSchema), async (req, res, next) => {
   try {
-    const { courseId } = req.params;
+    const courseId = req.params.courseId as string;
 
     // Check enrolled
     const enrollment = await prisma.courseEnrollment.findUnique({
@@ -572,13 +573,13 @@ router.post('/:courseId/reviews', authenticate, validate(courseReviewSchema), as
     const agg = await prisma.courseReview.aggregate({
       where: { courseId },
       _avg: { rating: true },
-      _count: { id: true },
+      _count: true,
     });
     await prisma.course.update({
       where: { id: courseId },
       data: {
-        rating: agg._avg.rating || 0,
-        reviewCount: agg._count.id,
+        rating: agg._avg?.rating ?? 0,
+        reviewCount: agg._count,
       },
     });
 
@@ -723,7 +724,7 @@ router.patch('/seller/:courseId', authenticate, requireSeller, validate(updateCo
     }
 
     const course = await prisma.course.findFirst({
-      where: { id: req.params.courseId, sellerId: profile.id },
+      where: { id: req.params.courseId as string, sellerId: profile.id },
     });
     if (!course) {
       return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Course not found' } });
@@ -747,13 +748,13 @@ router.post('/seller/:courseId/publish', authenticate, requireSeller, async (req
     if (!profile) return res.status(403).json({ success: false, error: { code: 'NO_PROFILE', message: 'Not a seller' } });
 
     const course = await prisma.course.findFirst({
-      where: { id: req.params.courseId, sellerId: profile.id },
+      where: { id: req.params.courseId as string, sellerId: profile.id },
       include: { sections: { include: { lessons: true } } },
     });
     if (!course) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Course not found' } });
 
     // Check minimal content
-    const totalLessons = course.sections.reduce((acc, s) => acc + s.lessons.length, 0);
+    const totalLessons = course.sections.reduce((acc: number, s: { lessons: unknown[] }) => acc + s.lessons.length, 0);
     if (totalLessons === 0) {
       return res.status(400).json({
         success: false,
@@ -783,7 +784,7 @@ router.delete('/seller/:courseId', authenticate, requireSeller, async (req, res,
     if (!profile) return res.status(403).json({ success: false, error: { code: 'NO_PROFILE', message: 'Not a seller' } });
 
     const course = await prisma.course.findFirst({
-      where: { id: req.params.courseId, sellerId: profile.id },
+      where: { id: req.params.courseId as string, sellerId: profile.id },
     });
     if (!course) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Course not found' } });
 
@@ -808,7 +809,7 @@ router.post('/seller/:courseId/sections', authenticate, requireSeller, validate(
     const profile = await prisma.sellerProfile.findUnique({ where: { userId: req.user!.id } });
     if (!profile) return res.status(403).json({ success: false, error: { code: 'NO_PROFILE', message: 'Not a seller' } });
 
-    const course = await prisma.course.findFirst({ where: { id: req.params.courseId, sellerId: profile.id } });
+    const course = await prisma.course.findFirst({ where: { id: req.params.courseId as string, sellerId: profile.id } });
     if (!course) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Course not found' } });
 
     const section = await prisma.courseSection.create({
@@ -832,7 +833,7 @@ router.patch('/seller/sections/:sectionId', authenticate, requireSeller, async (
     if (!profile) return res.status(403).json({ success: false, error: { code: 'NO_PROFILE', message: 'Not a seller' } });
 
     const section = await prisma.courseSection.findFirst({
-      where: { id: req.params.sectionId, course: { sellerId: profile.id } },
+      where: { id: req.params.sectionId as string, course: { sellerId: profile.id } },
     });
     if (!section) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Section not found' } });
 
@@ -854,7 +855,7 @@ router.delete('/seller/sections/:sectionId', authenticate, requireSeller, async 
     if (!profile) return res.status(403).json({ success: false, error: { code: 'NO_PROFILE', message: 'Not a seller' } });
 
     const section = await prisma.courseSection.findFirst({
-      where: { id: req.params.sectionId, course: { sellerId: profile.id } },
+      where: { id: req.params.sectionId as string, course: { sellerId: profile.id } },
     });
     if (!section) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Section not found' } });
 
@@ -872,7 +873,7 @@ router.post('/seller/sections/:sectionId/lessons', authenticate, requireSeller, 
     if (!profile) return res.status(403).json({ success: false, error: { code: 'NO_PROFILE', message: 'Not a seller' } });
 
     const section = await prisma.courseSection.findFirst({
-      where: { id: req.params.sectionId, course: { sellerId: profile.id } },
+      where: { id: req.params.sectionId as string, course: { sellerId: profile.id } },
       include: { course: true },
     });
     if (!section) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Section not found' } });
@@ -911,7 +912,7 @@ router.patch('/seller/lessons/:lessonId', authenticate, requireSeller, async (re
     if (!profile) return res.status(403).json({ success: false, error: { code: 'NO_PROFILE', message: 'Not a seller' } });
 
     const lesson = await prisma.courseLesson.findFirst({
-      where: { id: req.params.lessonId, section: { course: { sellerId: profile.id } } },
+      where: { id: req.params.lessonId as string, section: { course: { sellerId: profile.id } } },
     });
     if (!lesson) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Lesson not found' } });
 
@@ -933,7 +934,7 @@ router.delete('/seller/lessons/:lessonId', authenticate, requireSeller, async (r
     if (!profile) return res.status(403).json({ success: false, error: { code: 'NO_PROFILE', message: 'Not a seller' } });
 
     const lesson = await prisma.courseLesson.findFirst({
-      where: { id: req.params.lessonId, section: { course: { sellerId: profile.id } } },
+      where: { id: req.params.lessonId as string, section: { course: { sellerId: profile.id } } },
       include: { section: true },
     });
     if (!lesson) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Lesson not found' } });
@@ -961,7 +962,7 @@ router.get('/seller/:courseId/edit', authenticate, requireSeller, async (req, re
     if (!profile) return res.status(403).json({ success: false, error: { code: 'NO_PROFILE', message: 'Not a seller' } });
 
     const course = await prisma.course.findFirst({
-      where: { id: req.params.courseId, sellerId: profile.id },
+      where: { id: req.params.courseId as string, sellerId: profile.id },
       include: {
         category: { select: { id: true, name: true } },
         sections: {

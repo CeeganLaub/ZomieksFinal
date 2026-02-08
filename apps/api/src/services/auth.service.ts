@@ -184,6 +184,9 @@ export const authService = {
     
     // Invalidate all access tokens via Redis blacklist
     await redis.setex(`blacklist:user:${userId}`, 900, '1'); // 15 min (access token lifetime)
+    
+    // Invalidate cached auth user
+    await redis.del(`auth:user:${userId}`);
   },
 
   async generateTokens(userId: string) {
@@ -229,9 +232,7 @@ export const authService = {
     // Store in Redis with 1 hour expiry
     await redis.setex(`reset:${hashedToken}`, 3600, user.id);
     
-    // TODO: Send password reset email with token
-    // For now, log it (remove in production)
-    console.log(`Password reset token for ${email}: ${resetToken}`);
+    // TODO: Send password reset email with resetToken via SMTP/email service
   },
 
   async resetPassword(token: string, newPassword: string) {

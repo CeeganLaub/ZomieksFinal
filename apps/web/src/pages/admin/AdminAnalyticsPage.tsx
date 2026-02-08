@@ -6,8 +6,6 @@ import {
   UsersIcon,
   ShoppingBagIcon,
   CurrencyDollarIcon,
-  EyeIcon,
-  AcademicCapIcon,
   StarIcon,
   ChatBubbleLeftRightIcon,
   Squares2X2Icon,
