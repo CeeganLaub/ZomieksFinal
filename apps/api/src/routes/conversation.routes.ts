@@ -25,7 +25,7 @@ const router = Router();
 // Get conversations
 router.get('/', authenticate, async (req, res, next) => {
   try {
-    const { status, pipelineStageId, labelId, page = '1', limit = '20' } = req.query;
+    const { status, pipelineStageId, labelId, cursor, page = '1', limit = '20' } = req.query;
 
     const isSeller = req.user!.isSeller;
     const where: Record<string, unknown> = isSeller
@@ -36,12 +36,19 @@ router.get('/', authenticate, async (req, res, next) => {
     if (pipelineStageId) where.pipelineStageId = pipelineStageId as string;
     if (labelId) where.labels = { some: { labelId: labelId as string } };
 
+    const take = parseInt(limit as string);
+
+    // Use cursor-based pagination when cursor is provided for better performance on large datasets
+    const paginationArgs: Record<string, unknown> = cursor
+      ? { cursor: { id: cursor as string }, skip: 1 }
+      : { skip: (parseInt(page as string) - 1) * take };
+
     const [conversations, total] = await Promise.all([
       prisma.conversation.findMany({
         where,
         orderBy: { lastMessageAt: 'desc' },
-        skip: (parseInt(page as string) - 1) * parseInt(limit as string),
-        take: parseInt(limit as string),
+        take,
+        ...paginationArgs,
         include: {
           buyer: {
             select: { id: true, username: true, firstName: true, lastName: true, avatar: true },
@@ -64,14 +71,17 @@ router.get('/', authenticate, async (req, res, next) => {
       prisma.conversation.count({ where }),
     ]);
 
+    const lastItem = conversations[conversations.length - 1];
+
     res.json({
       success: true,
       data: { conversations },
       meta: {
         page: parseInt(page as string),
-        limit: parseInt(limit as string),
+        limit: take,
         total,
-        totalPages: Math.ceil(total / parseInt(limit as string)),
+        totalPages: Math.ceil(total / take),
+        nextCursor: lastItem?.id || null,
       },
     });
   } catch (error) {

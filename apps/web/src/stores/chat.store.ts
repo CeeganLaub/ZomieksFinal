@@ -43,6 +43,7 @@ interface Conversation {
 
 interface ChatState {
   conversations: Conversation[];
+  conversationMap: Map<string, Conversation>;
   activeConversation: Conversation | null;
   messages: Message[];
   typingUsers: Map<string, Set<string>>;
@@ -59,6 +60,7 @@ interface ChatState {
 
 export const useChatStore = create<ChatState>((set, get) => ({
   conversations: [],
+  conversationMap: new Map(),
   activeConversation: null,
   messages: [],
   typingUsers: new Map(),
@@ -68,7 +70,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({ isLoading: true });
     try {
       const response = await api.get<{ success: boolean; data: { conversations: Conversation[] } }>('/conversations');
-      set({ conversations: response.data.conversations });
+      const conversations = response.data.conversations;
+      const conversationMap = new Map(conversations.map(c => [c.id, c]));
+      set({ conversations, conversationMap });
     } finally {
       set({ isLoading: false });
     }
@@ -104,13 +108,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   addMessage: (message) => {
     set((state) => {
-      const updatedConversations = state.conversations.map(c => 
-        c.id === message.conversationId 
-          ? { ...c, messages: [{ content: message.content, type: message.type, createdAt: message.createdAt }], lastMessageAt: message.createdAt }
-          : c
-      );
+      const newMap = new Map(state.conversationMap);
+      const existing = newMap.get(message.conversationId);
 
-      // Move the updated conversation to the front instead of re-sorting the entire array
+      if (existing) {
+        const updated = {
+          ...existing,
+          messages: [{ content: message.content, type: message.type, createdAt: message.createdAt }],
+          lastMessageAt: message.createdAt,
+        };
+        newMap.set(message.conversationId, updated);
+      }
+
+      // Rebuild ordered list: move updated conversation to front
+      const updatedConversations = Array.from(newMap.values());
       const idx = updatedConversations.findIndex(c => c.id === message.conversationId);
       if (idx > 0) {
         const [moved] = updatedConversations.splice(idx, 1);
@@ -120,6 +131,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       return {
         messages: [...state.messages, message],
         conversations: updatedConversations,
+        conversationMap: newMap,
       };
     });
   },

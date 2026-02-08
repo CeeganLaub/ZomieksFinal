@@ -11,17 +11,24 @@ const router = Router();
 // Get user's orders (as buyer)
 router.get('/buying', authenticate, async (req, res, next) => {
   try {
-    const { status, page = '1', limit = '20' } = req.query;
+    const { status, cursor, page = '1', limit = '20' } = req.query;
 
     const where: any = { buyerId: req.user!.id };
     if (status) where.status = status as string;
+
+    const take = parseInt(limit as string);
+
+    // Use cursor-based pagination when cursor is provided
+    const paginationArgs: Record<string, unknown> = cursor
+      ? { cursor: { id: cursor as string }, skip: 1 }
+      : { skip: (parseInt(page as string) - 1) * take };
 
     const [orders, total] = await Promise.all([
       prisma.order.findMany({
         where,
         orderBy: { createdAt: 'desc' },
-        skip: (parseInt(page as string) - 1) * parseInt(limit as string),
-        take: parseInt(limit as string),
+        take,
+        ...paginationArgs,
         include: {
           service: {
             select: { id: true, title: true, slug: true, images: true },
@@ -35,14 +42,17 @@ router.get('/buying', authenticate, async (req, res, next) => {
       prisma.order.count({ where }),
     ]);
 
+    const lastItem = orders[orders.length - 1];
+
     res.json({
       success: true,
       data: { orders },
       meta: {
         page: parseInt(page as string),
-        limit: parseInt(limit as string),
+        limit: take,
         total,
-        totalPages: Math.ceil(total / parseInt(limit as string)),
+        totalPages: Math.ceil(total / take),
+        nextCursor: lastItem?.id || null,
       },
     });
   } catch (error) {
@@ -53,17 +63,24 @@ router.get('/buying', authenticate, async (req, res, next) => {
 // Get user's orders (as seller)
 router.get('/selling', authenticate, async (req, res, next) => {
   try {
-    const { status, page = '1', limit = '20' } = req.query;
+    const { status, cursor, page = '1', limit = '20' } = req.query;
 
     const where: any = { sellerId: req.user!.id };
     if (status) where.status = status as string;
+
+    const take = parseInt(limit as string);
+
+    // Use cursor-based pagination when cursor is provided
+    const paginationArgs: Record<string, unknown> = cursor
+      ? { cursor: { id: cursor as string }, skip: 1 }
+      : { skip: (parseInt(page as string) - 1) * take };
 
     const [orders, total] = await Promise.all([
       prisma.order.findMany({
         where,
         orderBy: { createdAt: 'desc' },
-        skip: (parseInt(page as string) - 1) * parseInt(limit as string),
-        take: parseInt(limit as string),
+        take,
+        ...paginationArgs,
         include: {
           service: {
             select: { id: true, title: true, slug: true, images: true },
@@ -77,14 +94,17 @@ router.get('/selling', authenticate, async (req, res, next) => {
       prisma.order.count({ where }),
     ]);
 
+    const lastItem = orders[orders.length - 1];
+
     res.json({
       success: true,
       data: { orders },
       meta: {
         page: parseInt(page as string),
-        limit: parseInt(limit as string),
+        limit: take,
         total,
-        totalPages: Math.ceil(total / parseInt(limit as string)),
+        totalPages: Math.ceil(total / take),
+        nextCursor: lastItem?.id || null,
       },
     });
   } catch (error) {
