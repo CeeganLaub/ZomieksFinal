@@ -1594,7 +1594,7 @@ const overrideAnalyticsSchema = z.object({
 // Override/set seller metrics
 router.post('/sellers/managed/:id/metrics', validate(overrideAnalyticsSchema), async (req, res, next) => {
   try {
-    const userId = req.params.id;
+    const userId = req.params.id as string;
     const dateStr = req.body.date || new Date().toISOString().split('T')[0];
     const date = new Date(dateStr);
 
