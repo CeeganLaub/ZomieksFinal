@@ -103,14 +103,25 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   addMessage: (message) => {
-    set((state) => ({
-      messages: [...state.messages, message],
-      conversations: state.conversations.map(c => 
+    set((state) => {
+      const updatedConversations = state.conversations.map(c => 
         c.id === message.conversationId 
           ? { ...c, messages: [{ content: message.content, type: message.type, createdAt: message.createdAt }], lastMessageAt: message.createdAt }
           : c
-      ).sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime()),
-    }));
+      );
+
+      // Move the updated conversation to the front instead of re-sorting the entire array
+      const idx = updatedConversations.findIndex(c => c.id === message.conversationId);
+      if (idx > 0) {
+        const [moved] = updatedConversations.splice(idx, 1);
+        updatedConversations.unshift(moved);
+      }
+
+      return {
+        messages: [...state.messages, message],
+        conversations: updatedConversations,
+      };
+    });
   },
 
   sendMessage: (conversationId, content, _type = 'TEXT', _attachments) => {

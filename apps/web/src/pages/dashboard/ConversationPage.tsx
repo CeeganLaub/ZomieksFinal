@@ -66,8 +66,13 @@ export default function ConversationPage() {
     }
   }, [id, fetchConversation]);
 
+  const prevMessageCountRef = useRef(0);
+
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // Use instant scroll for initial load / large batch updates, smooth for single new messages
+    const isNewSingleMessage = messages.length === prevMessageCountRef.current + 1 && prevMessageCountRef.current > 0;
+    messagesEndRef.current?.scrollIntoView({ behavior: isNewSingleMessage ? 'smooth' : 'instant' });
+    prevMessageCountRef.current = messages.length;
   }, [messages]);
 
   const handleSendMessage = useCallback((e: React.FormEvent) => {

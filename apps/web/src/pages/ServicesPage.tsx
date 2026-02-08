@@ -52,6 +52,7 @@ export default function ServicesPage() {
   const { data: categories } = useQuery({
     queryKey: ['categories'],
     queryFn: () => api.get<any>('/services/meta/categories'),
+    staleTime: 5 * 60 * 1000, // Categories rarely change; cache for 5 minutes
   });
 
   const updateFilter = (key: string, value: string) => {

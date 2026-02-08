@@ -718,13 +718,13 @@ router.get('/analytics', async (req, res, next) => {
     const now = new Date();
 
     // Monthly revenue and orders for last 6 months
-    const monthlyData: { month: string; revenue: number; orders: number; users: number; isPartial?: boolean }[] = [];
-    for (let i = 5; i >= 0; i--) {
+    const monthlyPromises = Array.from({ length: 6 }, (_, idx) => {
+      const i = 5 - idx;
       const start = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const end = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
       const isPartial = i === 0;
 
-      const [revenue, orderCount, newUsers] = await Promise.all([
+      return Promise.all([
         prisma.order.aggregate({
           where: { status: 'COMPLETED', completedAt: { gte: start, lt: end } },
           _sum: { platformRevenue: true, totalAmount: true },
@@ -735,77 +735,81 @@ router.get('/analytics', async (req, res, next) => {
         prisma.user.count({
           where: { createdAt: { gte: start, lt: end } },
         }),
-      ]);
-
-      const key = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}`;
-      monthlyData.push({
-        month: key,
+      ]).then(([revenue, orderCount, newUsers]) => ({
+        month: `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}`,
         revenue: Number(revenue._sum.platformRevenue || 0),
         orders: orderCount,
         users: newUsers,
         isPartial,
-      });
-    }
-
-    // Order status breakdown
-    const ordersByStatus = await prisma.order.groupBy({
-      by: ['status'],
-      _count: { id: true },
-      _sum: { totalAmount: true },
+      }));
     });
 
-    // Top services by orders
-    const topServices = await prisma.service.findMany({
-      where: { isActive: true },
-      orderBy: { orderCount: 'desc' },
-      take: 10,
-      select: {
-        id: true,
-        title: true,
-        orderCount: true,
-        viewCount: true,
-        rating: true,
-        reviewCount: true,
-        seller: { select: { username: true } },
-        packages: { where: { tier: 'BASIC' }, select: { price: true } },
-      },
-    });
+    const monthlyData = await Promise.all(monthlyPromises);
 
-    // Top courses by enrollments
-    const topCourses = await prisma.course.findMany({
-      where: { status: 'PUBLISHED' },
-      orderBy: { enrollCount: 'desc' },
-      take: 10,
-      select: {
-        id: true,
-        title: true,
-        enrollCount: true,
-        rating: true,
-        reviewCount: true,
-        price: true,
-        seller: {
-          select: { displayName: true, user: { select: { username: true } } },
-        },
-      },
-    });
-
-    // Platform totals
-    const [totalUsers, totalSellers, totalOrders, totalRevenue, totalServices, totalCourses, totalEnrollments, totalConversations] = await Promise.all([
-      prisma.user.count(),
-      prisma.user.count({ where: { isSeller: true } }),
-      prisma.order.count({ where: { status: { not: 'PENDING_PAYMENT' } } }),
-      prisma.order.aggregate({
-        where: { status: 'COMPLETED' },
-        _sum: { platformRevenue: true, totalAmount: true, sellerPayout: true },
+    // Run remaining analytics queries in parallel
+    const [ordersByStatus, topServices, topCourses, platformTotals, totalViews] = await Promise.all([
+      // Order status breakdown
+      prisma.order.groupBy({
+        by: ['status'],
+        _count: { id: true },
+        _sum: { totalAmount: true },
       }),
-      prisma.service.count({ where: { isActive: true } }),
-      prisma.course.count({ where: { status: 'PUBLISHED' } }),
-      prisma.courseEnrollment.count(),
-      prisma.conversation.count(),
+
+      // Top services by orders
+      prisma.service.findMany({
+        where: { isActive: true },
+        orderBy: { orderCount: 'desc' },
+        take: 10,
+        select: {
+          id: true,
+          title: true,
+          orderCount: true,
+          viewCount: true,
+          rating: true,
+          reviewCount: true,
+          seller: { select: { username: true } },
+          packages: { where: { tier: 'BASIC' }, select: { price: true } },
+        },
+      }),
+
+      // Top courses by enrollments
+      prisma.course.findMany({
+        where: { status: 'PUBLISHED' },
+        orderBy: { enrollCount: 'desc' },
+        take: 10,
+        select: {
+          id: true,
+          title: true,
+          enrollCount: true,
+          rating: true,
+          reviewCount: true,
+          price: true,
+          seller: {
+            select: { displayName: true, user: { select: { username: true } } },
+          },
+        },
+      }),
+
+      // Platform totals
+      Promise.all([
+        prisma.user.count(),
+        prisma.user.count({ where: { isSeller: true } }),
+        prisma.order.count({ where: { status: { not: 'PENDING_PAYMENT' } } }),
+        prisma.order.aggregate({
+          where: { status: 'COMPLETED' },
+          _sum: { platformRevenue: true, totalAmount: true, sellerPayout: true },
+        }),
+        prisma.service.count({ where: { isActive: true } }),
+        prisma.course.count({ where: { status: 'PUBLISHED' } }),
+        prisma.courseEnrollment.count(),
+        prisma.conversation.count(),
+      ]),
+
+      // Conversion rate data
+      prisma.service.aggregate({ _sum: { viewCount: true } }),
     ]);
 
-    // Conversion rate: orders / total service views
-    const totalViews = await prisma.service.aggregate({ _sum: { viewCount: true } });
+    const [totalUsers, totalSellers, totalOrders, totalRevenue, totalServices, totalCourses, totalEnrollments, totalConversations] = platformTotals;
     const platformConversionRate = (totalViews._sum.viewCount || 0) > 0
       ? ((totalOrders / (totalViews._sum.viewCount || 1)) * 100)
       : 0;
