@@ -18,11 +18,17 @@ export class AppError extends Error {
 
 export const errorHandler = (
   err: Error,
-  _req: Request,
+  req: Request,
   res: Response,
   _next: NextFunction
 ) => {
-  logger.error(err);
+  logger.error({
+    message: err.message,
+    stack: err.stack,
+    method: req.method,
+    path: req.path,
+    userId: (req as any).user?.id,
+  });
 
   // Zod validation error
   if (err instanceof ZodError) {
@@ -76,6 +82,37 @@ export const errorHandler = (
         },
       });
     }
+
+    if (prismaError.code === 'P2003') {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'FOREIGN_KEY_VIOLATION',
+          message: 'Referenced record does not exist',
+        },
+      });
+    }
+
+    if (prismaError.code === 'P2014') {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'RELATION_VIOLATION',
+          message: 'The change would violate a required relation',
+        },
+      });
+    }
+  }
+
+  // Prisma validation errors
+  if (err.name === 'PrismaClientValidationError') {
+    return res.status(400).json({
+      success: false,
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: 'Invalid data provided',
+      },
+    });
   }
 
   // JWT errors

@@ -175,16 +175,35 @@ import('@/lib/queue.js').then(({ notificationQueue }) => {
 });
 
 // Graceful shutdown
+const SHUTDOWN_TIMEOUT_MS = 10000;
+
 const shutdown = async () => {
   logger.info('Shutting down gracefully...');
-  
+
+  // Stop accepting new connections
   httpServer.close(() => {
     logger.info('HTTP server closed');
   });
-  
-  await prisma.$disconnect();
-  await redis.quit();
-  
+
+  // Close workers, database, and Redis with a timeout
+  const cleanup = async () => {
+    const { closeWorkers } = await import('@/lib/queue.js');
+    await closeWorkers();
+    await prisma.$disconnect();
+    await redis.quit();
+  };
+
+  try {
+    await Promise.race([
+      cleanup(),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Shutdown timed out')), SHUTDOWN_TIMEOUT_MS)
+      ),
+    ]);
+  } catch (err) {
+    logger.error('Shutdown error:', err);
+  }
+
   process.exit(0);
 };
 

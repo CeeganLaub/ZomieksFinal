@@ -4,7 +4,7 @@ import { ZodSchema } from 'zod';
 export const validate = (schema: ZodSchema) => {
   return (req: Request, _res: Response, next: NextFunction) => {
     try {
-      schema.parse(req.body);
+      req.body = schema.parse(req.body);
       next();
     } catch (error) {
       next(error);
@@ -15,7 +15,8 @@ export const validate = (schema: ZodSchema) => {
 export const validateQuery = (schema: ZodSchema) => {
   return (req: Request, _res: Response, next: NextFunction) => {
     try {
-      schema.parse(req.query);
+      const validated = schema.parse(req.query);
+      Object.assign(req.query, validated);
       next();
     } catch (error) {
       next(error);
@@ -26,7 +27,8 @@ export const validateQuery = (schema: ZodSchema) => {
 export const validateParams = (schema: ZodSchema) => {
   return (req: Request, _res: Response, next: NextFunction) => {
     try {
-      schema.parse(req.params);
+      const validated = schema.parse(req.params);
+      Object.assign(req.params, validated);
       next();
     } catch (error) {
       next(error);

@@ -11,12 +11,19 @@ const bullmqConnection = new Redis(env.REDIS_URL, {
 
 const connection = { connection: bullmqConnection };
 
+const defaultJobOptions = {
+  attempts: 3,
+  backoff: { type: 'exponential' as const, delay: 1000 },
+  removeOnComplete: { count: 1000 },
+  removeOnFail: { count: 5000 },
+};
+
 // Queue definitions
-export const escrowReleaseQueue = new Queue('escrow-release', connection);
-export const notificationQueue = new Queue('notifications', connection);
-export const subscriptionQueue = new Queue('subscriptions', connection);
-export const payoutQueue = new Queue('payouts', connection);
-export const emailQueue = new Queue('emails', connection);
+export const escrowReleaseQueue = new Queue('escrow-release', { ...connection, defaultJobOptions });
+export const notificationQueue = new Queue('notifications', { ...connection, defaultJobOptions });
+export const subscriptionQueue = new Queue('subscriptions', { ...connection, defaultJobOptions });
+export const payoutQueue = new Queue('payouts', { ...connection, defaultJobOptions });
+export const emailQueue = new Queue('emails', { ...connection, defaultJobOptions });
 
 // Escrow release worker
 export const escrowReleaseWorker = new Worker(
@@ -177,3 +184,15 @@ export const subscriptionWorker = new Worker(
 });
 
 logger.info('BullMQ workers initialized');
+
+// Graceful shutdown for all workers
+export async function closeWorkers(): Promise<void> {
+  await Promise.allSettled([
+    escrowReleaseWorker.close(),
+    notificationWorker.close(),
+    payoutWorker.close(),
+    subscriptionWorker.close(),
+  ]);
+  await bullmqConnection.quit();
+  logger.info('BullMQ workers closed');
+}

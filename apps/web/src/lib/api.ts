@@ -43,6 +43,8 @@ class ApiClient {
     this.baseUrl = baseUrl;
   }
 
+  private static readonly REQUEST_TIMEOUT_MS = 30000;
+
   private async request<T>(endpoint: string, options: RequestOptions = {}, isRetry = false): Promise<T> {
     const { params, ...fetchOptions } = options;
 
@@ -71,13 +73,39 @@ class ApiClient {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const response = await fetch(url, {
-      ...fetchOptions,
-      credentials: 'include',
-      headers,
-    });
+    // Add timeout via AbortController
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), ApiClient.REQUEST_TIMEOUT_MS);
 
-    const data = await response.json();
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        ...fetchOptions,
+        credentials: 'include',
+        headers,
+        signal: controller.signal,
+      });
+    } catch (err) {
+      clearTimeout(timeoutId);
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        throw new ApiError('Request timed out', 'TIMEOUT', 408);
+      }
+      throw err;
+    } finally {
+      clearTimeout(timeoutId);
+    }
+
+    // Safe JSON parsing — handle non-JSON responses
+    let data: any;
+    try {
+      data = await response.json();
+    } catch {
+      throw new ApiError(
+        `Server returned non-JSON response (${response.status})`,
+        'PARSE_ERROR',
+        response.status
+      );
+    }
 
     if (!response.ok) {
       // Auto-refresh token on 401 (expired access token), retry once
