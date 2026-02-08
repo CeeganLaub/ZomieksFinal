@@ -243,11 +243,11 @@ router.get('/:username/:slug', optionalAuth, async (req, res, next) => {
       });
     }
 
-    // Increment view count
-    await prisma.service.update({
+    // Increment view count (fire-and-forget for faster response)
+    prisma.service.update({
       where: { id: service.id },
       data: { viewCount: { increment: 1 } },
-    });
+    }).catch(() => { /* non-critical */ });
 
     res.json({ success: true, data: { service } });
   } catch (error) {

@@ -148,12 +148,12 @@ router.get('/:id', authenticate, async (req, res, next) => {
       },
     });
 
-    // Mark as read
+    // Mark as read (fire-and-forget for faster response)
     const unreadField = conversation.buyerId === req.user!.id ? 'unreadBuyerCount' : 'unreadSellerCount';
-    await prisma.conversation.update({
+    prisma.conversation.update({
       where: { id: conversation.id },
       data: { [unreadField]: 0 },
-    });
+    }).catch(() => { /* non-critical */ });
 
     res.json({
       success: true,

@@ -120,22 +120,32 @@ export const optionalAuth = async (
     const decoded = jwt.verify(token, env.JWT_ACCESS_SECRET) as JwtPayload;
     
     if (decoded.type === 'access') {
-      const user = await prisma.user.findUnique({
-        where: { id: decoded.userId },
-        include: { roles: true },
-      });
-      
-      if (user && !user.isSuspended) {
-        req.user = {
-          id: user.id,
-          email: user.email,
-          username: user.username,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          isSeller: user.isSeller,
-          isAdmin: user.isAdmin,
-          roles: user.roles.map(r => r.role),
-        };
+      // Use Redis cache like authenticate middleware for consistent performance
+      const cacheKey = `auth:user:${decoded.userId}`;
+      const cached = await redis.get(cacheKey);
+
+      if (cached) {
+        req.user = JSON.parse(cached);
+      } else {
+        const user = await prisma.user.findUnique({
+          where: { id: decoded.userId },
+          include: { roles: true },
+        });
+        
+        if (user && !user.isSuspended) {
+          req.user = {
+            id: user.id,
+            email: user.email,
+            username: user.username,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            isSeller: user.isSeller,
+            isAdmin: user.isAdmin,
+            roles: user.roles.map(r => r.role),
+          };
+
+          await redis.setex(cacheKey, AUTH_CACHE_TTL, JSON.stringify(req.user));
+        }
       }
     }
     

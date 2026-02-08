@@ -42,6 +42,18 @@ router.post('/payfast', async (req, res) => {
     const order = await prisma.order.findUnique({ where: { id: paymentId } });
     
     if (order) {
+      // Idempotency guard: skip if already processed
+      if (order.status !== 'PENDING_PAYMENT') {
+        logger.info(`PayFast webhook: Order ${order.id} already processed (status: ${order.status})`);
+        return res.status(200).send('OK');
+      }
+
+      // Verify payment amount matches order total
+      if (Math.abs(grossAmount - Number(order.totalAmount)) > 0.01) {
+        logger.error(`PayFast webhook: Amount mismatch for order ${order.id}. Expected ${order.totalAmount}, received ${grossAmount}`);
+        return res.status(400).send('Amount mismatch');
+      }
+
       // Handle order payment
       if (paymentStatus === 'COMPLETE') {
         await prisma.$transaction(async (tx) => {
@@ -358,6 +370,18 @@ router.post('/ozow', async (req, res) => {
 
     if (!order) {
       return res.status(404).json({ error: 'Order not found' });
+    }
+
+    // Idempotency guard: skip if already processed
+    if (order.status !== 'PENDING_PAYMENT') {
+      logger.info(`OZOW webhook: Order ${order.id} already processed (status: ${order.status})`);
+      return res.status(200).json({ success: true });
+    }
+
+    // Verify payment amount matches order total
+    if (Math.abs(amount - Number(order.totalAmount)) > 0.01) {
+      logger.error(`OZOW webhook: Amount mismatch for order ${order.id}. Expected ${order.totalAmount}, received ${amount}`);
+      return res.status(400).json({ error: 'Amount mismatch' });
     }
 
     if (status === 'Complete') {

@@ -3,9 +3,21 @@ import { authenticate, requireAdmin } from '@/middleware/auth.js';
 import { prisma } from '@/lib/prisma.js';
 import { redis } from '@/lib/redis.js';
 import { Prisma } from '@prisma/client';
+import { z } from 'zod';
 import { calculateServiceRefund } from '@zomieks/shared';
 import { processOrderRefund, releaseOrderEscrow } from '@/services/escrow.service.js';
 import { sendNotification } from '@/services/notification.service.js';
+import { validate } from '@/middleware/validate.js';
+
+// Validation schemas for admin endpoints
+const categorySchema = z.object({
+  name: z.string().min(1).max(100),
+  slug: z.string().min(1).max(100).regex(/^[a-z0-9-]+$/),
+  description: z.string().max(500).optional(),
+  icon: z.string().max(50).optional(),
+  parentId: z.string().optional().nullable(),
+  order: z.number().int().min(0).optional(),
+});
 
 const router = Router();
 
@@ -341,6 +353,28 @@ router.post('/disputes/:orderId/resolve', async (req, res, next) => {
       },
     });
 
+    // Notify both buyer and seller about the resolution
+    const resolutionMessage = refundBuyer
+      ? `Dispute resolved: A refund has been issued for order #${order.orderNumber}`
+      : `Dispute resolved: Funds have been released to the seller for order #${order.orderNumber}`;
+
+    await Promise.all([
+      sendNotification({
+        userId: order.buyerId,
+        type: 'DISPUTE_RESOLVED',
+        title: 'Dispute Resolved',
+        message: resolutionMessage,
+        data: { orderId: order.id, resolution: refundBuyer ? 'REFUND' : 'RELEASED' },
+      }),
+      sendNotification({
+        userId: order.sellerId,
+        type: 'DISPUTE_RESOLVED',
+        title: 'Dispute Resolved',
+        message: resolutionMessage,
+        data: { orderId: order.id, resolution: refundBuyer ? 'REFUND' : 'RELEASED' },
+      }),
+    ]);
+
     res.json({ success: true, data: { message: 'Dispute resolved' } });
   } catch (error) {
     next(error);
@@ -535,7 +569,7 @@ router.get('/categories', async (req, res, next) => {
   }
 });
 
-router.post('/categories', async (req, res, next) => {
+router.post('/categories', validate(categorySchema), async (req, res, next) => {
   try {
     const { name, slug, description, icon, parentId, order } = req.body;
 
@@ -549,11 +583,11 @@ router.post('/categories', async (req, res, next) => {
   }
 });
 
-router.patch('/categories/:id', async (req, res, next) => {
+router.patch('/categories/:id', validate(categorySchema.partial()), async (req, res, next) => {
   try {
     const { name, slug, description, icon, parentId, order } = req.body;
     const category = await prisma.category.update({
-      where: { id: req.params.id },
+      where: { id: req.params.id as string },
       data: { name, slug, description, icon, parentId, order },
     });
 

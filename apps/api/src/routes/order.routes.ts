@@ -329,6 +329,15 @@ router.post(
         }),
       ]);
 
+      // Notify buyer about delivery
+      await notificationQueue.add('notification', {
+        userId: order.buyerId,
+        type: 'ORDER_DELIVERED',
+        title: 'Order Delivered',
+        message: `Your order #${order.orderNumber} has been delivered. Please review and accept.`,
+        data: { orderId: order.id },
+      });
+
       res.json({ success: true, data: { delivery } });
     } catch (error) {
       next(error);
@@ -381,6 +390,15 @@ router.post(
         }),
       ]);
 
+      // Notify seller about revision request
+      await notificationQueue.add('notification', {
+        userId: order.sellerId,
+        type: 'REVISION_REQUESTED',
+        title: 'Revision Requested',
+        message: `A revision has been requested for order #${order.orderNumber}`,
+        data: { orderId: order.id },
+      });
+
       res.json({ success: true, data: { revision } });
     } catch (error) {
       next(error);
@@ -417,6 +435,15 @@ router.post('/:id/accept', authenticate, async (req, res, next) => {
 
     // Release escrow (handled by escrow service)
     await releaseOrderEscrow(order.id);
+
+    // Notify seller about acceptance and payment release
+    await notificationQueue.add('notification', {
+      userId: order.sellerId,
+      type: 'ORDER_COMPLETED',
+      title: 'Order Completed',
+      message: `Order #${order.orderNumber} has been accepted. Funds will be released to your balance.`,
+      data: { orderId: order.id },
+    });
 
     res.json({ success: true, data: { order: updated } });
   } catch (error) {
