@@ -52,6 +52,10 @@ export async function sendBulkNotifications(
   notification: Omit<NotificationParams, 'userId'>
 ): Promise<void> {
   const MAX_BATCH_SIZE = 5000;
+  if (userIds.length > MAX_BATCH_SIZE) {
+    const { logger } = await import('@/lib/logger.js');
+    logger.warn(`sendBulkNotifications: truncated ${userIds.length} userIds to ${MAX_BATCH_SIZE}`);
+  }
   const batch = userIds.slice(0, MAX_BATCH_SIZE);
 
   await notificationQueue.add('bulk-notify', {

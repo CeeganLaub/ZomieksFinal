@@ -86,7 +86,6 @@ class ApiClient {
         signal: controller.signal,
       });
     } catch (err) {
-      clearTimeout(timeoutId);
       if (err instanceof DOMException && err.name === 'AbortError') {
         throw new ApiError('Request timed out', 'TIMEOUT', 408);
       }
