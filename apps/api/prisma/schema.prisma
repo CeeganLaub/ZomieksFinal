@@ -32,6 +32,7 @@ model User {
   isAdmin         Boolean @default(false)
   isSuspended     Boolean @default(false)
   suspendedReason String?
+  isAdminCreated  Boolean @default(false)
 
   // Credit balance (non-withdrawable, from refunds)
   creditBalance   Decimal @default(0) @db.Decimal(10, 2)

@@ -570,6 +570,34 @@ export const adminApi = {
   unsuspendUser: (userId: string) =>
     api.post<ApiResponse<{ user: unknown }>>(`/admin/users/${userId}/unsuspend`),
 
+  // Create user (buyer) for admin
+  createUser: (data: { email: string; username: string; password: string; firstName: string; lastName: string; country?: string; avatar?: string }) =>
+    api.post<ApiResponse<{ user: unknown }>>('/admin/users/create', data),
+  managedUsers: (params?: { search?: string; page?: number; limit?: number }) =>
+    api.get<ApiResponse<{ users: unknown[] }>>('/admin/users/managed', { params }),
+
+  // Seller management
+  createSeller: (data: { email: string; username: string; password: string; firstName: string; lastName: string; displayName: string; professionalTitle: string; description: string; skills?: string[]; plan: 'free' | 'pro'; country?: string }) =>
+    api.post<ApiResponse<{ seller: unknown }>>('/admin/sellers/create', data),
+  managedSellers: (params?: { search?: string; page?: number; limit?: number }) =>
+    api.get<ApiResponse<{ sellers: unknown[] }>>('/admin/sellers/managed', { params }),
+  getManagedSeller: (sellerId: string) =>
+    api.get<ApiResponse<{ seller: unknown; metrics: unknown[] }>>(`/admin/sellers/managed/${sellerId}`),
+  updateSellerPlan: (sellerId: string, plan: 'free' | 'pro') =>
+    api.patch<ApiResponse<{ seller: unknown }>>(`/admin/sellers/managed/${sellerId}/plan`, { plan }),
+  updateSellerProfile: (sellerId: string, data: Record<string, unknown>) =>
+    api.patch<ApiResponse<{ profile: unknown }>>(`/admin/sellers/managed/${sellerId}/profile`, data),
+  updateSellerStats: (sellerId: string, data: Record<string, unknown>) =>
+    api.patch<ApiResponse<{ profile: unknown }>>(`/admin/sellers/managed/${sellerId}/stats`, data),
+  setSellerMetrics: (sellerId: string, data: Record<string, unknown>) =>
+    api.post<ApiResponse<{ metric: unknown }>>(`/admin/sellers/managed/${sellerId}/metrics`, data),
+  getSellerMetrics: (sellerId: string, days?: number) =>
+    api.get<ApiResponse<{ metrics: unknown[] }>>(`/admin/sellers/managed/${sellerId}/metrics`, { params: days ? { days } : undefined }),
+
+  // Reviews
+  createReview: (data: { authorId: string; serviceId: string; sellerId: string; rating: number; comment: string; communicationRating?: number; qualityRating?: number; valueRating?: number }) =>
+    api.post<ApiResponse<{ review: unknown; order: unknown }>>('/admin/reviews/create', data),
+
   // Orders & Disputes
   orders: (params?: { status?: string; startDate?: string; endDate?: string; page?: number; limit?: number }) =>
     api.get<ApiResponse<{ orders: unknown[] }>>('/admin/orders', { params }),
