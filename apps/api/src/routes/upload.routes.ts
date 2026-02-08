@@ -173,9 +173,8 @@ router.post('/images', authenticate, upload.array('images', 10), async (req, res
     }
 
     const baseUrl = env.UPLOADS_URL || `${env.API_URL}/uploads`;
-    const results = [];
 
-    for (const file of files) {
+    const results = await Promise.all(files.map(async (file) => {
       const filename = `${crypto.randomBytes(16).toString('hex')}.webp`;
       const filepath = path.join(imagesDir, filename);
 
@@ -184,12 +183,12 @@ router.post('/images', authenticate, upload.array('images', 10), async (req, res
         .webp({ quality: 85 })
         .toFile(filepath);
 
-      results.push({
+      return {
         url: `${baseUrl}/images/${filename}`,
         filename,
         originalName: file.originalname,
-      });
-    }
+      };
+    }));
 
     res.json({
       success: true,

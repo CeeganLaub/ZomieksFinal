@@ -229,9 +229,7 @@ export const authService = {
     // Store in Redis with 1 hour expiry
     await redis.setex(`reset:${hashedToken}`, 3600, user.id);
     
-    // TODO: Send password reset email with token
-    // For now, log it (remove in production)
-    console.log(`Password reset token for ${email}: ${resetToken}`);
+    // TODO: Send password reset email with resetToken via SMTP/email service
   },
 
   async resetPassword(token: string, newPassword: string) {
