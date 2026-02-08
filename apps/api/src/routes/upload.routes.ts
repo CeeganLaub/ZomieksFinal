@@ -174,7 +174,7 @@ router.post('/images', authenticate, upload.array('images', 10), async (req, res
 
     const baseUrl = env.UPLOADS_URL || `${env.API_URL}/uploads`;
 
-    const results = await Promise.all(files.map(async (file) => {
+    const settled = await Promise.allSettled(files.map(async (file) => {
       const filename = `${crypto.randomBytes(16).toString('hex')}.webp`;
       const filepath = path.join(imagesDir, filename);
 
@@ -189,6 +189,17 @@ router.post('/images', authenticate, upload.array('images', 10), async (req, res
         originalName: file.originalname,
       };
     }));
+
+    const results = settled
+      .filter((r): r is PromiseFulfilledResult<{ url: string; filename: string; originalName: string }> => r.status === 'fulfilled')
+      .map(r => r.value);
+
+    if (results.length === 0) {
+      return res.status(500).json({
+        success: false,
+        error: { code: 'UPLOAD_FAILED', message: 'All image uploads failed' },
+      });
+    }
 
     res.json({
       success: true,

@@ -127,7 +127,8 @@ class ApiClient {
           return true;
         }
         return false;
-      } catch {
+      } catch (e) {
+        console.warn('Token refresh failed:', e instanceof Error ? e.message : 'unknown error');
         return false;
       } finally {
         this.refreshPromise = null;
