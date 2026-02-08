@@ -73,14 +73,15 @@ The platform has **41 pages** organized into 5 groups, backed by **12 API route 
 | 31 | BioLink Builder | `/seller/biolink` | Yes | Seller |
 | **Admin Pages** | | | | |
 | 32 | Admin Dashboard | `/admin` | Yes | Admin |
-| 33 | Admin Users | `/admin/users` | Yes | Admin |
-| 34 | Admin KYC | `/admin/kyc` | Yes | Admin |
-| 35 | Admin Services | `/admin/services` | Yes | Admin |
-| 36 | Admin Courses | `/admin/courses` | Yes | Admin |
-| 37 | Admin Analytics | `/admin/analytics` | Yes | Admin |
-| 38 | Admin Inbox | `/admin/inbox` | Yes | Admin |
-| 39 | Fees & Calculations | `/admin/fees` | Yes | Admin |
-| 40 | Configuration | `/admin/configuration` | Yes | Admin |
+| 33 | Seller Management | `/admin/seller-management` | Yes | Admin |
+| 34 | Admin Users | `/admin/users` | Yes | Admin |
+| 35 | Admin KYC | `/admin/kyc` | Yes | Admin |
+| 36 | Admin Services | `/admin/services` | Yes | Admin |
+| 37 | Admin Courses | `/admin/courses` | Yes | Admin |
+| 38 | Admin Analytics | `/admin/analytics` | Yes | Admin |
+| 39 | Admin Inbox | `/admin/inbox` | Yes | Admin |
+| 40 | Fees & Calculations | `/admin/fees` | Yes | Admin |
+| 41 | Configuration | `/admin/configuration` | Yes | Admin |
 
 ---
 
@@ -820,6 +821,7 @@ The platform has **41 pages** organized into 5 groups, backed by **12 API route 
 
 **Connects To:**
 - → **Admin Users** (`/admin/users`)
+- → **Seller Management** (`/admin/seller-management`)
 - → **Admin KYC** (`/admin/kyc`)
 - → **Admin Services** (`/admin/services`)
 - → **Fees** (`/admin/fees`)
@@ -827,7 +829,47 @@ The platform has **41 pages** organized into 5 groups, backed by **12 API route 
 
 ---
 
-### 5.2 Admin Users (`/admin/users`)
+### 5.2 Seller Management (`/admin/seller-management`)
+
+**Features:**
+- **Seller List Sidebar** – Searchable list of admin-created sellers with plan badge (Pro/Free), service count, order count, and rating
+- **Seller Switcher** – Click any seller to load their full dashboard data (orders, conversations, services, reviews, analytics)
+- **Create Seller Modal** – Form with name, email, username, password, display name, professional title, description, skills, and plan selection (Free or Pro R399/mo)
+- **Plan Switcher** – Toggle managed sellers between Free and Pro plans
+- **7 Management Tabs:**
+  - **Overview** – Stats cards (completed orders, rating, reviews, services, level, on-time rate), profile description and skills
+  - **Orders** – Table of seller's orders (order number, buyer, service, status, amount, date)
+  - **Inbox** – Seller's conversations (buyer avatar, last message, message count)
+  - **Services** – Grid of seller's services (title, category, order count, review count, price)
+  - **Reviews** – List of received reviews (author, rating stars, comment, service, date)
+  - **Analytics** – Metrics table (date, orders received/completed, gross/net revenue, avg rating) with Add/Edit Metrics modal
+  - **Users** – Admin-created buyer accounts table (for review seeding)
+- **Add Review Modal** – Select user (from admin-created buyers), select service, set overall + sub-ratings (communication, quality, value), write comment; creates a simulated completed order
+- **Edit Stats Modal** – Override seller profile stats: rating, review count, completed orders, response time, on-time rate, level
+- **Edit Metrics Modal** – Set daily seller metrics: orders, revenue, delivery times, reviews for analytics display
+
+**API Endpoints:**
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| POST | `/admin/sellers/create` | Create seller account with plan |
+| GET | `/admin/sellers/managed` | List admin-created sellers |
+| GET | `/admin/sellers/managed/:id` | Get seller full detail (orders, conversations, reviews, metrics) |
+| PATCH | `/admin/sellers/managed/:id/plan` | Switch seller plan (free/pro) |
+| PATCH | `/admin/sellers/managed/:id/profile` | Update seller profile |
+| PATCH | `/admin/sellers/managed/:id/stats` | Override seller stats (rating, level, etc.) |
+| POST | `/admin/sellers/managed/:id/metrics` | Upsert daily seller metrics |
+| GET | `/admin/sellers/managed/:id/metrics` | Get seller metrics history |
+| POST | `/admin/users/create` | Create buyer user (for reviews) |
+| GET | `/admin/users/managed` | List admin-created buyers |
+| POST | `/admin/reviews/create` | Create review with simulated order |
+
+**Connects To:**
+- Uses admin-created users from **Users tab** to seed reviews
+- Seller data feeds into public **Service PDP** and **Seller Profile** pages
+
+---
+
+### 5.3 Admin Users (`/admin/users`)
 
 **Features:**
 - User list with search (name, email, username)
@@ -847,7 +889,7 @@ The platform has **41 pages** organized into 5 groups, backed by **12 API route 
 
 ---
 
-### 5.3 Admin KYC (`/admin/kyc`)
+### 5.4 Admin KYC (`/admin/kyc`)
 
 **Features:**
 - List of sellers pending KYC verification
@@ -864,7 +906,7 @@ The platform has **41 pages** organized into 5 groups, backed by **12 API route 
 
 ---
 
-### 5.4 Admin Services (`/admin/services`)
+### 5.5 Admin Services (`/admin/services`)
 
 **Features:**
 - Service list with search and status filter (All, Active, Inactive)
@@ -883,7 +925,7 @@ The platform has **41 pages** organized into 5 groups, backed by **12 API route 
 
 ---
 
-### 5.5 Admin Courses (`/admin/courses`)
+### 5.6 Admin Courses (`/admin/courses`)
 
 **Features:**
 - Course list with search and status filter (All, Published, Draft, Archived)
@@ -902,7 +944,7 @@ The platform has **41 pages** organized into 5 groups, backed by **12 API route 
 
 ---
 
-### 5.6 Admin Analytics (`/admin/analytics`)
+### 5.7 Admin Analytics (`/admin/analytics`)
 
 **Features:**
 - Platform KPIs: Users, Sellers, Orders, GMV, Platform Revenue, Seller Payouts, Services, Courses, Enrollments, Conversations, Conversion Rate
@@ -921,7 +963,7 @@ The platform has **41 pages** organized into 5 groups, backed by **12 API route 
 
 ---
 
-### 5.7 Admin Inbox (`/admin/inbox`)
+### 5.8 Admin Inbox (`/admin/inbox`)
 
 **Features:**
 - Conversation list with search and flagged filter
@@ -942,7 +984,7 @@ The platform has **41 pages** organized into 5 groups, backed by **12 API route 
 
 ---
 
-### 5.8 Fees & Calculations (`/admin/fees`)
+### 5.9 Fees & Calculations (`/admin/fees`)
 
 **Features:**
 - Active fee policy display (buyer %, seller %, course %, gateway fees)
@@ -967,7 +1009,7 @@ The platform has **41 pages** organized into 5 groups, backed by **12 API route 
 
 ---
 
-### 5.9 Configuration (`/admin/configuration`)
+### 5.10 Configuration (`/admin/configuration`)
 
 **Features:**
 - Configuration categories:

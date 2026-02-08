@@ -144,7 +144,7 @@ npm run dev:web   # Frontend on http://localhost:5173
 │           │   ├── auth/        # Login, Register, Password Reset
 │           │   ├── dashboard/   # Buyer dashboard, orders, messages
 │           │   ├── seller/      # Seller dashboard, services, courses, CRM, analytics
-│           │   └── admin/       # Admin dashboard, users, KYC, analytics, inbox
+│           │   └── admin/       # Admin dashboard, users, KYC, analytics, inbox, seller management
 │           └── stores/      # Zustand stores (auth, chat, etc.)
 ├── packages/
 │   ├── db/                  # Drizzle ORM schema (edge)
@@ -192,7 +192,7 @@ All API routes are prefixed with `/api/v1/`:
 | `/api/v1/conversations` | Messaging, custom offers, CRM pipeline, labels |
 | `/api/v1/payments` | PayFast & OZOW payment initiation |
 | `/api/v1/uploads` | Image and file uploads |
-| `/api/v1/admin` | Dashboard stats, user management, KYC, analytics, inbox, payouts, disputes |
+| `/api/v1/admin` | Dashboard stats, user management, KYC, analytics, inbox, payouts, disputes, seller management |
 | `/webhooks` | PayFast and OZOW payment notifications (no auth) |
 | `/health` | Health check endpoint |
 
@@ -219,6 +219,12 @@ All API routes are prefixed with `/api/v1/`:
 
 ### For Admins
 - **Dashboard** with real-time platform KPIs (users, orders, revenue, disputes, payouts)
+- **Seller Management** page for creating and managing team seller accounts
+  - Create seller accounts with Pro or Free plan selection
+  - Switch between managed sellers to view their analytics, orders, conversations, services, and reviews
+  - Create buyer users for seeding marketing reviews on seller profiles
+  - Add reviews with simulated completed orders for trust-building during startup
+  - Manually adjust seller analytics, KPIs, income, rating, level, and metrics for demo/marketing purposes
 - **User Management** with search, filtering, suspend/unsuspend
 - **KYC Verification** for approving or rejecting seller identity documents
 - **Service Management** to activate/deactivate services platform-wide
