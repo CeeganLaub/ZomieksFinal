@@ -111,6 +111,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const newMap = new Map(state.conversationMap);
       const existing = newMap.get(message.conversationId);
 
+      let updatedConversations = state.conversations;
+
       if (existing) {
         const updated = {
           ...existing,
@@ -118,14 +120,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
           lastMessageAt: message.createdAt,
         };
         newMap.set(message.conversationId, updated);
-      }
 
-      // Rebuild ordered list: move updated conversation to front
-      const updatedConversations = Array.from(newMap.values());
-      const idx = updatedConversations.findIndex(c => c.id === message.conversationId);
-      if (idx > 0) {
-        const [moved] = updatedConversations.splice(idx, 1);
-        updatedConversations.unshift(moved);
+        // Update the array in-place: find, remove, and prepend
+        const idx = updatedConversations.findIndex(c => c.id === message.conversationId);
+        if (idx >= 0) {
+          updatedConversations = [
+            updated,
+            ...updatedConversations.slice(0, idx),
+            ...updatedConversations.slice(idx + 1),
+          ];
+        }
       }
 
       return {
