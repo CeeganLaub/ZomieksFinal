@@ -27,7 +27,7 @@ export default function CoursePlayerPage() {
   const queryClient = useQueryClient();
 
   const [activeLessonId, setActiveLessonId] = useState<string | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen] = useState(true);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['course-learn', slug],

@@ -1,18 +1,13 @@
 import { z } from 'zod';
 import { 
-  ORDER_STATUS, 
-  ESCROW_STATUS, 
-  SUBSCRIPTION_STATUS, 
   BILLING_INTERVAL,
   CONVERSATION_STATUS,
   MESSAGE_TYPE,
-  USER_ROLE,
   PRIORITY,
   PAYMENT_GATEWAY,
   PRICING_TYPE,
   PACKAGE_TIER,
   COURSE_LEVEL,
-  COURSE_STATUS,
 } from '../constants/index.js';
 
 // ============ Auth Schemas ============

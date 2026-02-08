@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { useChatStore } from '../../stores/chat.store';
 import { useAuthStore } from '../../stores/auth.store';
 import { api } from '../../lib/api';
@@ -49,7 +49,6 @@ interface Message {
 
 export default function ConversationPage() {
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
   const { user } = useAuthStore();
   const { activeConversation, messages, fetchConversation, sendMessage, isLoading } = useChatStore();
   const [newMessage, setNewMessage] = useState('');

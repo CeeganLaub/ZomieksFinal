@@ -12,8 +12,6 @@ import {
   PlusIcon,
   TrashIcon,
   PlayIcon,
-  ChevronUpIcon,
-  ChevronDownIcon,
   AcademicCapIcon,
 } from '@heroicons/react/24/outline';
 
@@ -55,7 +53,7 @@ export default function CreateCoursePage() {
   const [learnings, setLearnings] = useState<string[]>(['']);
   const [requirements, setRequirements] = useState<string[]>(['']);
 
-  const { register, handleSubmit, formState: { errors }, watch } = useForm<CourseForm>({
+  const { register, handleSubmit, formState: { errors } } = useForm<CourseForm>({
     defaultValues: {
       level: 'ALL_LEVELS',
       language: 'English',
