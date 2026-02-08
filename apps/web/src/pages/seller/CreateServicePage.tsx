@@ -27,6 +27,7 @@ const serviceSchema = z.object({
   pricingType: z.enum(['ONE_TIME', 'SUBSCRIPTION', 'BOTH']),
   tags: z.array(z.string()).min(1, 'Add at least one tag').max(5),
   images: z.array(z.string().url()).min(1, 'Add at least one image'),
+  video: z.string().url().optional().or(z.literal('')),
   faqs: z.array(z.object({
     question: z.string(),
     answer: z.string(),
@@ -99,6 +100,7 @@ export default function CreateServicePage() {
         pricingType: data.pricingType,
         tags: data.tags,
         images: data.images,
+        video: data.video || undefined,
         faqs: data.faqs,
       });
       
@@ -285,7 +287,7 @@ export default function CreateServicePage() {
             <div>
               <label className="block text-sm font-medium mb-2">Video URL (optional)</label>
               <input
-                {...register('video' as any)}
+                {...register('video')}
                 className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 placeholder="https://youtube.com/... or direct video URL"
               />
