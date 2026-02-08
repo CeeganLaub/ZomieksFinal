@@ -52,6 +52,8 @@ export default function CreateCoursePage() {
   const [sections, setSections] = useState<Section[]>([]);
   const [learnings, setLearnings] = useState<string[]>(['']);
   const [requirements, setRequirements] = useState<string[]>(['']);
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState('');
 
   const { register, handleSubmit, formState: { errors } } = useForm<CourseForm>({
     defaultValues: {
@@ -72,6 +74,7 @@ export default function CreateCoursePage() {
     mutationFn: (data: CourseForm) => coursesApi.createCourse({
       ...data,
       price: Number(data.price),
+      tags: tags.filter(Boolean),
       learnings: learnings.filter(Boolean),
       requirements: requirements.filter(Boolean),
     }),
@@ -246,6 +249,48 @@ export default function CreateCoursePage() {
                 placeholder="https://..."
                 {...register('promoVideo')}
               />
+
+              {/* Tags */}
+              <div>
+                <label className="block text-sm font-medium mb-2">Tags ({tags.length}/5)</label>
+                <div className="flex gap-2 mb-2 flex-wrap">
+                  {tags.map((tag, i) => (
+                    <span key={i} className="bg-gray-100 px-3 py-1 rounded-full text-sm flex items-center gap-2">
+                      {tag}
+                      <button type="button" onClick={() => setTags(tags.filter((_, j) => j !== i))} className="text-gray-500 hover:text-red-500">×</button>
+                    </span>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    value={tagInput}
+                    onChange={(e) => setTagInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (tagInput.trim() && tags.length < 5 && !tags.includes(tagInput.trim())) {
+                          setTags([...tags, tagInput.trim()]);
+                          setTagInput('');
+                        }
+                      }
+                    }}
+                    placeholder="Add a tag and press Enter"
+                    className="flex-1 h-10 px-3 border rounded-md bg-background text-sm"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      if (tagInput.trim() && tags.length < 5 && !tags.includes(tagInput.trim())) {
+                        setTags([...tags, tagInput.trim()]);
+                        setTagInput('');
+                      }
+                    }}
+                  >
+                    Add
+                  </Button>
+                </div>
+              </div>
 
               {/* What you'll learn */}
               <div>

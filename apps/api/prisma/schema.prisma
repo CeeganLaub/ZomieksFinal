@@ -1236,6 +1236,7 @@ model Course {
 
   // Status
   status       CourseStatus @default(DRAFT)
+  isFeatured   Boolean     @default(false)
   publishedAt  DateTime?
 
   // Requirements & what you'll learn

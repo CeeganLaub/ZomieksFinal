@@ -104,10 +104,10 @@ export default function CreateServicePage() {
       
       const serviceId = serviceRes.data.data.service.id;
       
-      // Then add packages
-      for (const pkg of data.packages) {
-        await api.post(`/services/${serviceId}/packages`, pkg);
-      }
+      // Add packages in parallel
+      await Promise.all(
+        data.packages.map(pkg => api.post(`/services/${serviceId}/packages`, pkg))
+      );
       
       return serviceRes.data.data.service;
     },
@@ -280,6 +280,16 @@ export default function CreateServicePage() {
               {errors.images && (
                 <p className="text-red-500 text-sm mt-1">{errors.images.message}</p>
               )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Video URL (optional)</label>
+              <input
+                {...register('video' as any)}
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                placeholder="https://youtube.com/... or direct video URL"
+              />
+              <p className="text-xs text-muted-foreground mt-1">Add a video to showcase your service</p>
             </div>
 
             <div className="flex justify-end">

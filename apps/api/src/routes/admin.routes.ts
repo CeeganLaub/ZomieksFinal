@@ -621,6 +621,7 @@ router.get('/services', async (req, res, next) => {
     }
     if (status === 'active') where.isActive = true;
     if (status === 'inactive') where.isActive = false;
+    if (status === 'pending_review') where.status = 'PENDING_REVIEW';
 
     const pageNum = Math.max(1, parseInt(page as string) || 1);
     const limitNum = Math.min(100, Math.max(1, parseInt(limit as string) || 20));
@@ -665,11 +666,16 @@ router.get('/services', async (req, res, next) => {
 
 router.patch('/services/:id', async (req, res, next) => {
   try {
-    const { isActive } = req.body;
+    const { isActive, status } = req.body;
+    const data: any = {};
+    if (isActive !== undefined) data.isActive = isActive;
+    if (status && ['ACTIVE', 'REJECTED', 'PAUSED', 'PENDING_REVIEW'].includes(status)) {
+      data.status = status;
+    }
 
     const service = await prisma.service.update({
       where: { id: req.params.id },
-      data: { isActive },
+      data,
     });
 
     res.json({ success: true, data: { service } });
@@ -732,18 +738,24 @@ router.get('/courses', async (req, res, next) => {
 
 router.patch('/courses/:id', async (req, res, next) => {
   try {
-    const { status } = req.body;
+    const { status, isFeatured } = req.body;
+    const data: any = {};
 
-    if (status && !['PUBLISHED', 'DRAFT', 'ARCHIVED'].includes(status)) {
-      return res.status(400).json({
-        success: false,
-        error: { code: 'INVALID_STATUS', message: 'Status must be PUBLISHED, DRAFT, or ARCHIVED' },
-      });
+    if (status) {
+      if (!['PUBLISHED', 'DRAFT', 'ARCHIVED'].includes(status)) {
+        return res.status(400).json({
+          success: false,
+          error: { code: 'INVALID_STATUS', message: 'Status must be PUBLISHED, DRAFT, or ARCHIVED' },
+        });
+      }
+      data.status = status;
     }
+
+    if (isFeatured !== undefined) data.isFeatured = isFeatured;
 
     const course = await prisma.course.update({
       where: { id: req.params.id },
-      data: { status },
+      data,
     });
 
     res.json({ success: true, data: { course } });
