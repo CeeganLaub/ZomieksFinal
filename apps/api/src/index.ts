@@ -174,6 +174,17 @@ import('@/lib/queue.js').then(({ notificationQueue }) => {
   ).catch(err => logger.error('Failed to schedule CRM inactivity check:', err));
 });
 
+// Schedule expired refresh token cleanup (daily at 3 AM)
+import('@/lib/queue.js').then(({ notificationQueue }) => {
+  notificationQueue.add(
+    'cleanup-expired-tokens',
+    {},
+    {
+      repeat: { pattern: '0 3 * * *' }, // Daily at 3 AM
+    }
+  ).catch(err => logger.error('Failed to schedule token cleanup:', err));
+});
+
 // Graceful shutdown
 const SHUTDOWN_TIMEOUT_MS = 10000;
 

@@ -59,6 +59,16 @@ export const notificationWorker = new Worker(
       await checkInactiveConversations();
       return { checked: true };
     }
+
+    // Handle expired refresh token cleanup
+    if (job.name === 'cleanup-expired-tokens') {
+      logger.info('Cleaning up expired refresh tokens');
+      const { count } = await prisma.refreshToken.deleteMany({
+        where: { expiresAt: { lt: new Date() } },
+      });
+      logger.info(`Deleted ${count} expired refresh tokens`);
+      return { deleted: count };
+    }
     
     // Handle auto-trigger execution
     if (job.name === 'auto-trigger') {

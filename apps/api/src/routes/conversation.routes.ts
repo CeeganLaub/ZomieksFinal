@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma.js';
 import { validate } from '@/middleware/validate.js';
 import { processAutoTriggers } from '@/services/crm.service.js';
 import { notificationQueue } from '@/lib/queue.js';
+import { logger } from '@/lib/logger.js';
 import { 
   sendMessageSchema, 
   createConversationSchema,
@@ -319,7 +320,7 @@ router.post(
       processAutoTriggers(sellerId, 'NEW_CONVERSATION', {
         conversationId: conversation!.id,
         messageContent: initialMessage,
-      }).catch(console.error);
+      }).catch(err => logger.error('Auto-trigger failed:', err));
 
       res.status(201).json({
         success: true,
@@ -392,7 +393,7 @@ router.patch(
           conversationId: conversation.id,
           newStageId: updateData.pipelineStageId,
           oldStageId: conversation.pipelineStageId || undefined,
-        }).catch(console.error);
+        }).catch(err => logger.error('Auto-trigger failed:', err));
       }
 
       res.json({ success: true, data: { conversation: updated } });

@@ -27,7 +27,7 @@ export const errorHandler = (
     stack: err.stack,
     method: req.method,
     path: req.path,
-    userId: (req as any).user?.id,
+    userId: req.user?.id,
   });
 
   // Zod validation error

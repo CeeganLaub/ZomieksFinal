@@ -6,6 +6,8 @@ import { redis } from '@/lib/redis.js';
 import { AppError } from '@/middleware/error-handler.js';
 import type { Role } from '@prisma/client';
 
+const AUTH_CACHE_TTL = 300; // 5 minutes
+
 export interface AuthUser {
   id: string;
   email: string;
@@ -55,29 +57,45 @@ export const authenticate = async (
       throw new AppError(401, 'SESSION_INVALIDATED', 'Session has been invalidated. Please login again.');
     }
     
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
-      include: { roles: true },
-    });
-    
-    if (!user) {
-      throw new AppError(401, 'USER_NOT_FOUND', 'User no longer exists');
+    // Check Redis cache first, then fall back to DB
+    const cacheKey = `auth:user:${decoded.userId}`;
+    let authUser: AuthUser | null = null;
+
+    const cached = await redis.get(cacheKey);
+    if (cached) {
+      authUser = JSON.parse(cached);
+    }
+
+    if (!authUser) {
+      const user = await prisma.user.findUnique({
+        where: { id: decoded.userId },
+        include: { roles: true },
+      });
+      
+      if (!user) {
+        throw new AppError(401, 'USER_NOT_FOUND', 'User no longer exists');
+      }
+      
+      if (user.isSuspended) {
+        throw new AppError(403, 'ACCOUNT_SUSPENDED', 'Your account has been suspended');
+      }
+      
+      authUser = {
+        id: user.id,
+        email: user.email,
+        username: user.username,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        isSeller: user.isSeller,
+        isAdmin: user.isAdmin,
+        roles: user.roles.map(r => r.role),
+      };
+
+      // Cache for subsequent requests
+      await redis.setex(cacheKey, AUTH_CACHE_TTL, JSON.stringify(authUser));
     }
     
-    if (user.isSuspended) {
-      throw new AppError(403, 'ACCOUNT_SUSPENDED', 'Your account has been suspended');
-    }
-    
-    req.user = {
-      id: user.id,
-      email: user.email,
-      username: user.username,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      isSeller: user.isSeller,
-      isAdmin: user.isAdmin,
-      roles: user.roles.map(r => r.role),
-    };
+    req.user = authUser;
     
     next();
   } catch (error) {

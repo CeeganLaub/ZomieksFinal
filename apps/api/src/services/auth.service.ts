@@ -184,6 +184,9 @@ export const authService = {
     
     // Invalidate all access tokens via Redis blacklist
     await redis.setex(`blacklist:user:${userId}`, 900, '1'); // 15 min (access token lifetime)
+    
+    // Invalidate cached auth user
+    await redis.del(`auth:user:${userId}`);
   },
 
   async generateTokens(userId: string) {

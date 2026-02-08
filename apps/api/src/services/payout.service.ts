@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma.js';
 import { payoutQueue } from '@/lib/queue.js';
+import { logger } from '@/lib/logger.js';
 import { sendNotification } from './notification.service.js';
 
 // Process weekly payouts
@@ -67,7 +68,7 @@ export async function processWeeklyPayouts(): Promise<void> {
         data: { payoutId: payout.id, amount: Number(payout.amount) },
       });
     } catch (error) {
-      console.error(`Payout ${payout.id} failed:`, error);
+      logger.error(`Payout ${payout.id} failed:`, error);
 
       await prisma.sellerPayout.update({
         where: { id: payout.id },
