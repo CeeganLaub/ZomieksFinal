@@ -465,7 +465,7 @@ export const uploadsApi = {
   
   uploadAvatar: async (file: File) => {
     const token = getAuthToken();
-    const response = await fetch(`${API_URL}/uploads/avatar`, {
+    const response = await fetch(`${API_URL}/api/v1/uploads/avatar`, {
       method: 'POST',
       headers: {
         'Content-Type': file.type,

@@ -182,8 +182,23 @@ export const authService = {
       where: { userId },
     });
     
+    // Parse JWT_ACCESS_EXPIRES_IN for blacklist TTL
+    let blacklistTtl = 900; // Default 15 min
+    const accessExpiresIn = env.JWT_ACCESS_EXPIRES_IN;
+    const match = accessExpiresIn.match(/^(\d+)([smhd])$/);
+    if (match) {
+      const value = parseInt(match[1], 10);
+      const unit = match[2];
+      switch (unit) {
+        case 's': blacklistTtl = value; break;
+        case 'm': blacklistTtl = value * 60; break;
+        case 'h': blacklistTtl = value * 3600; break;
+        case 'd': blacklistTtl = value * 86400; break;
+      }
+    }
+    
     // Invalidate all access tokens via Redis blacklist
-    await redis.setex(`blacklist:user:${userId}`, 900, '1'); // 15 min (access token lifetime)
+    await redis.setex(`blacklist:user:${userId}`, blacklistTtl, '1');
     
     // Invalidate cached auth user
     await redis.del(`auth:user:${userId}`);
@@ -202,9 +217,23 @@ export const authService = {
       { expiresIn: env.JWT_REFRESH_EXPIRES_IN } as jwt.SignOptions
     );
     
-    // Store refresh token
+    // Parse JWT_REFRESH_EXPIRES_IN to compute database expiry
     const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7);
+    const expiresIn = env.JWT_REFRESH_EXPIRES_IN;
+    const match = expiresIn.match(/^(\d+)([smhd])$/);
+    if (match) {
+      const value = parseInt(match[1], 10);
+      const unit = match[2];
+      switch (unit) {
+        case 's': expiresAt.setSeconds(expiresAt.getSeconds() + value); break;
+        case 'm': expiresAt.setMinutes(expiresAt.getMinutes() + value); break;
+        case 'h': expiresAt.setHours(expiresAt.getHours() + value); break;
+        case 'd': expiresAt.setDate(expiresAt.getDate() + value); break;
+      }
+    } else {
+      // Fallback: 7 days
+      expiresAt.setDate(expiresAt.getDate() + 7);
+    }
     
     await prisma.refreshToken.create({
       data: {
