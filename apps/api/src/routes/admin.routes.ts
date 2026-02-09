@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma.js';
 import { redis } from '@/lib/redis.js';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
+import bcrypt from 'bcryptjs';
 import { calculateServiceRefund } from '@zomieks/shared';
 import { processOrderRefund, releaseOrderEscrow } from '@/services/escrow.service.js';
 import { sendNotification } from '@/services/notification.service.js';
@@ -18,6 +19,20 @@ const categorySchema = z.object({
   parentId: z.string().optional().nullable(),
   order: z.number().int().min(0).optional(),
 });
+
+// Admin-created subscriptions last 10 years (effectively permanent)
+const ADMIN_SUBSCRIPTION_YEARS = 10;
+
+function createAdminSubscriptionPeriod() {
+  const now = new Date();
+  const periodEnd = new Date(now);
+  periodEnd.setFullYear(periodEnd.getFullYear() + ADMIN_SUBSCRIPTION_YEARS);
+  return { now, periodEnd };
+}
+
+function generateOrderNumber() {
+  return `ZK-${Date.now()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+}
 
 const router = Router();
 
@@ -1042,6 +1057,627 @@ router.post('/conversations/:id/unflag', async (req, res, next) => {
     });
 
     res.json({ success: true, data: { conversation } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ============ ADMIN SELLER MANAGEMENT ============
+
+const createSellerSchema = z.object({
+  email: z.string().email(),
+  username: z.string().min(3).max(30).regex(/^[a-z0-9_-]+$/),
+  password: z.string().min(6),
+  firstName: z.string().min(1),
+  lastName: z.string().min(1),
+  displayName: z.string().min(1),
+  professionalTitle: z.string().min(1),
+  description: z.string().min(1),
+  skills: z.array(z.string()).default([]),
+  plan: z.enum(['free', 'pro']),
+  country: z.string().default('South Africa'),
+});
+
+// Create seller account
+router.post('/sellers/create', validate(createSellerSchema), async (req, res, next) => {
+  try {
+    const { email, username, password, firstName, lastName, displayName, professionalTitle, description, skills, plan, country } = req.body;
+
+    const existing = await prisma.user.findFirst({
+      where: { OR: [{ email: email.toLowerCase() }, { username: username.toLowerCase() }] },
+    });
+    if (existing) {
+      return res.status(409).json({ success: false, error: { code: 'EXISTS', message: 'Email or username already taken' } });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12);
+
+    const user = await prisma.user.create({
+      data: {
+        email: email.toLowerCase(),
+        username: username.toLowerCase(),
+        passwordHash,
+        firstName,
+        lastName,
+        country,
+        isSeller: true,
+        isEmailVerified: true,
+        isAdminCreated: true,
+        roles: { create: [{ role: 'BUYER' }, { role: 'SELLER' }] },
+        sellerProfile: {
+          create: {
+            displayName,
+            professionalTitle,
+            description,
+            skills,
+            languages: [{ language: 'English', proficiency: 'Native' }],
+            kycStatus: 'VERIFIED',
+            isVerified: true,
+            verifiedAt: new Date(),
+            sellerFeePaid: true,
+            sellerFeePaidAt: new Date(),
+          },
+        },
+      },
+      include: { sellerProfile: true, roles: true },
+    });
+
+    // Create subscription if pro plan
+    if (plan === 'pro' && user.sellerProfile) {
+      const { now, periodEnd } = createAdminSubscriptionPeriod();
+
+      await prisma.sellerSubscription.create({
+        data: {
+          sellerProfileId: user.sellerProfile.id,
+          status: 'ACTIVE',
+          currentPeriodStart: now,
+          currentPeriodEnd: periodEnd,
+          nextBillingDate: periodEnd,
+        },
+      });
+    }
+
+    // Create default pipeline stages
+    const defaultStages = [
+      { name: 'New Lead', order: 0, color: '#3B82F6' },
+      { name: 'Contacted', order: 1, color: '#F59E0B' },
+      { name: 'Proposal Sent', order: 2, color: '#8B5CF6' },
+      { name: 'Won', order: 3, color: '#10B981' },
+      { name: 'Lost', order: 4, color: '#EF4444' },
+    ];
+    await prisma.pipelineStage.createMany({
+      data: defaultStages.map((s) => ({ ...s, userId: user.id })),
+    });
+
+    const fullUser = await prisma.user.findUnique({
+      where: { id: user.id },
+      include: {
+        sellerProfile: { include: { subscription: true } },
+        roles: true,
+        _count: { select: { sellerOrders: true, services: true } },
+      },
+    });
+
+    res.status(201).json({ success: true, data: { seller: fullUser } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// List admin-created sellers
+router.get('/sellers/managed', async (req, res, next) => {
+  try {
+    const { search, page = '1', limit = '20' } = req.query;
+
+    const where: Prisma.UserWhereInput = {
+      isAdminCreated: true,
+      isSeller: true,
+    };
+
+    if (search) {
+      where.OR = [
+        { email: { contains: search as string, mode: 'insensitive' } },
+        { username: { contains: search as string, mode: 'insensitive' } },
+        { firstName: { contains: search as string, mode: 'insensitive' } },
+        { sellerProfile: { displayName: { contains: search as string, mode: 'insensitive' } } },
+      ];
+    }
+
+    const pageNum = Math.max(1, parseInt(page as string) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit as string) || 20));
+
+    const [sellers, total] = await Promise.all([
+      prisma.user.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (pageNum - 1) * limitNum,
+        take: limitNum,
+        include: {
+          sellerProfile: { include: { subscription: true } },
+          _count: { select: { sellerOrders: true, services: true, receivedReviews: true } },
+        },
+      }),
+      prisma.user.count({ where }),
+    ]);
+
+    res.json({
+      success: true,
+      data: { sellers },
+      meta: { page: pageNum, limit: limitNum, total, totalPages: Math.ceil(total / limitNum) },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get admin-created seller details (full dashboard data)
+router.get('/sellers/managed/:id', async (req, res, next) => {
+  try {
+    const seller = await prisma.user.findUnique({
+      where: { id: req.params.id },
+      include: {
+        sellerProfile: { include: { subscription: true, courses: true } },
+        services: {
+          include: {
+            category: { select: { name: true } },
+            packages: true,
+            _count: { select: { reviews: true, orders: true } },
+          },
+        },
+        sellerOrders: {
+          orderBy: { createdAt: 'desc' },
+          take: 20,
+          include: {
+            buyer: { select: { username: true, firstName: true, lastName: true } },
+            service: { select: { title: true } },
+          },
+        },
+        sellerConversations: {
+          orderBy: { lastMessageAt: 'desc' },
+          take: 20,
+          include: {
+            buyer: { select: { id: true, username: true, firstName: true, avatar: true } },
+            messages: { orderBy: { createdAt: 'desc' }, take: 1 },
+            _count: { select: { messages: true } },
+          },
+        },
+        receivedReviews: {
+          orderBy: { createdAt: 'desc' },
+          include: {
+            author: { select: { username: true, firstName: true, lastName: true, avatar: true } },
+            service: { select: { title: true } },
+          },
+        },
+        roles: true,
+        bankDetails: true,
+      },
+    });
+
+    if (!seller) {
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Seller not found' } });
+    }
+
+    // Get seller metrics
+    const metrics = await prisma.sellerMetrics.findMany({
+      where: { userId: seller.id },
+      orderBy: { date: 'desc' },
+      take: 30,
+    });
+
+    res.json({ success: true, data: { seller, metrics } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Update seller plan (switch between free/pro)
+router.patch('/sellers/managed/:id/plan', async (req, res, next) => {
+  try {
+    const { plan } = req.body; // 'free' or 'pro'
+
+    const seller = await prisma.user.findUnique({
+      where: { id: req.params.id },
+      include: { sellerProfile: { include: { subscription: true } } },
+    });
+
+    if (!seller?.sellerProfile) {
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Seller not found' } });
+    }
+
+    if (plan === 'pro') {
+      if (!seller.sellerProfile.subscription) {
+        const { now, periodEnd } = createAdminSubscriptionPeriod();
+        await prisma.sellerSubscription.create({
+          data: {
+            sellerProfileId: seller.sellerProfile.id,
+            status: 'ACTIVE',
+            currentPeriodStart: now,
+            currentPeriodEnd: periodEnd,
+            nextBillingDate: periodEnd,
+          },
+        });
+      } else {
+        await prisma.sellerSubscription.update({
+          where: { id: seller.sellerProfile.subscription.id },
+          data: { status: 'ACTIVE' },
+        });
+      }
+    } else if (plan === 'free' && seller.sellerProfile.subscription) {
+      await prisma.sellerSubscription.update({
+        where: { id: seller.sellerProfile.subscription.id },
+        data: { status: 'CANCELLED', cancelledAt: new Date() },
+      });
+    }
+
+    const updated = await prisma.user.findUnique({
+      where: { id: req.params.id },
+      include: { sellerProfile: { include: { subscription: true } } },
+    });
+
+    res.json({ success: true, data: { seller: updated } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Update seller profile (admin override)
+router.patch('/sellers/managed/:id/profile', async (req, res, next) => {
+  try {
+    const {
+      displayName, professionalTitle, description, skills,
+      rating, reviewCount, completedOrders, responseTimeMinutes,
+      onTimeDeliveryRate, level, isAvailable,
+    } = req.body;
+
+    const seller = await prisma.user.findUnique({
+      where: { id: req.params.id },
+      include: { sellerProfile: true },
+    });
+
+    if (!seller?.sellerProfile) {
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Seller not found' } });
+    }
+
+    const data: any = {};
+    if (displayName !== undefined) data.displayName = displayName;
+    if (professionalTitle !== undefined) data.professionalTitle = professionalTitle;
+    if (description !== undefined) data.description = description;
+    if (skills !== undefined) data.skills = skills;
+    if (rating !== undefined) data.rating = rating;
+    if (reviewCount !== undefined) data.reviewCount = reviewCount;
+    if (completedOrders !== undefined) data.completedOrders = completedOrders;
+    if (responseTimeMinutes !== undefined) data.responseTimeMinutes = responseTimeMinutes;
+    if (onTimeDeliveryRate !== undefined) data.onTimeDeliveryRate = onTimeDeliveryRate;
+    if (level !== undefined) data.level = level;
+    if (isAvailable !== undefined) data.isAvailable = isAvailable;
+
+    const profile = await prisma.sellerProfile.update({
+      where: { userId: req.params.id },
+      data,
+    });
+
+    res.json({ success: true, data: { profile } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ============ ADMIN USER CREATION (for reviews) ============
+
+const createUserSchema = z.object({
+  email: z.string().email(),
+  username: z.string().min(3).max(30).regex(/^[a-z0-9_-]+$/),
+  password: z.string().min(6),
+  firstName: z.string().min(1),
+  lastName: z.string().min(1),
+  country: z.string().default('South Africa'),
+  avatar: z.string().optional(),
+});
+
+// Create user account (buyer) for admin
+router.post('/users/create', validate(createUserSchema), async (req, res, next) => {
+  try {
+    const { email, username, password, firstName, lastName, country, avatar } = req.body;
+
+    const existing = await prisma.user.findFirst({
+      where: { OR: [{ email: email.toLowerCase() }, { username: username.toLowerCase() }] },
+    });
+    if (existing) {
+      return res.status(409).json({ success: false, error: { code: 'EXISTS', message: 'Email or username already taken' } });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12);
+
+    const user = await prisma.user.create({
+      data: {
+        email: email.toLowerCase(),
+        username: username.toLowerCase(),
+        passwordHash,
+        firstName,
+        lastName,
+        country,
+        avatar: avatar || null,
+        isEmailVerified: true,
+        isAdminCreated: true,
+        roles: { create: [{ role: 'BUYER' }] },
+      },
+      include: { roles: true },
+    });
+
+    res.status(201).json({ success: true, data: { user } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// List admin-created users (buyers)
+router.get('/users/managed', async (req, res, next) => {
+  try {
+    const { search, page = '1', limit = '50' } = req.query;
+
+    const where: Prisma.UserWhereInput = {
+      isAdminCreated: true,
+      isSeller: false,
+    };
+
+    if (search) {
+      where.OR = [
+        { email: { contains: search as string, mode: 'insensitive' } },
+        { username: { contains: search as string, mode: 'insensitive' } },
+        { firstName: { contains: search as string, mode: 'insensitive' } },
+      ];
+    }
+
+    const pageNum = Math.max(1, parseInt(page as string) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit as string) || 50));
+
+    const [users, total] = await Promise.all([
+      prisma.user.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (pageNum - 1) * limitNum,
+        take: limitNum,
+        select: {
+          id: true,
+          email: true,
+          username: true,
+          firstName: true,
+          lastName: true,
+          avatar: true,
+          createdAt: true,
+          _count: { select: { reviews: true } },
+        },
+      }),
+      prisma.user.count({ where }),
+    ]);
+
+    res.json({
+      success: true,
+      data: { users },
+      meta: { page: pageNum, limit: limitNum, total, totalPages: Math.ceil(total / limitNum) },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ============ ADMIN REVIEW CREATION ============
+
+const createReviewSchema = z.object({
+  authorId: z.string().min(1),
+  serviceId: z.string().min(1),
+  sellerId: z.string().min(1),
+  rating: z.number().int().min(1).max(5),
+  comment: z.string().min(1),
+  communicationRating: z.number().int().min(1).max(5).optional(),
+  qualityRating: z.number().int().min(1).max(5).optional(),
+  valueRating: z.number().int().min(1).max(5).optional(),
+});
+
+// Create review (simulated order + review for marketing)
+router.post('/reviews/create', validate(createReviewSchema), async (req, res, next) => {
+  try {
+    const { authorId, serviceId, sellerId, rating, comment, communicationRating, qualityRating, valueRating } = req.body;
+
+    // Verify author and seller exist
+    const [author, seller, service] = await Promise.all([
+      prisma.user.findUnique({ where: { id: authorId } }),
+      prisma.user.findUnique({ where: { id: sellerId } }),
+      prisma.service.findUnique({ where: { id: serviceId }, include: { packages: { where: { tier: 'BASIC' }, take: 1 } } }),
+    ]);
+
+    if (!author || !seller || !service) {
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Author, seller, or service not found' } });
+    }
+
+    const baseAmount = service.packages[0]?.price ? Number(service.packages[0].price) : 100;
+    const buyerFee = Math.round(baseAmount * 0.03 * 100) / 100;
+    const sellerFee = Math.round(baseAmount * 0.08 * 100) / 100;
+
+    // Create a simulated completed order
+    const orderNumber = generateOrderNumber();
+    const order = await prisma.order.create({
+      data: {
+        orderNumber,
+        buyerId: authorId,
+        sellerId,
+        serviceId,
+        packageId: service.packages[0]?.id || null,
+        baseAmount,
+        buyerFee,
+        totalAmount: baseAmount + buyerFee,
+        sellerFee,
+        sellerPayout: baseAmount - sellerFee,
+        platformRevenue: buyerFee + sellerFee,
+        status: 'COMPLETED',
+        deliveryDays: 3,
+        paidAt: new Date(),
+        startedAt: new Date(),
+        completedAt: new Date(),
+      },
+    });
+
+    // Create the review
+    const review = await prisma.review.create({
+      data: {
+        orderId: order.id,
+        serviceId,
+        authorId,
+        recipientId: sellerId,
+        rating,
+        comment,
+        communicationRating,
+        qualityRating,
+        valueRating,
+        isPublic: true,
+      },
+      include: {
+        author: { select: { username: true, firstName: true, lastName: true, avatar: true } },
+        service: { select: { title: true } },
+      },
+    });
+
+    // Update service and seller profile review stats
+    const serviceReviews = await prisma.review.findMany({
+      where: { serviceId },
+      select: { rating: true },
+    });
+    const avgServiceRating = serviceReviews.reduce((sum, r) => sum + r.rating, 0) / serviceReviews.length;
+
+    await prisma.service.update({
+      where: { id: serviceId },
+      data: {
+        rating: Math.round(avgServiceRating * 100) / 100,
+        reviewCount: serviceReviews.length,
+        orderCount: { increment: 1 },
+      },
+    });
+
+    const sellerReviews = await prisma.review.findMany({
+      where: { recipientId: sellerId },
+      select: { rating: true },
+    });
+    const avgSellerRating = sellerReviews.reduce((sum, r) => sum + r.rating, 0) / sellerReviews.length;
+
+    await prisma.sellerProfile.update({
+      where: { userId: sellerId },
+      data: {
+        rating: Math.round(avgSellerRating * 100) / 100,
+        reviewCount: sellerReviews.length,
+        completedOrders: { increment: 1 },
+      },
+    });
+
+    res.status(201).json({ success: true, data: { review, order } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ============ ADMIN ANALYTICS OVERRIDE ============
+
+const overrideAnalyticsSchema = z.object({
+  date: z.string().optional(), // ISO date string
+  ordersReceived: z.number().int().optional(),
+  ordersCompleted: z.number().int().optional(),
+  ordersCancelled: z.number().int().optional(),
+  grossRevenue: z.number().optional(),
+  platformFees: z.number().optional(),
+  netRevenue: z.number().optional(),
+  avgDeliveryTimeHrs: z.number().int().optional(),
+  onTimeDeliveries: z.number().int().optional(),
+  lateDeliveries: z.number().int().optional(),
+  reviewsReceived: z.number().int().optional(),
+  avgRating: z.number().optional(),
+});
+
+// Override/set seller metrics
+router.post('/sellers/managed/:id/metrics', validate(overrideAnalyticsSchema), async (req, res, next) => {
+  try {
+    const userId = req.params.id as string;
+    const dateStr = req.body.date || new Date().toISOString().split('T')[0];
+    const date = new Date(dateStr);
+
+    const seller = await prisma.user.findUnique({ where: { id: userId, isSeller: true } });
+    if (!seller) {
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Seller not found' } });
+    }
+
+    const data: any = {
+      userId,
+      date,
+    };
+    const fields = [
+      'ordersReceived', 'ordersCompleted', 'ordersCancelled',
+      'grossRevenue', 'platformFees', 'netRevenue',
+      'avgDeliveryTimeHrs', 'onTimeDeliveries', 'lateDeliveries',
+      'reviewsReceived', 'avgRating',
+    ];
+    for (const field of fields) {
+      if (req.body[field] !== undefined) data[field] = req.body[field];
+    }
+
+    const metric = await prisma.sellerMetrics.upsert({
+      where: { userId_date: { userId, date } },
+      update: data,
+      create: data,
+    });
+
+    res.json({ success: true, data: { metric } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get seller metrics history
+router.get('/sellers/managed/:id/metrics', async (req, res, next) => {
+  try {
+    const { days = '30' } = req.query;
+    const since = new Date();
+    since.setDate(since.getDate() - parseInt(days as string));
+
+    const metrics = await prisma.sellerMetrics.findMany({
+      where: { userId: req.params.id, date: { gte: since } },
+      orderBy: { date: 'desc' },
+    });
+
+    res.json({ success: true, data: { metrics } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Bulk update seller profile stats for demo
+router.patch('/sellers/managed/:id/stats', async (req, res, next) => {
+  try {
+    const {
+      rating, reviewCount, completedOrders, responseTimeMinutes,
+      onTimeDeliveryRate, level,
+    } = req.body;
+
+    const seller = await prisma.user.findUnique({
+      where: { id: req.params.id },
+      include: { sellerProfile: true },
+    });
+
+    if (!seller?.sellerProfile) {
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Seller not found' } });
+    }
+
+    const data: any = {};
+    if (rating !== undefined) data.rating = rating;
+    if (reviewCount !== undefined) data.reviewCount = reviewCount;
+    if (completedOrders !== undefined) data.completedOrders = completedOrders;
+    if (responseTimeMinutes !== undefined) data.responseTimeMinutes = responseTimeMinutes;
+    if (onTimeDeliveryRate !== undefined) data.onTimeDeliveryRate = onTimeDeliveryRate;
+    if (level !== undefined) data.level = level;
+
+    const profile = await prisma.sellerProfile.update({
+      where: { userId: req.params.id },
+      data,
+    });
+
+    res.json({ success: true, data: { profile } });
   } catch (error) {
     next(error);
   }

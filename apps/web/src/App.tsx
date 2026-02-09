@@ -57,6 +57,7 @@ import AdminServicesPage from './pages/admin/AdminServicesPage';
 import AdminCoursesPage from './pages/admin/AdminCoursesPage';
 import AdminAnalyticsPage from './pages/admin/AdminAnalyticsPage';
 import AdminInboxPage from './pages/admin/AdminInboxPage';
+import AdminSellerManagementPage from './pages/admin/AdminSellerManagementPage';
 import FeesPage from './pages/admin/FeesPage';
 import ConfigurationPage from './pages/admin/ConfigurationPage';
 
@@ -142,6 +143,7 @@ function App() {
         <Route element={<AdminRoute><AdminLayout /></AdminRoute>}>
           <Route path="/admin" element={<AdminDashboardPage />} />
           <Route path="/admin/users" element={<AdminUsersPage />} />
+          <Route path="/admin/seller-management" element={<AdminSellerManagementPage />} />
           <Route path="/admin/kyc" element={<AdminKYCPage />} />
           <Route path="/admin/services" element={<AdminServicesPage />} />
           <Route path="/admin/courses" element={<AdminCoursesPage />} />

@@ -14,6 +14,7 @@ import {
   ShieldCheckIcon,
   AcademicCapIcon,
   ChatBubbleLeftRightIcon,
+  UserGroupIcon,
 } from '@heroicons/react/24/outline';
 import { cn } from '../lib/utils';
 
@@ -23,6 +24,7 @@ export default function AdminLayout() {
 
   const navItems = [
     { href: '/admin', label: 'Dashboard', icon: HomeIcon },
+    { href: '/admin/seller-management', label: 'Seller Management', icon: UserGroupIcon },
     { href: '/admin/users', label: 'Users', icon: UsersIcon },
     { href: '/admin/kyc', label: 'KYC Verifications', icon: ShieldCheckIcon },
     { href: '/admin/services', label: 'Services', icon: DocumentTextIcon },

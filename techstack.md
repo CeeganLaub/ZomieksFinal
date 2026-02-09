@@ -38,7 +38,7 @@
 | **Auth** | Login, Register, Forgot Password, Reset Password |
 | **Buyer** | Dashboard, Orders, Order Detail, Messages, Conversations, Subscriptions, Settings, Become Seller |
 | **Seller** | Dashboard, Services, Create/Edit Service, Courses, Create Course, Orders, CRM Pipeline, Earnings, Analytics, BioLink Builder |
-| **Admin** | Dashboard, Users, KYC Verifications, Services, Courses, Analytics, Inbox, Fees, Configuration |
+| **Admin** | Dashboard, Seller Management, Users, KYC Verifications, Services, Courses, Analytics, Inbox, Fees, Configuration |
 
 ---
 
@@ -74,6 +74,7 @@
 - **Seller Analytics** – Revenue trends, service/course performance, conversion rates
 - **Admin Analytics** – Platform-wide KPIs, monthly revenue/order/user charts, top services/courses
 - **Admin Inbox** – Conversation review and flagging for off-platform communication monitoring
+- **Admin Seller Management** – Create/manage team seller accounts, plan switching, review seeding, analytics override
 - **Job Queues** – BullMQ for escrow release, notifications, and payout processing
 - **WebSocket Namespaces** – Redis adapter for horizontal scaling
 - **Request Validation** – Zod schemas with shared types from `packages/shared`
@@ -92,7 +93,7 @@
 | `subscription.routes.ts` | `/api/v1/subscriptions` | Buyer subscription management |
 | `seller-subscription.routes.ts` | `/api/v1/seller-subscription` | Seller plan subscriptions |
 | `upload.routes.ts` | `/api/v1/uploads` | File and image uploads |
-| `admin.routes.ts` | `/api/v1/admin` | Stats, users, KYC, analytics, inbox, disputes, payouts |
+| `admin.routes.ts` | `/api/v1/admin` | Stats, users, KYC, analytics, inbox, disputes, payouts, seller management |
 | `webhook.routes.ts` | `/webhooks` | PayFast & OZOW payment notifications |
 
 ### Backend Services
