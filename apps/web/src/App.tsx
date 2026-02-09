@@ -40,7 +40,6 @@ import SellerServicesPage from './pages/seller/SellerServicesPage';
 import CreateServicePage from './pages/seller/CreateServicePage';
 import EditServicePage from './pages/seller/EditServicePage';
 import SellerOrdersPage from './pages/seller/SellerOrdersPage';
-import CRMPage from './pages/seller/CRMPage';
 import SellerInboxPage from './pages/seller/SellerInboxPage';
 import EarningsPage from './pages/seller/EarningsPage';
 import BecomeSeller from './pages/seller/BecomeSeller';
@@ -131,7 +130,7 @@ function App() {
           <Route path="/seller/orders" element={<SellerOrdersPage />} />
           <Route path="/seller/inbox" element={<SellerInboxPage />} />
           <Route path="/seller/inbox/:id" element={<ConversationPage />} />
-          <Route path="/seller/crm" element={<CRMPage />} />
+          <Route path="/seller/crm" element={<SellerInboxPage />} />
           <Route path="/seller/earnings" element={<EarningsPage />} />
           <Route path="/seller/courses" element={<SellerCoursesPage />} />
           <Route path="/seller/courses/new" element={<CreateCoursePage />} />

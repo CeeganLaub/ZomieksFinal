@@ -134,7 +134,7 @@ router.post('/subscribe', authenticate, requireSeller, async (req, res, next) =>
       cancelUrl: `${appUrl}/seller?subscription=cancelled`,
       notifyUrl: `${env.API_URL || 'http://localhost:3001'}/webhooks/payfast/seller-subscription`,
       frequency: SELLER_PLAN.FREQUENCY,
-      billingDate: now.getDate(),
+      billingDate: now.toISOString().split('T')[0],
     });
 
     res.json({

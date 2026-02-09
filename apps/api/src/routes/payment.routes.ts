@@ -110,7 +110,7 @@ router.get('/initiate-subscription', authenticate, async (req, res, next) => {
       firstName: subscription.buyer.firstName || 'Customer',
       lastName: subscription.buyer.lastName || '',
       frequency: subscription.tier.payFastFrequency,
-      billingDate: new Date().getDate(),
+      billingDate: new Date().toISOString().split('T')[0],
       returnUrl: `${env.APP_URL}/subscriptions/${subscription.id}?payment=success`,
       cancelUrl: `${env.APP_URL}/subscriptions/${subscription.id}?payment=cancelled`,
       notifyUrl: `${env.API_URL}/webhooks/payfast/subscription`,

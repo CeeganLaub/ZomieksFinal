@@ -414,7 +414,7 @@ export default function SellerAnalyticsPage() {
     queryKey: ['seller-analytics'],
     queryFn: async () => {
       const res = await api.get('/users/seller/analytics');
-      return (res as any).data.data;
+      return (res as any).data;
     },
   });
 

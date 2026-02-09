@@ -17,7 +17,7 @@ interface PayFastPaymentParams {
 interface PayFastSubscriptionParams extends PayFastPaymentParams {
   subscriptionId: string;
   frequency: number;
-  billingDate: number;
+  billingDate: string;
 }
 
 interface OzowPaymentParams {
