@@ -220,7 +220,11 @@ export default function ExplorePage() {
                           </div>
                         )}
                         <div className="absolute bottom-3 right-3 bg-background/90 backdrop-blur-sm px-3 py-1.5 rounded-lg font-bold text-sm shadow-lg">
-                          From {formatCurrency(service.packages?.[0]?.price || 0)}
+                          {service.pricingType === 'SUBSCRIPTION'
+                            ? `${formatCurrency(service.subscriptionTiers?.[0]?.price || service.packages?.[0]?.price || 0)}/mo`
+                            : service.pricingType === 'BOTH'
+                              ? `From ${formatCurrency(service.packages?.[0]?.price || 0)}`
+                              : formatCurrency(service.packages?.[0]?.price || 0)}
                         </div>
                       </div>
                       <CardContent className="p-4">

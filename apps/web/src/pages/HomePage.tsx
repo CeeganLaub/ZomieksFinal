@@ -481,7 +481,11 @@ export default function HomePage() {
                         <SparklesIcon className="h-12 w-12 text-muted-foreground/20" />
                       </div>
                       <div className="absolute bottom-3 right-3 bg-background/90 backdrop-blur-sm px-3 py-1.5 rounded-full text-sm font-semibold shadow-lg">
-                        From R{service.packages?.[0]?.price?.toLocaleString() || '0'}
+                        {service.pricingType === 'SUBSCRIPTION'
+                          ? `R${(service.subscriptionTiers?.[0]?.price || service.packages?.[0]?.price || 0).toLocaleString()}/mo`
+                          : service.pricingType === 'BOTH'
+                            ? `From R${(service.packages?.[0]?.price || 0).toLocaleString()}`
+                            : `R${(service.packages?.[0]?.price || 0).toLocaleString()}`}
                       </div>
                     </div>
                     <CardContent className="p-4">

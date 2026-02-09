@@ -453,7 +453,11 @@ export default function ServicesPage() {
                               className="absolute bottom-3 right-3 bg-background/95 backdrop-blur-sm px-3 py-1.5 rounded-lg font-bold shadow-lg"
                               whileHover={{ scale: 1.05 }}
                             >
-                              From {formatCurrency(service.packages?.[0]?.price || 0)}
+                              {service.pricingType === 'SUBSCRIPTION' 
+                                ? `${formatCurrency(service.subscriptionTiers?.[0]?.price || service.packages?.[0]?.price || 0)}/mo`
+                                : service.pricingType === 'BOTH'
+                                  ? `From ${formatCurrency(service.packages?.[0]?.price || 0)}`
+                                  : formatCurrency(service.packages?.[0]?.price || 0)}
                             </motion.div>
                             
                             {/* Featured badge if top rated */}

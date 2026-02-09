@@ -66,8 +66,9 @@ router.get('/', optionalAuth, async (req, res, next) => {
           seller: {
             select: {
               id: true,
+              userId: true,
               displayName: true,
-              user: { select: { username: true, avatar: true } },
+              user: { select: { id: true, username: true, avatar: true } },
             },
           },
           category: { select: { id: true, name: true, slug: true } },
@@ -108,11 +109,12 @@ router.get('/:slug', optionalAuth, async (req, res, next) => {
         seller: {
           select: {
             id: true,
+            userId: true,
             displayName: true,
             professionalTitle: true,
             rating: true,
             reviewCount: true,
-            user: { select: { username: true, avatar: true, firstName: true, lastName: true } },
+            user: { select: { id: true, username: true, avatar: true, firstName: true, lastName: true } },
           },
         },
         category: { select: { id: true, name: true, slug: true } },

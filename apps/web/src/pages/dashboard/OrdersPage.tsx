@@ -126,7 +126,7 @@ export default function OrdersPage() {
     queryKey: ['buyer-orders'],
     queryFn: async () => {
       const res = await api.get('/orders/buying');
-      return (res as any).data.data.orders;
+      return (res as any).data.orders;
     },
   });
 

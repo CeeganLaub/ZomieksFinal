@@ -50,7 +50,7 @@ export default function OrderPage() {
     queryKey: ['order', id],
     queryFn: async () => {
       const res = await api.get<any>(`/orders/${id}`);
-      return res.data.data.order;
+      return res.data.order;
     },
     enabled: !!id,
   });
