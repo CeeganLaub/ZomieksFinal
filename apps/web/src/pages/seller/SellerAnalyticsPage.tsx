@@ -103,16 +103,16 @@ function StatCard({
   color?: 'blue' | 'green' | 'yellow' | 'purple' | 'rose' | 'indigo';
 }) {
   const colorClasses = {
-    blue: 'bg-blue-50 text-blue-600',
-    green: 'bg-green-50 text-green-600',
-    yellow: 'bg-yellow-50 text-yellow-600',
-    purple: 'bg-purple-50 text-purple-600',
-    rose: 'bg-rose-50 text-rose-600',
-    indigo: 'bg-indigo-50 text-indigo-600',
+    blue: 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
+    green: 'bg-green-500/10 text-green-600 dark:text-green-400',
+    yellow: 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400',
+    purple: 'bg-purple-500/10 text-purple-600 dark:text-purple-400',
+    rose: 'bg-rose-500/10 text-rose-600 dark:text-rose-400',
+    indigo: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400',
   };
 
   return (
-    <div className="bg-white rounded-lg border p-5">
+    <div className="bg-card rounded-lg border p-5">
       <div className="flex items-center gap-4">
         <div className={`p-3 rounded-lg ${colorClasses[color]}`}>
           <Icon className="h-5 w-5" />
@@ -131,7 +131,7 @@ function EarningsChart({ data }: { data: { month: string; amount: number; isPart
   const maxAmount = Math.max(...data.map((d) => d.amount), 1);
 
   return (
-    <div className="bg-white rounded-lg border p-6">
+    <div className="bg-card rounded-lg border p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h3 className="font-semibold">Monthly Earnings</h3>
@@ -175,19 +175,19 @@ function EarningsChart({ data }: { data: { month: string; amount: number; isPart
 
 function OrderStatusBreakdown({ data }: { data: { status: string; count: number; totalAmount: number }[] }) {
   const statusConfig: Record<string, { label: string; color: string; bgColor: string }> = {
-    PENDING_PAYMENT: { label: 'Pending Payment', color: 'text-gray-600', bgColor: 'bg-gray-100' },
-    IN_PROGRESS: { label: 'In Progress', color: 'text-blue-600', bgColor: 'bg-blue-100' },
-    DELIVERED: { label: 'Delivered', color: 'text-yellow-600', bgColor: 'bg-yellow-100' },
-    REVISION_REQUESTED: { label: 'Revision', color: 'text-orange-600', bgColor: 'bg-orange-100' },
-    COMPLETED: { label: 'Completed', color: 'text-green-600', bgColor: 'bg-green-100' },
-    CANCELLED: { label: 'Cancelled', color: 'text-red-600', bgColor: 'bg-red-100' },
-    DISPUTED: { label: 'Disputed', color: 'text-red-600', bgColor: 'bg-red-100' },
+    PENDING_PAYMENT: { label: 'Pending Payment', color: 'text-muted-foreground', bgColor: 'bg-muted' },
+    IN_PROGRESS: { label: 'In Progress', color: 'text-blue-600', bgColor: 'bg-blue-500/10' },
+    DELIVERED: { label: 'Delivered', color: 'text-yellow-600', bgColor: 'bg-yellow-500/10' },
+    REVISION_REQUESTED: { label: 'Revision', color: 'text-orange-600', bgColor: 'bg-orange-500/10' },
+    COMPLETED: { label: 'Completed', color: 'text-green-600', bgColor: 'bg-green-500/10' },
+    CANCELLED: { label: 'Cancelled', color: 'text-red-600', bgColor: 'bg-red-500/10' },
+    DISPUTED: { label: 'Disputed', color: 'text-red-600', bgColor: 'bg-red-500/10' },
   };
 
   const total = data.reduce((sum, d) => sum + d.count, 0);
 
   return (
-    <div className="bg-white rounded-lg border p-6">
+    <div className="bg-card rounded-lg border p-6">
       <h3 className="font-semibold mb-4">Order Status Breakdown</h3>
       {data.length === 0 ? (
         <p className="text-sm text-muted-foreground text-center py-4">No orders yet</p>
@@ -196,8 +196,8 @@ function OrderStatusBreakdown({ data }: { data: { status: string; count: number;
           {data.map((item) => {
             const config = statusConfig[item.status] || {
               label: item.status.replace(/_/g, ' '),
-              color: 'text-gray-600',
-              bgColor: 'bg-gray-100',
+              color: 'text-muted-foreground',
+              bgColor: 'bg-muted',
             };
             const percentage = total > 0 ? (item.count / total) * 100 : 0;
             return (
@@ -229,7 +229,7 @@ function OrderStatusBreakdown({ data }: { data: { status: string; count: number;
 function ServiceTable({ services }: { services: AnalyticsData['services'] }) {
   if (services.length === 0) {
     return (
-      <div className="bg-white rounded-lg border p-6">
+      <div className="bg-card rounded-lg border p-6">
         <h3 className="font-semibold mb-4">Service Performance</h3>
         <div className="text-center py-8">
           <Squares2X2Icon className="h-10 w-10 text-muted-foreground/50 mx-auto mb-2" />
@@ -243,7 +243,7 @@ function ServiceTable({ services }: { services: AnalyticsData['services'] }) {
   }
 
   return (
-    <div className="bg-white rounded-lg border">
+    <div className="bg-card rounded-lg border">
       <div className="p-4 border-b flex items-center justify-between">
         <h3 className="font-semibold">Service Performance</h3>
         <Link to="/seller/services" className="text-sm text-primary hover:underline">
@@ -279,10 +279,10 @@ function ServiceTable({ services }: { services: AnalyticsData['services'] }) {
                     className={cn(
                       'px-2 py-1 text-xs rounded-full',
                       service.isActive && service.status === 'ACTIVE'
-                        ? 'bg-green-100 text-green-700'
+                        ? 'bg-green-500/10 text-green-700 dark:text-green-300'
                         : service.status === 'PENDING_REVIEW'
-                          ? 'bg-yellow-100 text-yellow-700'
-                          : 'bg-gray-100 text-gray-600'
+                          ? 'bg-yellow-500/10 text-yellow-700 dark:text-yellow-300'
+                          : 'bg-muted text-muted-foreground'
                     )}
                   >
                     {service.status === 'ACTIVE' && service.isActive ? 'Active' : service.status.replace(/_/g, ' ')}
@@ -325,7 +325,7 @@ function ServiceTable({ services }: { services: AnalyticsData['services'] }) {
 function CourseTable({ courses }: { courses: AnalyticsData['courses'] }) {
   if (courses.length === 0) {
     return (
-      <div className="bg-white rounded-lg border p-6">
+      <div className="bg-card rounded-lg border p-6">
         <h3 className="font-semibold mb-4">Course Performance</h3>
         <div className="text-center py-8">
           <AcademicCapIcon className="h-10 w-10 text-muted-foreground/50 mx-auto mb-2" />
@@ -339,7 +339,7 @@ function CourseTable({ courses }: { courses: AnalyticsData['courses'] }) {
   }
 
   return (
-    <div className="bg-white rounded-lg border">
+    <div className="bg-card rounded-lg border">
       <div className="p-4 border-b flex items-center justify-between">
         <h3 className="font-semibold">Course Performance</h3>
         <Link to="/seller/courses" className="text-sm text-primary hover:underline">
@@ -369,10 +369,10 @@ function CourseTable({ courses }: { courses: AnalyticsData['courses'] }) {
                     className={cn(
                       'px-2 py-1 text-xs rounded-full',
                       course.status === 'PUBLISHED'
-                        ? 'bg-green-100 text-green-700'
+                        ? 'bg-green-500/10 text-green-700 dark:text-green-300'
                         : course.status === 'DRAFT'
-                          ? 'bg-yellow-100 text-yellow-700'
-                          : 'bg-gray-100 text-gray-600'
+                          ? 'bg-yellow-500/10 text-yellow-700 dark:text-yellow-300'
+                          : 'bg-muted text-muted-foreground'
                     )}
                   >
                     {course.status}
@@ -506,9 +506,9 @@ export default function SellerAnalyticsPage() {
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
         {/* Services Summary */}
-        <div className="bg-white rounded-lg border p-5">
+        <div className="bg-card rounded-lg border p-5">
           <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 bg-blue-50 rounded-lg">
+            <div className="p-2 bg-blue-500/10 rounded-lg">
               <Squares2X2Icon className="h-5 w-5 text-blue-600" />
             </div>
             <div>
@@ -538,9 +538,9 @@ export default function SellerAnalyticsPage() {
         </div>
 
         {/* Courses Summary */}
-        <div className="bg-white rounded-lg border p-5">
+        <div className="bg-card rounded-lg border p-5">
           <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 bg-indigo-50 rounded-lg">
+            <div className="p-2 bg-indigo-500/10 rounded-lg">
               <AcademicCapIcon className="h-5 w-5 text-indigo-600" />
             </div>
             <div>
@@ -566,9 +566,9 @@ export default function SellerAnalyticsPage() {
         </div>
 
         {/* BioLink Summary */}
-        <div className="bg-white rounded-lg border p-5">
+        <div className="bg-card rounded-lg border p-5">
           <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 bg-purple-50 rounded-lg">
+            <div className="p-2 bg-purple-500/10 rounded-lg">
               <LinkIcon className="h-5 w-5 text-purple-600" />
             </div>
             <div>

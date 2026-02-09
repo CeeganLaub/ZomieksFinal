@@ -159,7 +159,7 @@ export default function AdminCoursesPage() {
                     <tr key={c.id} className="hover:bg-muted/30 transition-colors">
                       <td className="px-4 py-3">
                         <p className="font-medium truncate max-w-[200px]">{c.title}</p>
-                        <p className="text-xs text-muted-foreground">{c.level?.replace('_', ' ') || 'All Levels'}</p>
+                        <p className="text-xs text-muted-foreground">{c.level?.replace(/_/g, ' ') || 'All Levels'}</p>
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">
                         {c.seller?.displayName || c.seller?.user?.username || '-'}

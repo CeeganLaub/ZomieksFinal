@@ -502,9 +502,9 @@ export default function HomePage() {
                         {service.title}
                       </h3>
                       <div className="flex items-center space-x-2">
-                        <div className="flex items-center space-x-1 bg-yellow-50 px-2 py-1 rounded-full">
+                        <div className="flex items-center space-x-1 bg-yellow-500/10 px-2 py-1 rounded-full">
                           <StarIcon className="h-4 w-4 text-yellow-500" />
-                          <span className="text-sm font-semibold text-yellow-700">
+                          <span className="text-sm font-semibold text-yellow-600 dark:text-yellow-400">
                             {service.rating ? Number(service.rating).toFixed(1) : 'New'}
                           </span>
                         </div>

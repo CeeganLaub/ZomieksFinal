@@ -106,10 +106,10 @@ export default function EarningsPage() {
   };
 
   const payoutStatusConfig: Record<string, { label: string; color: string }> = {
-    PENDING: { label: 'Pending', color: 'text-yellow-600 bg-yellow-50' },
-    PROCESSING: { label: 'Processing', color: 'text-blue-600 bg-blue-50' },
-    COMPLETED: { label: 'Completed', color: 'text-green-600 bg-green-50' },
-    FAILED: { label: 'Failed', color: 'text-red-600 bg-red-50' },
+    PENDING: { label: 'Pending', color: 'text-yellow-600 bg-yellow-500/10' },
+    PROCESSING: { label: 'Processing', color: 'text-blue-600 bg-blue-500/10' },
+    COMPLETED: { label: 'Completed', color: 'text-green-600 bg-green-500/10' },
+    FAILED: { label: 'Failed', color: 'text-red-600 bg-red-500/10' },
   };
 
   if (walletLoading) {
@@ -135,44 +135,44 @@ export default function EarningsPage() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <div className="bg-white border rounded-lg p-6">
+        <div className="bg-card border rounded-lg p-6">
           <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-green-100 rounded-lg">
+            <div className="p-2 bg-green-500/10 rounded-lg">
               <BanknotesIcon className="h-6 w-6 text-green-600" />
             </div>
             <span className="text-sm text-muted-foreground">Available Balance</span>
           </div>
-          <p className="text-2xl font-bold">R{wallet?.balance.toFixed(2) || '0.00'}</p>
+          <p className="text-2xl font-bold">R{(wallet?.balance ?? 0).toFixed(2)}</p>
         </div>
 
-        <div className="bg-white border rounded-lg p-6">
+        <div className="bg-card border rounded-lg p-6">
           <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-yellow-100 rounded-lg">
+            <div className="p-2 bg-yellow-500/10 rounded-lg">
               <ClockIcon className="h-6 w-6 text-yellow-600" />
             </div>
             <span className="text-sm text-muted-foreground">Pending Clearance</span>
           </div>
-          <p className="text-2xl font-bold">R{wallet?.pendingBalance.toFixed(2) || '0.00'}</p>
+          <p className="text-2xl font-bold">R{(wallet?.pendingBalance ?? 0).toFixed(2)}</p>
         </div>
 
-        <div className="bg-white border rounded-lg p-6">
+        <div className="bg-card border rounded-lg p-6">
           <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-blue-100 rounded-lg">
+            <div className="p-2 bg-blue-500/10 rounded-lg">
               <ArrowTrendingUpIcon className="h-6 w-6 text-blue-600" />
             </div>
             <span className="text-sm text-muted-foreground">This Month</span>
           </div>
-          <p className="text-2xl font-bold">R{summary?.thisMonth.toFixed(2) || '0.00'}</p>
+          <p className="text-2xl font-bold">R{(summary?.thisMonth ?? 0).toFixed(2)}</p>
         </div>
 
-        <div className="bg-white border rounded-lg p-6">
+        <div className="bg-card border rounded-lg p-6">
           <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-purple-100 rounded-lg">
+            <div className="p-2 bg-purple-500/10 rounded-lg">
               <CheckCircleIcon className="h-6 w-6 text-purple-600" />
             </div>
             <span className="text-sm text-muted-foreground">Total Earned</span>
           </div>
-          <p className="text-2xl font-bold">R{summary?.totalEarnings.toFixed(2) || '0.00'}</p>
+          <p className="text-2xl font-bold">R{(summary?.totalEarnings ?? 0).toFixed(2)}</p>
         </div>
       </div>
 
@@ -207,9 +207,9 @@ export default function EarningsPage() {
       )}
 
       {/* Fee Breakdown Info */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-8">
-        <h3 className="font-medium text-blue-900 mb-2">How earnings work</h3>
-        <ul className="text-sm text-blue-800 space-y-1">
+      <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 mb-8">
+        <h3 className="font-medium text-foreground mb-2">How earnings work</h3>
+        <ul className="text-sm text-muted-foreground space-y-1">
           <li>- Platform fee: 8% is deducted from each completed order</li>
           <li>- Funds are held in escrow until order completion</li>
           <li>- Earnings become available after a 14-day clearance period</li>
@@ -218,7 +218,7 @@ export default function EarningsPage() {
       </div>
 
       {/* Payout History */}
-      <div className="bg-white border rounded-lg">
+      <div className="bg-card border rounded-lg">
         <div className="p-4 border-b">
           <h2 className="font-semibold">Payout History</h2>
         </div>
@@ -236,7 +236,7 @@ export default function EarningsPage() {
                   <div>
                     <p className="font-medium">R{payout.amount.toFixed(2)}</p>
                     <p className="text-sm text-muted-foreground">
-                      {payout.method.replace('_', ' ')} - {new Date(payout.createdAt).toLocaleDateString()}
+                      {payout.method.replace(/_/g, ' ')} - {new Date(payout.createdAt).toLocaleDateString()}
                     </p>
                   </div>
                   <span className={`px-2 py-1 rounded-full text-xs ${status.color}`}>
@@ -256,12 +256,12 @@ export default function EarningsPage() {
       {/* Withdraw Modal */}
       {showWithdrawModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+          <div className="bg-card rounded-lg p-6 w-full max-w-md mx-4">
             <h2 className="text-xl font-bold mb-4">Request Payout</h2>
             
             <div className="mb-4">
               <p className="text-sm text-muted-foreground mb-2">
-                Available: R{wallet?.balance.toFixed(2)}
+                Available: R{(wallet?.balance ?? 0).toFixed(2)}
               </p>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">R</span>

@@ -30,10 +30,10 @@ interface Service {
 }
 
 const statusConfig: Record<string, { label: string; icon: React.ElementType; color: string }> = {
-  ACTIVE: { label: 'Active', icon: CheckCircleIcon, color: 'text-green-600 bg-green-50' },
-  PENDING_REVIEW: { label: 'Pending Review', icon: ClockIcon, color: 'text-yellow-600 bg-yellow-50' },
-  PAUSED: { label: 'Paused', icon: XCircleIcon, color: 'text-gray-600 bg-gray-50' },
-  REJECTED: { label: 'Rejected', icon: XCircleIcon, color: 'text-red-600 bg-red-50' },
+  ACTIVE: { label: 'Active', icon: CheckCircleIcon, color: 'text-green-600 bg-green-500/10' },
+  PENDING_REVIEW: { label: 'Pending Review', icon: ClockIcon, color: 'text-yellow-600 bg-yellow-500/10' },
+  PAUSED: { label: 'Paused', icon: XCircleIcon, color: 'text-muted-foreground bg-muted' },
+  REJECTED: { label: 'Rejected', icon: XCircleIcon, color: 'text-red-600 bg-red-500/10' },
 };
 
 function ServiceCard({ service, onDelete }: { service: Service; onDelete: () => void }) {
@@ -44,8 +44,8 @@ function ServiceCard({ service, onDelete }: { service: Service; onDelete: () => 
     : 0;
 
   return (
-    <div className="bg-white border rounded-lg overflow-hidden hover:shadow-md transition-shadow">
-      <div className="relative aspect-video bg-gray-100">
+    <div className="bg-card border rounded-lg overflow-hidden hover:shadow-md transition-shadow">
+      <div className="relative aspect-video bg-muted">
         {service.images?.[0] ? (
           <img src={service.images[0]} alt={service.title} className="w-full h-full object-cover" />
         ) : (
@@ -57,22 +57,22 @@ function ServiceCard({ service, onDelete }: { service: Service; onDelete: () => 
           <div className="relative">
             <button
               onClick={() => setShowMenu(!showMenu)}
-              className="p-2 bg-white rounded-full shadow hover:bg-gray-50"
+              className="p-2 bg-card rounded-full shadow hover:bg-muted"
             >
               <EllipsisVerticalIcon className="h-5 w-5" />
             </button>
             {showMenu && (
-              <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border z-10">
+              <div className="absolute right-0 mt-2 w-48 bg-card rounded-lg shadow-lg border z-10">
                 <Link
-                  to={`/${service.seller.username}/${service.slug}`}
-                  className="flex items-center gap-2 px-4 py-2 hover:bg-gray-50"
+                  to={`/services/${service.seller.username}/${service.slug}`}
+                  className="flex items-center gap-2 px-4 py-2 hover:bg-muted"
                 >
                   <EyeIcon className="h-4 w-4" />
                   View
                 </Link>
                 <Link
                   to={`/seller/services/${service.id}/edit`}
-                  className="flex items-center gap-2 px-4 py-2 hover:bg-gray-50"
+                  className="flex items-center gap-2 px-4 py-2 hover:bg-muted"
                 >
                   <PencilIcon className="h-4 w-4" />
                   Edit
@@ -84,7 +84,7 @@ function ServiceCard({ service, onDelete }: { service: Service; onDelete: () => 
                     }
                     setShowMenu(false);
                   }}
-                  className="flex items-center gap-2 px-4 py-2 hover:bg-gray-50 text-red-600 w-full"
+                  className="flex items-center gap-2 px-4 py-2 hover:bg-muted text-red-600 w-full"
                 >
                   <TrashIcon className="h-4 w-4" />
                   Delete
@@ -191,7 +191,7 @@ export default function SellerServicesPage() {
             className={`px-4 py-2 rounded-full text-sm whitespace-nowrap ${
               filter === value
                 ? 'bg-primary text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                : 'bg-muted text-muted-foreground hover:bg-muted/80'
             }`}
           >
             {label}
@@ -211,7 +211,7 @@ export default function SellerServicesPage() {
         </div>
       ) : (
         <div className="text-center py-16">
-          <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
             <PlusIcon className="h-8 w-8 text-gray-400" />
           </div>
           <h3 className="font-semibold mb-2">No services yet</h3>

@@ -183,7 +183,7 @@ export default function CoursePage() {
 
                 <div className="flex items-center gap-4 mt-3 text-sm text-gray-400">
                   <span className="flex items-center gap-1"><GlobeAltIcon className="h-4 w-4" /> {course.language || 'English'}</span>
-                  <span className="flex items-center gap-1"><SignalIcon className="h-4 w-4" /> {course.level?.replace('_', ' ')}</span>
+                  <span className="flex items-center gap-1"><SignalIcon className="h-4 w-4" /> {course.level?.replace(/_/g, ' ')}</span>
                   <span className="flex items-center gap-1"><ClockIcon className="h-4 w-4" /> {formatDuration(course.totalDuration || 0)}</span>
                 </div>
 

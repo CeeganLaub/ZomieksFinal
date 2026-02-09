@@ -22,7 +22,6 @@ interface DashboardStats {
   totalReviews: number;
   averageRating: number;
   responseRate: number;
-  unreadMessages: number;
 }
 
 function StatCard({ 
@@ -39,14 +38,14 @@ function StatCard({
   color?: 'blue' | 'green' | 'yellow' | 'purple';
 }) {
   const colorClasses = {
-    blue: 'bg-blue-50 text-blue-600',
-    green: 'bg-green-50 text-green-600',
-    yellow: 'bg-yellow-50 text-yellow-600',
-    purple: 'bg-purple-50 text-purple-600',
+    blue: 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
+    green: 'bg-green-500/10 text-green-600 dark:text-green-400',
+    yellow: 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400',
+    purple: 'bg-purple-500/10 text-purple-600 dark:text-purple-400',
   };
 
   return (
-    <div className="bg-white rounded-lg border p-6">
+    <div className="bg-card rounded-lg border p-6">
       <div className="flex items-center gap-4">
         <div className={`p-3 rounded-lg ${colorClasses[color]}`}>
           <Icon className="h-6 w-6" />
@@ -72,10 +71,10 @@ interface OrderData {
 
 function OrderItem({ order }: { order: OrderData }) {
   const statusColors: Record<string, string> = {
-    IN_PROGRESS: 'bg-blue-100 text-blue-800',
-    DELIVERED: 'bg-yellow-100 text-yellow-800',
-    REVISION_REQUESTED: 'bg-orange-100 text-orange-800',
-    COMPLETED: 'bg-green-100 text-green-800',
+    IN_PROGRESS: 'bg-blue-500/10 text-blue-700 dark:text-blue-300',
+    DELIVERED: 'bg-yellow-500/10 text-yellow-700 dark:text-yellow-300',
+    REVISION_REQUESTED: 'bg-orange-500/10 text-orange-700 dark:text-orange-300',
+    COMPLETED: 'bg-green-500/10 text-green-700 dark:text-green-300',
   };
 
   return (
@@ -94,8 +93,8 @@ function OrderItem({ order }: { order: OrderData }) {
         </div>
       </div>
       <div className="flex items-center gap-4">
-        <span className={`px-2 py-1 text-xs rounded-full ${statusColors[order.status] || 'bg-gray-100'}`}>
-          {order.status.replace('_', ' ')}
+        <span className={`px-2 py-1 text-xs rounded-full ${statusColors[order.status] || 'bg-muted'}`}>
+          {order.status.replace(/_/g, ' ')}
         </span>
         <span className="font-medium">R{Number(order.totalAmount).toFixed(2)}</span>
       </div>
@@ -126,7 +125,6 @@ export default function SellerDashboardPage() {
         totalReviews: 0,
         averageRating: 0,
         responseRate: 0,
-        unreadMessages: 0,
       };
     },
   });
@@ -186,7 +184,7 @@ export default function SellerDashboardPage() {
         />
         <StatCard
           title="Messages"
-          value={stats?.unreadMessages || 0}
+          value={conversationsData?.data?.conversations?.reduce((sum: number, c: any) => sum + (c.unreadCount || 0), 0) || 0}
           icon={ChatBubbleLeftRightIcon}
           color="purple"
           subtitle="unread"
@@ -201,7 +199,7 @@ export default function SellerDashboardPage() {
       </div>
 
       {/* Inbox */}
-      <div className="bg-white rounded-lg border">
+      <div className="bg-card rounded-lg border">
         <div className="p-4 border-b flex items-center justify-between">
           <h2 className="font-semibold flex items-center gap-2">
             <EnvelopeIcon className="h-5 w-5" />
@@ -261,7 +259,7 @@ export default function SellerDashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Recent Orders */}
         <div className="lg:col-span-2">
-          <div className="bg-white rounded-lg border">
+          <div className="bg-card rounded-lg border">
             <div className="p-4 border-b flex items-center justify-between">
               <h2 className="font-semibold">Recent Orders</h2>
               <Link to="/seller/orders" className="text-sm text-primary hover:underline">
@@ -284,47 +282,47 @@ export default function SellerDashboardPage() {
 
         {/* Quick Actions */}
         <div className="space-y-4">
-          <div className="bg-white rounded-lg border p-4">
+          <div className="bg-card rounded-lg border p-4">
             <h2 className="font-semibold mb-4">Quick Actions</h2>
             <div className="space-y-2">
               <Link
                 to="/seller/services"
-                className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors"
+                className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted transition-colors"
               >
                 <ShoppingBagIcon className="h-5 w-5 text-muted-foreground" />
                 <span>Manage Services</span>
               </Link>
               <Link
                 to="/seller/orders"
-                className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors"
+                className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted transition-colors"
               >
                 <ClockIcon className="h-5 w-5 text-muted-foreground" />
                 <span>View Orders</span>
               </Link>
               <Link
                 to="/seller/inbox"
-                className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors"
+                className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted transition-colors"
               >
                 <EnvelopeIcon className="h-5 w-5 text-muted-foreground" />
                 <span>Inbox</span>
               </Link>
               <Link
                 to="/seller/crm"
-                className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors"
+                className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted transition-colors"
               >
                 <ChatBubbleLeftRightIcon className="h-5 w-5 text-muted-foreground" />
                 <span>CRM Dashboard</span>
               </Link>
               <Link
                 to="/seller/earnings"
-                className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors"
+                className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted transition-colors"
               >
                 <CurrencyDollarIcon className="h-5 w-5 text-muted-foreground" />
                 <span>View Earnings</span>
               </Link>
               <Link
                 to="/seller/biolink"
-                className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors"
+                className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted transition-colors"
               >
                 <LinkIcon className="h-5 w-5 text-muted-foreground" />
                 <span>BioLink Page</span>
@@ -333,7 +331,7 @@ export default function SellerDashboardPage() {
           </div>
 
           {/* Performance Card */}
-          <div className="bg-white rounded-lg border p-4">
+          <div className="bg-card rounded-lg border p-4">
             <h2 className="font-semibold mb-4">Performance</h2>
             <div className="space-y-3">
               <div className="flex items-center justify-between">
@@ -347,8 +345,8 @@ export default function SellerDashboardPage() {
                 <span className="text-sm text-muted-foreground">Order Completion</span>
                 <div className="flex items-center gap-2">
                   <span className="font-medium">
-                    {stats?.totalOrders 
-                      ? Math.round((stats.completedOrders / stats.totalOrders) * 100)
+                    {stats?.totalOrders
+                      ? Math.round(((stats.completedOrders ?? 0) / stats.totalOrders) * 100)
                       : 0}%
                   </span>
                   <CheckCircleIcon className="h-4 w-4 text-green-500" />

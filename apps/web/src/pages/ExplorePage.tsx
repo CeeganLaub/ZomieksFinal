@@ -388,7 +388,7 @@ export default function ExplorePage() {
                             {course.enrollCount || 0}
                           </span>
                           <span className="capitalize text-xs px-1.5 py-0.5 bg-muted rounded">
-                            {course.level?.toLowerCase().replace('_', ' ')}
+                            {course.level?.toLowerCase().replace(/_/g, ' ')}
                           </span>
                         </div>
                       </div>

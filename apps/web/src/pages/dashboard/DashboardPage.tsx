@@ -82,7 +82,7 @@ export default function DashboardPage() {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Unread Messages</p>
-                <p className="text-2xl font-bold">0</p>
+                <p className="text-2xl font-bold">{conversationsData?.data?.conversations?.reduce((sum: number, c: any) => sum + (c.unreadCount || 0), 0) || 0}</p>
               </div>
             </div>
           </CardContent>
@@ -186,9 +186,9 @@ export default function DashboardPage() {
                 >
                   <div className="flex items-center space-x-4">
                     <img 
-                      src={order.service?.images?.[0] || '/placeholder.png'} 
+                      src={order.service?.images?.[0] || `https://ui-avatars.com/api/?name=${encodeURIComponent(order.service?.title || 'S')}&background=10b981&color=fff`} 
                       alt="" 
-                      className="h-12 w-12 rounded object-cover"
+                      className="h-12 w-12 rounded object-cover bg-muted"
                     />
                     <div>
                       <p className="font-medium">{order.service?.title}</p>
@@ -200,12 +200,12 @@ export default function DashboardPage() {
                   <div className="text-right">
                     <p className="font-medium">{formatCurrency(order.totalAmount)}</p>
                     <span className={`text-xs px-2 py-1 rounded-full ${
-                      order.status === 'COMPLETED' ? 'bg-green-100 text-green-700' :
-                      order.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-700' :
-                      order.status === 'DELIVERED' ? 'bg-purple-100 text-purple-700' :
+                      order.status === 'COMPLETED' ? 'bg-green-500/10 text-green-700 dark:text-green-300' :
+                      order.status === 'IN_PROGRESS' ? 'bg-blue-500/10 text-blue-700 dark:text-blue-300' :
+                      order.status === 'DELIVERED' ? 'bg-purple-500/10 text-purple-700 dark:text-purple-300' :
                       'bg-muted text-muted-foreground'
                     }`}>
-                      {order.status.replace('_', ' ')}
+                      {order.status.replace(/_/g, ' ')}
                     </span>
                   </div>
                 </Link>

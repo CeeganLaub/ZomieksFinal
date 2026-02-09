@@ -39,14 +39,14 @@ interface Order {
 }
 
 const statusConfig: Record<string, { label: string; icon: React.ElementType; color: string }> = {
-  PENDING: { label: 'Awaiting Payment', icon: CreditCardIcon, color: 'text-yellow-600 bg-yellow-50' },
-  PAID: { label: 'Payment Received', icon: CheckCircleIcon, color: 'text-blue-600 bg-blue-50' },
-  IN_PROGRESS: { label: 'In Progress', icon: TruckIcon, color: 'text-purple-600 bg-purple-50' },
-  DELIVERED: { label: 'Delivered', icon: DocumentTextIcon, color: 'text-indigo-600 bg-indigo-50' },
-  COMPLETED: { label: 'Completed', icon: CheckCircleIcon, color: 'text-green-600 bg-green-50' },
-  CANCELLED: { label: 'Cancelled', icon: XCircleIcon, color: 'text-gray-600 bg-gray-50' },
-  DISPUTED: { label: 'Disputed', icon: ExclamationTriangleIcon, color: 'text-red-600 bg-red-50' },
-  REFUNDED: { label: 'Refunded', icon: XCircleIcon, color: 'text-orange-600 bg-orange-50' },
+  PENDING: { label: 'Awaiting Payment', icon: CreditCardIcon, color: 'text-yellow-600 bg-yellow-500/10' },
+  PAID: { label: 'Payment Received', icon: CheckCircleIcon, color: 'text-blue-600 bg-blue-500/10' },
+  IN_PROGRESS: { label: 'In Progress', icon: TruckIcon, color: 'text-purple-600 bg-purple-500/10' },
+  DELIVERED: { label: 'Delivered', icon: DocumentTextIcon, color: 'text-indigo-600 bg-indigo-500/10' },
+  COMPLETED: { label: 'Completed', icon: CheckCircleIcon, color: 'text-green-600 bg-green-500/10' },
+  CANCELLED: { label: 'Cancelled', icon: XCircleIcon, color: 'text-muted-foreground bg-muted' },
+  DISPUTED: { label: 'Disputed', icon: ExclamationTriangleIcon, color: 'text-red-600 bg-red-500/10' },
+  REFUNDED: { label: 'Refunded', icon: XCircleIcon, color: 'text-orange-600 bg-orange-500/10' },
 };
 
 function OrderCard({ order }: { order: Order }) {
@@ -54,7 +54,7 @@ function OrderCard({ order }: { order: Order }) {
 
   return (
     <Link to={`/orders/${order.id}`} className="block">
-      <div className="bg-white border rounded-lg p-4 hover:shadow-md transition-shadow">
+      <div className="bg-card border rounded-lg p-4 hover:shadow-md transition-shadow">
         <div className="flex items-start justify-between mb-4">
           <div>
             <div className="flex items-center gap-2 mb-1">
@@ -71,16 +71,16 @@ function OrderCard({ order }: { order: Order }) {
           <div className="text-right">
             <p className="font-semibold">R{order.totalAmount.toFixed(2)}</p>
             <p className="text-xs text-muted-foreground">
-              Incl. R{order.buyerFee.toFixed(2)} fee
+              Incl. R{(order.buyerFee ?? 0).toFixed(2)} fee
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-3 mb-4">
           <img
-            src={order.seller.avatar || '/default-avatar.png'}
+            src={order.seller.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(order.seller.firstName || order.seller.username)}&background=10b981&color=fff`}
             alt={order.seller.username}
-            className="w-10 h-10 rounded-full"
+            className="w-10 h-10 rounded-full bg-muted"
           />
           <div>
             <p className="font-medium">{order.seller.firstName} {order.seller.lastName}</p>
@@ -90,11 +90,11 @@ function OrderCard({ order }: { order: Order }) {
 
         <div className="space-y-2">
           {order.orderItems.map((item) => (
-            <div key={item.id} className="flex items-center gap-3 p-2 bg-gray-50 rounded">
+            <div key={item.id} className="flex items-center gap-3 p-2 bg-muted/50 rounded">
               <img
-                src={item.service.images?.[0] || '/placeholder.png'}
+                src={item.service.images?.[0] || `https://ui-avatars.com/api/?name=${encodeURIComponent(item.service.title.charAt(0))}&background=10b981&color=fff`}
                 alt={item.service.title}
-                className="w-12 h-12 rounded object-cover"
+                className="w-12 h-12 rounded object-cover bg-muted"
               />
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-sm truncate">{item.service.title}</p>
@@ -154,24 +154,24 @@ export default function OrdersPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
-        <div className="bg-white border rounded-lg p-4 text-center">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div className="bg-card border rounded-lg p-4 text-center">
           <p className="text-2xl font-bold">{orders?.length || 0}</p>
           <p className="text-sm text-muted-foreground">Total</p>
         </div>
-        <div className="bg-white border rounded-lg p-4 text-center">
+        <div className="bg-card border rounded-lg p-4 text-center">
           <p className="text-2xl font-bold text-yellow-600">
             {orders?.filter((o) => o.status === 'PENDING').length || 0}
           </p>
           <p className="text-sm text-muted-foreground">Pending</p>
         </div>
-        <div className="bg-white border rounded-lg p-4 text-center">
+        <div className="bg-card border rounded-lg p-4 text-center">
           <p className="text-2xl font-bold text-blue-600">
             {orders?.filter((o) => ['PAID', 'IN_PROGRESS', 'DELIVERED'].includes(o.status)).length || 0}
           </p>
           <p className="text-sm text-muted-foreground">Active</p>
         </div>
-        <div className="bg-white border rounded-lg p-4 text-center">
+        <div className="bg-card border rounded-lg p-4 text-center">
           <p className="text-2xl font-bold text-green-600">
             {orders?.filter((o) => o.status === 'COMPLETED').length || 0}
           </p>
@@ -194,7 +194,7 @@ export default function OrdersPage() {
             className={`px-4 py-2 rounded-full text-sm whitespace-nowrap ${
               filter === value
                 ? 'bg-primary text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                : 'bg-muted text-muted-foreground hover:bg-muted/80'
             }`}
           >
             {label}
@@ -209,7 +209,7 @@ export default function OrdersPage() {
           ))}
         </div>
       ) : (
-        <div className="text-center py-16 bg-white border rounded-lg">
+        <div className="text-center py-16 bg-card border rounded-lg">
           <DocumentTextIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
           <h3 className="font-semibold mb-2">No orders yet</h3>
           <p className="text-muted-foreground mb-4">
