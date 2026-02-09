@@ -4,6 +4,8 @@ import { Button } from '../ui/Button';
 import ProfileDropdown from './ProfileDropdown';
 import InboxDropdown from './InboxDropdown';
 import NotificationDropdown from './NotificationDropdown';
+import DashboardDropdown from './DashboardDropdown';
+import SellerDropdown from './SellerDropdown';
 import { cn } from '../../lib/utils';
 import {
   MagnifyingGlassIcon,
@@ -120,6 +122,13 @@ export default function Header({ showSearch = true, variant = 'default' }: Heade
               {link.label}
             </Link>
           ))}
+
+          {isAuthenticated && (
+            <>
+              <DashboardDropdown />
+              <SellerDropdown />
+            </>
+          )}
 
           <div className="w-px h-6 bg-border mx-2" />
 

@@ -122,7 +122,7 @@ function App() {
         </Route>
 
         {/* Seller routes */}
-        <Route element={<SellerRoute><DashboardLayout isSeller /></SellerRoute>}>
+        <Route element={<SellerRoute><DashboardLayout /></SellerRoute>}>
           <Route path="/seller" element={<SellerDashboardPage />} />
           <Route path="/seller/services" element={<SellerServicesPage />} />
           <Route path="/seller/services/new" element={<CreateServicePage />} />

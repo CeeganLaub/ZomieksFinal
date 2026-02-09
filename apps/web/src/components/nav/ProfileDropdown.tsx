@@ -6,18 +6,11 @@ import { useAuthStore } from '../../stores/auth.store';
 import { paymentsApi } from '../../lib/api';
 import {
   ChevronDownIcon,
-  HomeIcon,
-  ShoppingBagIcon,
   Cog6ToothIcon,
   ArrowRightOnRectangleIcon,
-  SparklesIcon,
-  BriefcaseIcon,
-  Squares2X2Icon,
-  BanknotesIcon,
-  UserGroupIcon,
   QuestionMarkCircleIcon,
   GlobeAltIcon,
-  LinkIcon,
+  BanknotesIcon,
 } from '@heroicons/react/24/outline';
 
 export default function ProfileDropdown() {
@@ -112,99 +105,8 @@ export default function ProfileDropdown() {
               </div>
             </div>
 
-            {/* Buying section */}
-            <div className="p-2">
-              <p className="px-3 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                Buying
-              </p>
-              <Link
-                to="/dashboard"
-                onClick={() => setIsOpen(false)}
-                className="flex items-center gap-3 px-3 py-2.5 text-sm hover:bg-muted rounded-xl transition-colors"
-              >
-                <HomeIcon className="h-5 w-5 text-muted-foreground" />
-                Dashboard
-              </Link>
-              <Link
-                to="/orders"
-                onClick={() => setIsOpen(false)}
-                className="flex items-center gap-3 px-3 py-2.5 text-sm hover:bg-muted rounded-xl transition-colors"
-              >
-                <ShoppingBagIcon className="h-5 w-5 text-muted-foreground" />
-                My Orders
-              </Link>
-            </div>
-
-            {/* Selling section */}
-            <div className="p-2 border-t">
-              <p className="px-3 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                Selling
-              </p>
-              {user?.isSeller ? (
-                <>
-                  <Link
-                    to="/seller"
-                    onClick={() => setIsOpen(false)}
-                    className="flex items-center gap-3 px-3 py-2.5 text-sm hover:bg-muted rounded-xl transition-colors"
-                  >
-                    <BriefcaseIcon className="h-5 w-5 text-muted-foreground" />
-                    Seller Dashboard
-                  </Link>
-                  <Link
-                    to="/seller/services"
-                    onClick={() => setIsOpen(false)}
-                    className="flex items-center gap-3 px-3 py-2.5 text-sm hover:bg-muted rounded-xl transition-colors"
-                  >
-                    <Squares2X2Icon className="h-5 w-5 text-muted-foreground" />
-                    My Services
-                  </Link>
-                  <Link
-                    to="/seller/orders"
-                    onClick={() => setIsOpen(false)}
-                    className="flex items-center gap-3 px-3 py-2.5 text-sm hover:bg-muted rounded-xl transition-colors"
-                  >
-                    <ShoppingBagIcon className="h-5 w-5 text-muted-foreground" />
-                    Orders
-                  </Link>
-                  <Link
-                    to="/seller/crm"
-                    onClick={() => setIsOpen(false)}
-                    className="flex items-center gap-3 px-3 py-2.5 text-sm hover:bg-muted rounded-xl transition-colors"
-                  >
-                    <UserGroupIcon className="h-5 w-5 text-muted-foreground" />
-                    CRM
-                  </Link>
-                  <Link
-                    to="/seller/earnings"
-                    onClick={() => setIsOpen(false)}
-                    className="flex items-center gap-3 px-3 py-2.5 text-sm hover:bg-muted rounded-xl transition-colors"
-                  >
-                    <BanknotesIcon className="h-5 w-5 text-muted-foreground" />
-                    Earnings
-                  </Link>
-                  <Link
-                    to="/seller/biolink"
-                    onClick={() => setIsOpen(false)}
-                    className="flex items-center gap-3 px-3 py-2.5 text-sm hover:bg-muted rounded-xl transition-colors"
-                  >
-                    <LinkIcon className="h-5 w-5 text-muted-foreground" />
-                    BioLink
-                  </Link>
-                </>
-              ) : (
-                <Link
-                  to="/become-seller"
-                  onClick={() => setIsOpen(false)}
-                  className="flex items-center gap-3 px-3 py-2.5 text-sm text-primary font-medium hover:bg-primary/10 rounded-xl transition-colors"
-                >
-                  <SparklesIcon className="h-5 w-5" />
-                  Become a Seller
-                </Link>
-              )}
-            </div>
-
             {/* General section */}
-            <div className="p-2 border-t">
+            <div className="p-2">
               <Link
                 to="/settings"
                 onClick={() => setIsOpen(false)}

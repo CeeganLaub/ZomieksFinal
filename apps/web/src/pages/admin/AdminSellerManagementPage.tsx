@@ -522,7 +522,7 @@ function ConversationsTab({ conversations }: { conversations: any[] }) {
   );
 }
 
-function ServicesTab({ services, sellerId, onCreateService }: { services: any[]; sellerId: string; onCreateService: () => void }) {
+function ServicesTab({ services, sellerId: _sellerId, onCreateService }: { services: any[]; sellerId: string; onCreateService: () => void }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
