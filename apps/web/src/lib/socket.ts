@@ -173,6 +173,19 @@ class SocketClient {
   private presenceSocket: DurableObjectSocket | null = null;
   private crmSocket: DurableObjectSocket | null = null;
 
+  private getAuthToken(): string | null {
+    try {
+      const storage = localStorage.getItem('auth-storage');
+      if (storage) {
+        const parsed = JSON.parse(storage);
+        return parsed.state?.token || null;
+      }
+    } catch {
+      // Ignore parsing errors
+    }
+    return null;
+  }
+
   setUser(userId: string, username: string): void {
     this.userId = userId;
     this.username = username;
@@ -196,7 +209,9 @@ class SocketClient {
       return this.chatSockets.get(conversationId)!;
     }
 
-    const url = `${WS_URL}/ws/chat/${conversationId}?userId=${this.userId}&username=${encodeURIComponent(this.username)}`;
+    const token = this.getAuthToken();
+    const authParam = token ? `&token=${encodeURIComponent(token)}` : '';
+    const url = `${WS_URL}/ws/chat/${conversationId}?userId=${this.userId}${authParam}`;
     const socket = new DurableObjectSocket(url);
     socket.connect();
     this.chatSockets.set(conversationId, socket);
@@ -267,8 +282,10 @@ class SocketClient {
       return this.presenceSocket;
     }
 
+    const token = this.getAuthToken();
+    const authParam = token ? `&token=${encodeURIComponent(token)}` : '';
     const watchParam = watchUserIds?.length ? `&watch=${watchUserIds.join(',')}` : '';
-    const url = `${WS_URL}/ws/presence?userId=${this.userId}${watchParam}`;
+    const url = `${WS_URL}/ws/presence?userId=${this.userId}${authParam}${watchParam}`;
     this.presenceSocket = new DurableObjectSocket(url);
     this.presenceSocket.connect();
 

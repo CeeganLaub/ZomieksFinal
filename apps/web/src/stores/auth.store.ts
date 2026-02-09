@@ -25,7 +25,6 @@ interface User {
 interface AuthState {
   user: User | null;
   token: string | null;
-  refreshToken: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
   
@@ -54,7 +53,6 @@ export const useAuthStore = create<AuthState>()(
     (set, get) => ({
       user: null,
       token: null,
-      refreshToken: null,
       isLoading: true,
       isAuthenticated: false,
 
@@ -74,30 +72,28 @@ export const useAuthStore = create<AuthState>()(
           // Set user on socket client for future connections
           socketClient.setUser(response.data.user.id, response.data.user.username);
         } catch {
-          set({ user: null, token: null, refreshToken: null, isAuthenticated: false, isLoading: false });
+          set({ user: null, token: null, isAuthenticated: false, isLoading: false });
         }
       },
 
       login: async (email, password) => {
-        const response = await api.post<{ success: boolean; data: { user: User; accessToken: string; refreshToken: string } }>('/auth/login', { 
+        const response = await api.post<{ success: boolean; data: { user: User; accessToken: string } }>('/auth/login', { 
           email, 
           password 
         });
         set({ 
           user: response.data.user, 
           token: response.data.accessToken,
-          refreshToken: response.data.refreshToken,
           isAuthenticated: true 
         });
         socketClient.setUser(response.data.user.id, response.data.user.username);
       },
 
       register: async (data) => {
-        const response = await api.post<{ success: boolean; data: { user: User; accessToken: string; refreshToken: string } }>('/auth/register', data);
+        const response = await api.post<{ success: boolean; data: { user: User; accessToken: string } }>('/auth/register', data);
         set({ 
           user: response.data.user, 
           token: response.data.accessToken,
-          refreshToken: response.data.refreshToken,
           isAuthenticated: true 
         });
         socketClient.setUser(response.data.user.id, response.data.user.username);
@@ -107,7 +103,7 @@ export const useAuthStore = create<AuthState>()(
         try {
           await api.post('/auth/logout');
         } finally {
-          set({ user: null, token: null, refreshToken: null, isAuthenticated: false });
+          set({ user: null, token: null, isAuthenticated: false });
           socketClient.disconnect();
         }
       },
@@ -120,7 +116,7 @@ export const useAuthStore = create<AuthState>()(
       },
       
       clearAuth: () => {
-        set({ user: null, token: null, refreshToken: null, isAuthenticated: false });
+        set({ user: null, token: null, isAuthenticated: false });
         socketClient.disconnect();
       },
 
@@ -129,7 +125,7 @@ export const useAuthStore = create<AuthState>()(
           const response = await api.get<{ success: boolean; data: { user: User } }>('/auth/me');
           set({ user: response.data.user });
         } catch {
-          set({ user: null, token: null, refreshToken: null, isAuthenticated: false });
+          set({ user: null, token: null, isAuthenticated: false });
         }
       },
     }),
@@ -138,7 +134,6 @@ export const useAuthStore = create<AuthState>()(
       partialize: (state) => ({ 
         user: state.user, 
         token: state.token,
-        refreshToken: state.refreshToken,
         isAuthenticated: state.isAuthenticated 
       }),
     }

@@ -63,7 +63,15 @@ export const authenticate = async (
 
     const cached = await redis.get(cacheKey);
     if (cached) {
-      authUser = JSON.parse(cached);
+      try {
+        const parsed = JSON.parse(cached);
+        if (parsed && typeof parsed.id === 'string' && typeof parsed.email === 'string') {
+          authUser = parsed;
+        }
+      } catch {
+        // Invalid cache entry, will re-fetch from DB
+        await redis.del(cacheKey);
+      }
     }
 
     if (!authUser) {
@@ -125,7 +133,14 @@ export const optionalAuth = async (
       const cached = await redis.get(cacheKey);
 
       if (cached) {
-        req.user = JSON.parse(cached);
+        try {
+          const parsed = JSON.parse(cached);
+          if (parsed && typeof parsed.id === 'string' && typeof parsed.email === 'string') {
+            req.user = parsed;
+          }
+        } catch {
+          await redis.del(cacheKey);
+        }
       } else {
         const user = await prisma.user.findUnique({
           where: { id: decoded.userId },

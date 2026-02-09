@@ -133,17 +133,13 @@ class ApiClient {
 
     this.refreshPromise = (async () => {
       try {
-        const storage = localStorage.getItem('auth-storage');
-        if (!storage) return false;
-        const parsed = JSON.parse(storage);
-        const refreshToken = parsed.state?.refreshToken;
-        if (!refreshToken) return false;
-
+        // Refresh token is sent via HTTP-only cookie (credentials: 'include')
+        // No need to read it from localStorage
         const response = await fetch(`${this.baseUrl}/auth/refresh`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
-          body: JSON.stringify({ refreshToken }),
+          body: JSON.stringify({}),
         });
 
         if (!response.ok) return false;

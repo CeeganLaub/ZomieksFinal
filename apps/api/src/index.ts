@@ -88,33 +88,25 @@ app.use('/uploads', express.static('uploads'));
 // Rate limiting
 app.use('/api', rateLimiter);
 
-// Health check with dependency status
+// Health check (minimal info to avoid leaking internals)
 app.get('/health', async (_req, res) => {
-  const checks: Record<string, string> = { api: 'ok' };
   let healthy = true;
 
-  // Check database
   try {
     await prisma.$queryRaw`SELECT 1`;
-    checks.database = 'ok';
   } catch {
-    checks.database = 'error';
     healthy = false;
   }
 
-  // Check Redis
   try {
     await redis.ping();
-    checks.redis = 'ok';
   } catch {
-    checks.redis = 'error';
     healthy = false;
   }
 
   res.status(healthy ? 200 : 503).json({
     status: healthy ? 'ok' : 'degraded',
     timestamp: new Date().toISOString(),
-    checks,
   });
 });
 
