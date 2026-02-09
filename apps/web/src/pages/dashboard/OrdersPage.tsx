@@ -17,29 +17,29 @@ interface Order {
   id: string;
   orderNumber: string;
   status: string;
-  totalAmount: number;
-  buyerFee: number;
+  totalAmount: string | number;
+  buyerFee: string | number;
+  baseAmount: string | number;
   deliveryDueAt: string;
+  deliveryDays: number;
+  revisions: number;
   createdAt: string;
   paidAt: string | null;
-  orderItems: {
+  service: {
     id: string;
-    quantity: number;
-    price: number;
-    package: { name: string; tier: string };
-    service: { title: string; slug: string; images: string[] };
-  }[];
+    title: string;
+    slug: string;
+    images: string[];
+  };
+  package: { name: string; tier: string } | null;
   seller: {
-    id: string;
     username: string;
-    firstName: string;
-    lastName: string;
     avatar: string;
   };
 }
 
 const statusConfig: Record<string, { label: string; icon: React.ElementType; color: string }> = {
-  PENDING: { label: 'Awaiting Payment', icon: CreditCardIcon, color: 'text-yellow-600 bg-yellow-500/10' },
+  PENDING_PAYMENT: { label: 'Awaiting Payment', icon: CreditCardIcon, color: 'text-yellow-600 bg-yellow-500/10' },
   PAID: { label: 'Payment Received', icon: CheckCircleIcon, color: 'text-blue-600 bg-blue-500/10' },
   IN_PROGRESS: { label: 'In Progress', icon: TruckIcon, color: 'text-purple-600 bg-purple-500/10' },
   DELIVERED: { label: 'Delivered', icon: DocumentTextIcon, color: 'text-indigo-600 bg-indigo-500/10' },
@@ -50,7 +50,7 @@ const statusConfig: Record<string, { label: string; icon: React.ElementType; col
 };
 
 function OrderCard({ order }: { order: Order }) {
-  const status = statusConfig[order.status] || statusConfig.PENDING;
+  const status = statusConfig[order.status] || statusConfig.PENDING_PAYMENT;
 
   return (
     <Link to={`/orders/${order.id}`} className="block">
@@ -69,45 +69,44 @@ function OrderCard({ order }: { order: Order }) {
             </p>
           </div>
           <div className="text-right">
-            <p className="font-semibold">R{order.totalAmount.toFixed(2)}</p>
+            <p className="font-semibold">R{Number(order.totalAmount).toFixed(2)}</p>
             <p className="text-xs text-muted-foreground">
-              Incl. R{(order.buyerFee ?? 0).toFixed(2)} fee
+              Incl. R{Number(order.buyerFee ?? 0).toFixed(2)} fee
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-3 mb-4">
           <img
-            src={order.seller.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(order.seller.firstName || order.seller.username)}&background=10b981&color=fff`}
+            src={order.seller.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(order.seller.username)}&background=10b981&color=fff`}
             alt={order.seller.username}
             className="w-10 h-10 rounded-full bg-muted"
           />
           <div>
-            <p className="font-medium">{order.seller.firstName} {order.seller.lastName}</p>
-            <p className="text-sm text-muted-foreground">@{order.seller.username}</p>
+            <p className="font-medium">@{order.seller.username}</p>
           </div>
         </div>
 
         <div className="space-y-2">
-          {order.orderItems.map((item) => (
-            <div key={item.id} className="flex items-center gap-3 p-2 bg-muted/50 rounded">
-              <img
-                src={item.service.images?.[0] || `https://ui-avatars.com/api/?name=${encodeURIComponent(item.service.title.charAt(0))}&background=10b981&color=fff`}
-                alt={item.service.title}
-                className="w-12 h-12 rounded object-cover bg-muted"
-              />
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-sm truncate">{item.service.title}</p>
+          <div className="flex items-center gap-3 p-2 bg-muted/50 rounded">
+            <img
+              src={order.service.images?.[0] || `https://ui-avatars.com/api/?name=${encodeURIComponent(order.service.title.charAt(0))}&background=10b981&color=fff`}
+              alt={order.service.title}
+              className="w-12 h-12 rounded object-cover bg-muted"
+            />
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-sm truncate">{order.service.title}</p>
+              {order.package && (
                 <p className="text-xs text-muted-foreground">
-                  {item.package.name} ({item.package.tier}) x{item.quantity}
+                  {order.package.name} ({order.package.tier})
                 </p>
-              </div>
-              <p className="font-medium text-sm">R{item.price.toFixed(2)}</p>
+              )}
             </div>
-          ))}
+            <p className="font-medium text-sm">R{Number(order.baseAmount).toFixed(2)}</p>
+          </div>
         </div>
 
-        {order.status === 'PENDING' && (
+        {order.status === 'PENDING_PAYMENT' && (
           <div className="mt-4 pt-4 border-t">
             <Button size="sm" className="w-full">
               <CreditCardIcon className="h-4 w-4 mr-2" />
@@ -134,7 +133,7 @@ export default function OrdersPage() {
   const filteredOrders = orders?.filter((o) => {
     if (filter === 'all') return true;
     if (filter === 'active') return ['PAID', 'IN_PROGRESS', 'DELIVERED'].includes(o.status);
-    if (filter === 'pending') return o.status === 'PENDING';
+    if (filter === 'pending') return o.status === 'PENDING_PAYMENT';
     return o.status === filter;
   });
 
@@ -161,7 +160,7 @@ export default function OrdersPage() {
         </div>
         <div className="bg-card border rounded-lg p-4 text-center">
           <p className="text-2xl font-bold text-yellow-600">
-            {orders?.filter((o) => o.status === 'PENDING').length || 0}
+            {orders?.filter((o) => o.status === 'PENDING_PAYMENT').length || 0}
           </p>
           <p className="text-sm text-muted-foreground">Pending</p>
         </div>

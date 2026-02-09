@@ -22,7 +22,7 @@ import {
 import { format } from 'date-fns';
 
 const statusConfig: Record<string, { label: string; icon: React.ElementType; color: string; bgColor: string }> = {
-  PENDING: { label: 'Awaiting Payment', icon: CreditCardIcon, color: 'text-yellow-600', bgColor: 'bg-yellow-50' },
+  PENDING_PAYMENT: { label: 'Awaiting Payment', icon: CreditCardIcon, color: 'text-yellow-600', bgColor: 'bg-yellow-50' },
   PAID: { label: 'Payment Received', icon: CheckCircleIcon, color: 'text-blue-600', bgColor: 'bg-blue-50' },
   IN_PROGRESS: { label: 'In Progress', icon: TruckIcon, color: 'text-purple-600', bgColor: 'bg-purple-50' },
   DELIVERED: { label: 'Delivered', icon: DocumentTextIcon, color: 'text-indigo-600', bgColor: 'bg-indigo-50' },
@@ -30,6 +30,7 @@ const statusConfig: Record<string, { label: string; icon: React.ElementType; col
   CANCELLED: { label: 'Cancelled', icon: XCircleIcon, color: 'text-gray-600', bgColor: 'bg-gray-50' },
   DISPUTED: { label: 'Disputed', icon: ExclamationTriangleIcon, color: 'text-red-600', bgColor: 'bg-red-50' },
   REFUNDED: { label: 'Refunded', icon: XCircleIcon, color: 'text-orange-600', bgColor: 'bg-orange-50' },
+  REVISION_REQUESTED: { label: 'Revision Requested', icon: ArrowPathIcon, color: 'text-amber-600', bgColor: 'bg-amber-50' },
 };
 
 export default function OrderPage() {
@@ -56,16 +57,16 @@ export default function OrderPage() {
 
   const payMutation = useMutation({
     mutationFn: async (gateway: string) => {
-      const res = await api.get<any>(`/payments/initiate`, { params: { orderId: id, gateway } });
+      const res = await api.get<any>(`/payments/initiate`, { params: { orderId: id, gateway: gateway.toUpperCase() } });
       return res.data;
     },
     onSuccess: (data) => {
-      if (data.paymentUrl) {
+      if (data?.paymentUrl) {
         window.location.href = data.paymentUrl;
       }
     },
     onError: (error: any) => {
-      toast.error(error.response?.data?.error?.message || 'Payment failed');
+      toast.error(error.message || 'Payment failed');
     },
   });
 
@@ -151,11 +152,11 @@ export default function OrderPage() {
     );
   }
 
-  const status = statusConfig[order.status] || statusConfig.PENDING;
-  const canPay = order.status === 'PENDING';
+  const status = statusConfig[order.status] || statusConfig.PENDING_PAYMENT;
+  const canPay = order.status === 'PENDING_PAYMENT';
   const canAccept = order.status === 'DELIVERED';
   const canDispute = ['DELIVERED', 'IN_PROGRESS'].includes(order.status);
-  const canCancel = ['PAID', 'IN_PROGRESS'].includes(order.status) && (!order.deliveries || order.deliveries.length === 0);
+  const canCancel = ['PENDING_PAYMENT', 'PAID', 'IN_PROGRESS'].includes(order.status) && (!order.deliveries || order.deliveries.length === 0);
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
@@ -184,33 +185,39 @@ export default function OrderPage() {
           {/* Order Items */}
           <Card>
             <CardHeader>
-              <CardTitle>Order Items</CardTitle>
+              <CardTitle>Order Details</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {order.orderItems?.map((item: any) => (
-                <div key={item.id} className="flex gap-4">
-                  <img
-                    src={item.service?.images?.[0] || '/placeholder.png'}
-                    alt={item.service?.title}
-                    className="w-24 h-24 rounded-lg object-cover"
-                  />
-                  <div className="flex-1">
-                    <Link
-                      to={`/${order.seller?.username}/${item.service?.slug}`}
-                      className="font-medium hover:text-primary"
-                    >
-                      {item.service?.title}
-                    </Link>
+              <div className="flex gap-4">
+                <img
+                  src={order.service?.images?.[0] || '/placeholder.png'}
+                  alt={order.service?.title}
+                  className="w-24 h-24 rounded-lg object-cover"
+                />
+                <div className="flex-1">
+                  <Link
+                    to={`/services/${order.seller?.username}/${order.service?.slug}`}
+                    className="font-medium hover:text-primary"
+                  >
+                    {order.service?.title}
+                  </Link>
+                  {order.package && (
                     <p className="text-sm text-muted-foreground">
-                      {item.package?.name} ({item.package?.tier})
+                      {order.package.name} ({order.package.tier})
                     </p>
-                    <p className="text-sm text-muted-foreground">
-                      {item.package?.deliveryDays} day delivery • {item.package?.revisions} revisions
-                    </p>
-                    <p className="font-semibold mt-2">R{item.price?.toFixed(2)}</p>
-                  </div>
+                  )}
+                  <p className="text-sm text-muted-foreground">
+                    {order.deliveryDays} day delivery • {order.revisions} revisions
+                  </p>
+                  <p className="font-semibold mt-2">R{Number(order.baseAmount).toFixed(2)}</p>
                 </div>
-              ))}
+              </div>
+              {order.requirements && (
+                <div className="pt-4 border-t">
+                  <p className="text-sm font-medium mb-1">Requirements</p>
+                  <p className="text-sm text-muted-foreground whitespace-pre-wrap">{order.requirements}</p>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -278,7 +285,7 @@ export default function OrderPage() {
                   onClick={() => payMutation.mutate(selectedPaymentMethod)}
                   disabled={payMutation.isPending}
                 >
-                  {payMutation.isPending ? 'Processing...' : `Pay R${order.totalAmount?.toFixed(2)}`}
+                  {payMutation.isPending ? 'Processing...' : `Pay R${Number(order.totalAmount).toFixed(2)}`}
                 </Button>
               </CardContent>
             </Card>
@@ -328,7 +335,7 @@ export default function OrderPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 {order.deliveries.map((delivery: any, i: number) => (
-                  <div key={delivery.id} className="p-4 bg-gray-50 rounded-lg">
+                  <div key={delivery.id} className="p-4 bg-muted/50 rounded-lg">
                     <div className="flex items-center justify-between mb-2">
                       <span className="font-medium">Delivery #{i + 1}</span>
                       <span className="text-sm text-muted-foreground">
@@ -368,15 +375,15 @@ export default function OrderPage() {
             <CardContent className="space-y-3">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Subtotal</span>
-                <span>R{(order.totalAmount - order.buyerFee).toFixed(2)}</span>
+                <span>R{(Number(order.totalAmount) - Number(order.buyerFee)).toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Service Fee (3%)</span>
-                <span>R{order.buyerFee?.toFixed(2)}</span>
+                <span>R{Number(order.buyerFee).toFixed(2)}</span>
               </div>
               <div className="border-t pt-3 flex justify-between font-semibold">
                 <span>Total</span>
-                <span>R{order.totalAmount?.toFixed(2)}</span>
+                <span>R{Number(order.totalAmount).toFixed(2)}</span>
               </div>
             </CardContent>
           </Card>
@@ -484,7 +491,7 @@ export default function OrderPage() {
       {/* Review Modal */}
       {showReviewModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+          <div className="bg-background rounded-lg p-6 w-full max-w-md mx-4">
             <h2 className="text-xl font-bold mb-4">Leave a Review</h2>
             
             <div className="mb-4">
@@ -539,7 +546,7 @@ export default function OrderPage() {
       {/* Refund Confirmation Modal */}
       {showRefundModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+          <div className="bg-background rounded-lg p-6 w-full max-w-md mx-4">
             <h2 className="text-xl font-bold mb-2">Cancel & Refund Order</h2>
             <p className="text-sm text-muted-foreground mb-4">
               Your refund will be credited to your account balance after deducting platform fees.

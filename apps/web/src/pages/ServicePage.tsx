@@ -29,11 +29,28 @@ export default function ServicePage() {
 
   const createOrder = useMutation({
     mutationFn: (data: any) => api.post<any>('/orders', data),
-    onSuccess: (data) => {
-      toast.success('Order created! Proceed to payment.');
+    onSuccess: async (data) => {
       setShowRequirementsModal(false);
       setRequirements('');
-      navigate(`/orders/${data.data.order.id}?payment=pending`);
+      const orderId = data.data.order.id;
+      const gateway = selectedGateway;
+      try {
+        // Initiate payment and redirect to payment gateway
+        toast.success('Order created! Redirecting to payment...');
+        const payRes = await api.get<any>('/payments/initiate', {
+          params: { orderId, gateway },
+        });
+        if (payRes.data?.paymentUrl) {
+          window.location.href = payRes.data.paymentUrl;
+        } else {
+          // Fallback: navigate to order page with payment prompt
+          navigate(`/orders/${orderId}?payment=pending`);
+        }
+      } catch {
+        // If payment initiation fails, go to order page where user can retry
+        toast.error('Could not initiate payment. You can pay from the order page.');
+        navigate(`/orders/${orderId}?payment=pending`);
+      }
     },
     onError: (error: any) => {
       toast.error(error.message || 'Failed to create order');

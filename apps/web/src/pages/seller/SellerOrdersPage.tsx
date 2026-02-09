@@ -40,7 +40,7 @@ interface Order {
 }
 
 const statusConfig: Record<string, { label: string; icon: React.ElementType; color: string }> = {
-  PENDING: { label: 'Pending', icon: ClockIcon, color: 'text-yellow-600 bg-yellow-50' },
+  PENDING_PAYMENT: { label: 'Pending Payment', icon: ClockIcon, color: 'text-yellow-600 bg-yellow-50' },
   PAID: { label: 'Paid', icon: CheckCircleIcon, color: 'text-blue-600 bg-blue-50' },
   IN_PROGRESS: { label: 'In Progress', icon: TruckIcon, color: 'text-purple-600 bg-purple-50' },
   DELIVERED: { label: 'Delivered', icon: DocumentTextIcon, color: 'text-indigo-600 bg-indigo-50' },
@@ -52,7 +52,7 @@ const statusConfig: Record<string, { label: string; icon: React.ElementType; col
 
 function OrderCard({ order }: { order: Order }) {
   const queryClient = useQueryClient();
-  const status = statusConfig[order.status] || statusConfig.PENDING;
+  const status = statusConfig[order.status] || statusConfig.PENDING_PAYMENT;
 
   const startOrderMutation = useMutation({
     mutationFn: async () => {
