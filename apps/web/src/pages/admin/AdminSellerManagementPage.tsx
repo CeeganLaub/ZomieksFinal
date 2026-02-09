@@ -88,6 +88,7 @@ export default function AdminSellerManagementPage() {
   const [showCreateReview, setShowCreateReview] = useState(false);
   const [showEditStats, setShowEditStats] = useState(false);
   const [showEditMetrics, setShowEditMetrics] = useState(false);
+  const [showCreateService, setShowCreateService] = useState(false);
   const [search, setSearch] = useState('');
 
   const loadSellers = useCallback(async () => {
@@ -316,7 +317,13 @@ export default function AdminSellerManagementPage() {
               {activeTab === 'overview' && <OverviewTab seller={selectedSeller} />}
               {activeTab === 'orders' && <OrdersTab orders={selectedSeller.seller.sellerOrders} />}
               {activeTab === 'conversations' && <ConversationsTab conversations={selectedSeller.seller.sellerConversations} />}
-              {activeTab === 'services' && <ServicesTab services={selectedSeller.seller.services} />}
+              {activeTab === 'services' && (
+                <ServicesTab
+                  services={selectedSeller.seller.services}
+                  sellerId={selectedSeller.seller.id}
+                  onCreateService={() => setShowCreateService(true)}
+                />
+              )}
               {activeTab === 'reviews' && <ReviewsTab reviews={selectedSeller.seller.receivedReviews} />}
               {activeTab === 'analytics' && (
                 <AnalyticsTab
@@ -365,6 +372,13 @@ export default function AdminSellerManagementPage() {
           seller={selectedSeller.seller}
           onClose={() => setShowEditStats(false)}
           onSaved={() => { loadSellerDetails(selectedSeller.seller.id); setShowEditStats(false); }}
+        />
+      )}
+      {showCreateService && selectedSeller && (
+        <CreateServiceModal
+          sellerId={selectedSeller.seller.id}
+          onClose={() => setShowCreateService(false)}
+          onCreated={() => { loadSellerDetails(selectedSeller.seller.id); setShowCreateService(false); }}
         />
       )}
     </div>
@@ -508,24 +522,38 @@ function ConversationsTab({ conversations }: { conversations: any[] }) {
   );
 }
 
-function ServicesTab({ services }: { services: any[] }) {
-  if (!services?.length) return <EmptyState message="No services yet" />;
+function ServicesTab({ services, sellerId, onCreateService }: { services: any[]; sellerId: string; onCreateService: () => void }) {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      {services.map((s: any) => (
-        <div key={s.id} className="bg-background border rounded-lg p-4">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-semibold truncate">{s.title}</h3>
-            <StatusBadge status={s.status} />
-          </div>
-          <p className="text-xs text-muted-foreground mb-2">{s.category?.name || 'Uncategorized'}</p>
-          <div className="flex items-center gap-4 text-xs text-muted-foreground">
-            <span>{s._count?.orders || 0} orders</span>
-            <span>{s._count?.reviews || 0} reviews</span>
-            {s.packages?.[0] && <span>From R{Number(s.packages[0].price).toFixed(0)}</span>}
-          </div>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold">Services ({services?.length || 0})</h3>
+        <button
+          onClick={onCreateService}
+          className="flex items-center gap-1 px-3 py-1.5 text-xs bg-primary text-primary-foreground rounded-lg hover:bg-primary/90"
+        >
+          <PlusIcon className="h-3.5 w-3.5" /> Create Service
+        </button>
+      </div>
+      {!services?.length ? (
+        <EmptyState message="No services yet. Click 'Create Service' to add one." />
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {services.map((s: any) => (
+            <div key={s.id} className="bg-background border rounded-lg p-4">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-semibold truncate">{s.title}</h3>
+                <StatusBadge status={s.status} />
+              </div>
+              <p className="text-xs text-muted-foreground mb-2">{s.category?.name || 'Uncategorized'}</p>
+              <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                <span>{s._count?.orders || 0} orders</span>
+                <span>{s._count?.reviews || 0} reviews</span>
+                {s.packages?.[0] && <span>From R{Number(s.packages[0].price).toFixed(0)}</span>}
+              </div>
+            </div>
+          ))}
         </div>
-      ))}
+      )}
     </div>
   );
 }
@@ -1005,7 +1033,186 @@ function EditStatsModal({ seller, onClose, onSaved }: { seller: any; onClose: ()
   );
 }
 
+function CreateServiceModal({ sellerId, onClose, onCreated }: { sellerId: string; onClose: () => void; onCreated: () => void }) {
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
+  const [form, setForm] = useState({
+    title: '',
+    categoryId: '',
+    description: '',
+    pricingType: 'ONE_TIME' as 'ONE_TIME' | 'SUBSCRIPTION' | 'BOTH',
+    tags: '',
+    images: 'https://placehold.co/600x400?text=Service',
+  });
+  const [packages, setPackages] = useState([
+    { tier: 'BASIC' as const, name: 'Basic', description: 'Basic package for this service', price: '500', deliveryDays: '7', revisions: '1', features: 'Feature 1' },
+  ]);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    api.get<any>('/services/meta/categories').then((res) => {
+      const cats = res.data?.categories || res.data || [];
+      setCategories(cats);
+    }).catch(() => {});
+  }, []);
+
+  const addPackage = () => {
+    const nextTier = packages.length === 1 ? 'STANDARD' : 'PREMIUM';
+    setPackages([...packages, {
+      tier: nextTier as any,
+      name: nextTier.charAt(0) + nextTier.slice(1).toLowerCase(),
+      description: `${nextTier.charAt(0) + nextTier.slice(1).toLowerCase()} package`,
+      price: String(Number(packages[packages.length - 1].price) + 500),
+      deliveryDays: '5',
+      revisions: '2',
+      features: 'Feature 1',
+    }]);
+  };
+
+  const removePackage = (idx: number) => {
+    setPackages(packages.filter((_, i) => i !== idx));
+  };
+
+  const updatePackage = (idx: number, field: string, value: string) => {
+    setPackages(packages.map((p, i) => i === idx ? { ...p, [field]: value } : p));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.categoryId) { toast.error('Please select a category'); return; }
+    if (form.title.length < 10) { toast.error('Title must be at least 10 characters'); return; }
+    if (form.description.length < 50) { toast.error('Description must be at least 50 characters'); return; }
+
+    try {
+      setSubmitting(true);
+      await api.post(`/admin/sellers/managed/${sellerId}/services`, {
+        title: form.title,
+        categoryId: form.categoryId,
+        description: form.description,
+        pricingType: form.pricingType,
+        tags: form.tags.split(',').map(t => t.trim()).filter(Boolean),
+        images: form.images.split(',').map(u => u.trim()).filter(Boolean),
+        packages: packages.map(p => ({
+          tier: p.tier,
+          name: p.name,
+          description: p.description,
+          price: Number(p.price),
+          deliveryDays: Number(p.deliveryDays),
+          revisions: Number(p.revisions),
+          features: p.features.split(',').map(f => f.trim()).filter(Boolean),
+        })),
+      });
+      toast.success('Service created successfully');
+      onCreated();
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to create service');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <ModalWrapper title="Create Service" onClose={onClose}>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <FormField label="Title (10-80 chars)" value={form.title} onChange={(v) => setForm({ ...form, title: v })} required placeholder="e.g. Professional Logo Design" />
+
+        <div>
+          <label className="block text-sm font-medium mb-1">Category</label>
+          <select
+            value={form.categoryId}
+            onChange={(e) => setForm({ ...form, categoryId: e.target.value })}
+            className="w-full h-10 px-3 rounded-lg border bg-background text-sm"
+            required
+          >
+            <option value="">Select a category...</option>
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">Description (50+ chars)</label>
+          <textarea
+            value={form.description}
+            onChange={(e) => setForm({ ...form, description: e.target.value })}
+            rows={3}
+            className="w-full px-3 py-2 rounded-lg border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+            required
+            placeholder="Describe the service in detail..."
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">Pricing Type</label>
+          <select
+            value={form.pricingType}
+            onChange={(e) => setForm({ ...form, pricingType: e.target.value as any })}
+            className="w-full h-10 px-3 rounded-lg border bg-background text-sm"
+          >
+            <option value="ONE_TIME">One Time</option>
+            <option value="SUBSCRIPTION">Subscription</option>
+            <option value="BOTH">Both</option>
+          </select>
+        </div>
+
+        <FormField label="Tags (comma-separated, 1-5)" value={form.tags} onChange={(v) => setForm({ ...form, tags: v })} placeholder="logo, design, branding" required />
+        <FormField label="Image URLs (comma-separated)" value={form.images} onChange={(v) => setForm({ ...form, images: v })} placeholder="https://example.com/image.jpg" />
+
+        {/* Packages */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium">Packages</label>
+            {packages.length < 3 && (
+              <button type="button" onClick={addPackage} className="flex items-center gap-1 text-xs text-primary hover:underline">
+                <PlusIcon className="h-3.5 w-3.5" /> Add Package
+              </button>
+            )}
+          </div>
+
+          {packages.map((pkg, idx) => (
+            <div key={idx} className="border rounded-lg p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-primary">{pkg.tier}</span>
+                {packages.length > 1 && (
+                  <button type="button" onClick={() => removePackage(idx)} className="text-xs text-red-500 hover:underline">Remove</button>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <FormField label="Name" value={pkg.name} onChange={(v) => updatePackage(idx, 'name', v)} required />
+                <FormField label="Price (R, min 50)" value={pkg.price} onChange={(v) => updatePackage(idx, 'price', v)} type="number" required />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1">Description (10+ chars)</label>
+                <textarea
+                  value={pkg.description}
+                  onChange={(e) => updatePackage(idx, 'description', e.target.value)}
+                  rows={2}
+                  className="w-full px-3 py-1.5 rounded-lg border bg-background text-xs focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  required
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <FormField label="Delivery (days)" value={pkg.deliveryDays} onChange={(v) => updatePackage(idx, 'deliveryDays', v)} type="number" required />
+                <FormField label="Revisions" value={pkg.revisions} onChange={(v) => updatePackage(idx, 'revisions', v)} type="number" />
+              </div>
+              <FormField label="Features (comma-separated)" value={pkg.features} onChange={(v) => updatePackage(idx, 'features', v)} placeholder="Logo design, Source files" required />
+            </div>
+          ))}
+        </div>
+
+        <div className="flex justify-end gap-2 pt-2">
+          <button type="button" onClick={onClose} className="px-4 py-2 text-sm border rounded-lg hover:bg-muted">Cancel</button>
+          <button type="submit" disabled={submitting} className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50">
+            {submitting ? 'Creating...' : 'Create Service'}
+          </button>
+        </div>
+      </form>
+    </ModalWrapper>
+  );
+}
+
 function EditMetricsModal({ sellerId, onClose, onSaved }: { sellerId: string; onClose: () => void; onSaved: () => void }) {
+  const SELLER_FEE_PERCENT = 8;
   const [form, setForm] = useState({
     date: new Date().toISOString().split('T')[0],
     ordersReceived: '5',
@@ -1021,6 +1228,18 @@ function EditMetricsModal({ sellerId, onClose, onSaved }: { sellerId: string; on
     avgRating: '4.8',
   });
   const [submitting, setSubmitting] = useState(false);
+
+  const updateGrossRevenue = (value: string) => {
+    const gross = parseFloat(value) || 0;
+    const fees = Math.round(gross * SELLER_FEE_PERCENT / 100 * 100) / 100;
+    const net = Math.round((gross - fees) * 100) / 100;
+    setForm((prev) => ({
+      ...prev,
+      grossRevenue: value,
+      platformFees: String(fees),
+      netRevenue: String(net),
+    }));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1052,7 +1271,7 @@ function EditMetricsModal({ sellerId, onClose, onSaved }: { sellerId: string; on
   return (
     <ModalWrapper title="Add/Edit Seller Metrics" onClose={onClose}>
       <form onSubmit={handleSubmit} className="space-y-4">
-        <p className="text-xs text-muted-foreground">Set daily metrics for demo and marketing analytics display.</p>
+        <p className="text-xs text-muted-foreground">Set daily metrics for demo and marketing analytics display. Platform fee is auto-calculated at {SELLER_FEE_PERCENT}% of gross revenue.</p>
         <FormField label="Date" type="date" value={form.date} onChange={(v) => setForm({ ...form, date: v })} required />
         <div className="grid grid-cols-3 gap-3">
           <FormField label="Orders Received" value={form.ordersReceived} onChange={(v) => setForm({ ...form, ordersReceived: v })} type="number" />
@@ -1060,8 +1279,8 @@ function EditMetricsModal({ sellerId, onClose, onSaved }: { sellerId: string; on
           <FormField label="Orders Cancelled" value={form.ordersCancelled} onChange={(v) => setForm({ ...form, ordersCancelled: v })} type="number" />
         </div>
         <div className="grid grid-cols-3 gap-3">
-          <FormField label="Gross Revenue (R)" value={form.grossRevenue} onChange={(v) => setForm({ ...form, grossRevenue: v })} type="number" />
-          <FormField label="Platform Fees (R)" value={form.platformFees} onChange={(v) => setForm({ ...form, platformFees: v })} type="number" />
+          <FormField label="Gross Revenue (R)" value={form.grossRevenue} onChange={updateGrossRevenue} type="number" />
+          <FormField label="Platform Fees (R) — 8%" value={form.platformFees} onChange={(v) => setForm({ ...form, platformFees: v })} type="number" />
           <FormField label="Net Revenue (R)" value={form.netRevenue} onChange={(v) => setForm({ ...form, netRevenue: v })} type="number" />
         </div>
         <div className="grid grid-cols-2 gap-3">

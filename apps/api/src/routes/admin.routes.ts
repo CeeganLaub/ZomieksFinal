@@ -5,7 +5,7 @@ import { redis } from '@/lib/redis.js';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
-import { calculateServiceRefund } from '@zomieks/shared';
+import { calculateServiceRefund, slugify, PLATFORM_FEES } from '@zomieks/shared';
 import { processOrderRefund, releaseOrderEscrow } from '@/services/escrow.service.js';
 import { sendNotification } from '@/services/notification.service.js';
 import { validate } from '@/middleware/validate.js';
@@ -694,6 +694,79 @@ router.patch('/services/:id', async (req, res, next) => {
     });
 
     res.json({ success: true, data: { service } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Create service for admin-managed seller
+const adminCreateServiceSchema = z.object({
+  title: z.string().min(10).max(80),
+  categoryId: z.string().min(1),
+  description: z.string().min(50),
+  pricingType: z.enum(['ONE_TIME', 'SUBSCRIPTION', 'BOTH']).default('ONE_TIME'),
+  tags: z.array(z.string()).min(1).max(5),
+  images: z.array(z.string()).min(1).max(5),
+  video: z.string().optional(),
+  faqs: z.array(z.object({ question: z.string(), answer: z.string() })).optional(),
+  packages: z.array(z.object({
+    tier: z.enum(['BASIC', 'STANDARD', 'PREMIUM']),
+    name: z.string().min(2),
+    description: z.string().min(10),
+    price: z.number().min(50),
+    deliveryDays: z.number().min(1).max(90),
+    revisions: z.number().min(0).default(1),
+    features: z.array(z.string()).min(1),
+  })).min(1),
+});
+
+router.post('/sellers/managed/:id/services', validate(adminCreateServiceSchema), async (req, res, next) => {
+  try {
+    const sellerId = req.params.id as string;
+    const { title, categoryId, description, pricingType, tags, images, video, faqs, packages } = req.body;
+
+    const seller = await prisma.user.findUnique({ where: { id: sellerId, isSeller: true } });
+    if (!seller) {
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Seller not found' } });
+    }
+
+    let slug = slugify(title);
+    const existing = await prisma.service.findFirst({ where: { sellerId, slug } });
+    if (existing) slug = `${slug}-${Date.now()}`;
+
+    const service = await prisma.service.create({
+      data: {
+        sellerId,
+        categoryId,
+        title,
+        slug,
+        description,
+        pricingType,
+        tags: tags.map((t: string) => t.toLowerCase()),
+        images,
+        video: video || null,
+        faqs: faqs || null,
+        status: 'ACTIVE',
+        isActive: true,
+        packages: {
+          create: packages.map((pkg: any) => ({
+            tier: pkg.tier,
+            name: pkg.name,
+            description: pkg.description,
+            price: pkg.price,
+            deliveryDays: pkg.deliveryDays,
+            revisions: pkg.revisions || 1,
+            features: pkg.features,
+          })),
+        },
+      },
+      include: {
+        category: { select: { name: true } },
+        packages: true,
+      },
+    });
+
+    res.status(201).json({ success: true, data: { service } });
   } catch (error) {
     next(error);
   }

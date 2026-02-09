@@ -36,7 +36,8 @@ export default function LoginPage() {
     try {
       await login(data.email, data.password);
       toast.success('Welcome back!');
-      navigate('/dashboard');
+      const user = useAuthStore.getState().user;
+      navigate(user?.isAdmin ? '/admin' : '/dashboard');
     } catch (error: any) {
       toast.error(error.message || 'Login failed');
     } finally {
