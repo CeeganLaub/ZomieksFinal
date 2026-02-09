@@ -209,11 +209,18 @@ class SocketClient {
       return this.chatSockets.get(conversationId)!;
     }
 
-    const token = this.getAuthToken();
-    const authParam = token ? `&token=${encodeURIComponent(token)}` : '';
-    const url = `${WS_URL}/ws/chat/${conversationId}?userId=${this.userId}${authParam}`;
+    const url = `${WS_URL}/ws/chat/${conversationId}?userId=${this.userId}`;
     const socket = new DurableObjectSocket(url);
     socket.connect();
+
+    // Send auth token as first message after connection
+    const token = this.getAuthToken();
+    if (token) {
+      socket.onConnect(() => {
+        socket.send({ type: 'auth', token });
+      });
+    }
+
     this.chatSockets.set(conversationId, socket);
 
     return socket;
@@ -282,15 +289,17 @@ class SocketClient {
       return this.presenceSocket;
     }
 
-    const token = this.getAuthToken();
-    const authParam = token ? `&token=${encodeURIComponent(token)}` : '';
     const watchParam = watchUserIds?.length ? `&watch=${watchUserIds.join(',')}` : '';
-    const url = `${WS_URL}/ws/presence?userId=${this.userId}${authParam}${watchParam}`;
+    const url = `${WS_URL}/ws/presence?userId=${this.userId}${watchParam}`;
     this.presenceSocket = new DurableObjectSocket(url);
     this.presenceSocket.connect();
 
-    // Send online status
+    // Send auth and online status after connection
+    const token = this.getAuthToken();
     this.presenceSocket.onConnect(() => {
+      if (token) {
+        this.presenceSocket?.send({ type: 'auth', token });
+      }
       this.presenceSocket?.send({ type: 'online', userId: this.userId, username: this.username });
     });
 

@@ -5,10 +5,29 @@ import { prisma } from '@/lib/prisma.js';
 import { redis } from '@/lib/redis.js';
 import { env } from '@/config/env.js';
 import { AppError } from '@/middleware/error-handler.js';
+import { logger } from '@/lib/logger.js';
 import type { JwtPayload } from '@/middleware/auth.js';
 import type { RegisterInput, LoginInput } from '@zomieks/shared';
 
 const SALT_ROUNDS = 12;
+
+/** Parse a duration string like '15m', '7d', '3600s' into seconds */
+function parseDurationToSeconds(duration: string, fallbackSeconds: number): number {
+  const match = duration.match(/^(\d+)([smhd])$/);
+  if (!match) {
+    logger.warn(`Invalid duration format: "${duration}", using fallback of ${fallbackSeconds}s`);
+    return fallbackSeconds;
+  }
+  const value = parseInt(match[1], 10);
+  const unit = match[2];
+  switch (unit) {
+    case 's': return value;
+    case 'm': return value * 60;
+    case 'h': return value * 3600;
+    case 'd': return value * 86400;
+    default: return fallbackSeconds;
+  }
+}
 
 export const authService = {
   async register(data: RegisterInput) {
@@ -182,22 +201,8 @@ export const authService = {
       where: { userId },
     });
     
-    // Parse JWT_ACCESS_EXPIRES_IN for blacklist TTL
-    let blacklistTtl = 900; // Default 15 min
-    const accessExpiresIn = env.JWT_ACCESS_EXPIRES_IN;
-    const match = accessExpiresIn.match(/^(\d+)([smhd])$/);
-    if (match) {
-      const value = parseInt(match[1], 10);
-      const unit = match[2];
-      switch (unit) {
-        case 's': blacklistTtl = value; break;
-        case 'm': blacklistTtl = value * 60; break;
-        case 'h': blacklistTtl = value * 3600; break;
-        case 'd': blacklistTtl = value * 86400; break;
-      }
-    }
-    
     // Invalidate all access tokens via Redis blacklist
+    const blacklistTtl = parseDurationToSeconds(env.JWT_ACCESS_EXPIRES_IN, 900);
     await redis.setex(`blacklist:user:${userId}`, blacklistTtl, '1');
     
     // Invalidate cached auth user
@@ -217,23 +222,9 @@ export const authService = {
       { expiresIn: env.JWT_REFRESH_EXPIRES_IN } as jwt.SignOptions
     );
     
-    // Parse JWT_REFRESH_EXPIRES_IN to compute database expiry
-    const expiresAt = new Date();
-    const expiresIn = env.JWT_REFRESH_EXPIRES_IN;
-    const match = expiresIn.match(/^(\d+)([smhd])$/);
-    if (match) {
-      const value = parseInt(match[1], 10);
-      const unit = match[2];
-      switch (unit) {
-        case 's': expiresAt.setSeconds(expiresAt.getSeconds() + value); break;
-        case 'm': expiresAt.setMinutes(expiresAt.getMinutes() + value); break;
-        case 'h': expiresAt.setHours(expiresAt.getHours() + value); break;
-        case 'd': expiresAt.setDate(expiresAt.getDate() + value); break;
-      }
-    } else {
-      // Fallback: 7 days
-      expiresAt.setDate(expiresAt.getDate() + 7);
-    }
+    // Compute database expiry from JWT_REFRESH_EXPIRES_IN
+    const refreshTtlSeconds = parseDurationToSeconds(env.JWT_REFRESH_EXPIRES_IN, 7 * 86400);
+    const expiresAt = new Date(Date.now() + refreshTtlSeconds * 1000);
     
     await prisma.refreshToken.create({
       data: {
