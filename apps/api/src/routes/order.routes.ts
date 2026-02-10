@@ -66,7 +66,12 @@ router.get('/selling', authenticate, async (req, res, next) => {
     const { status, cursor, page = '1', limit = '20' } = req.query;
 
     const where: any = { sellerId: req.user!.id };
-    if (status) where.status = status as string;
+    if (status) {
+      where.status = status as string;
+    } else {
+      // By default exclude unpaid checkout orders sellers shouldn't see yet
+      where.status = { not: 'PENDING_PAYMENT' };
+    }
 
     const take = parseInt(limit as string);
 
@@ -239,43 +244,8 @@ router.post(
         },
       });
 
-      // Create or find conversation
-      const conversation = await prisma.conversation.upsert({
-        where: {
-          buyerId_sellerId: {
-            buyerId: req.user!.id,
-            sellerId: service.sellerId,
-          },
-        },
-        create: {
-          buyerId: req.user!.id,
-          sellerId: service.sellerId,
-          orderId: order.id,
-        },
-        update: {
-          orderId: order.id,
-        },
-      });
-
-      // Send system message about order creation
-      await prisma.message.create({
-        data: {
-          conversationId: conversation.id,
-          senderId: req.user!.id,
-          content: `📦 Order #${order.orderNumber} created for "${order.service.title}" (${packageTier} package). Awaiting payment.`,
-          type: 'ORDER_UPDATE',
-          deliveredAt: new Date(),
-        },
-      });
-
-      // Update conversation last message
-      await prisma.conversation.update({
-        where: { id: conversation.id },
-        data: {
-          lastMessageAt: new Date(),
-          unreadSellerCount: { increment: 1 },
-        },
-      });
+      // NOTE: Conversation and seller notification are created when payment succeeds
+      // (in the webhook handler), not at order creation time.
 
       res.status(201).json({ 
         success: true, 

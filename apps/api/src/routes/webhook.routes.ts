@@ -94,6 +94,42 @@ router.post('/payfast', async (req, res) => {
             data: { orderId: order.id },
           });
         });
+
+        // Create conversation and system message now that payment is confirmed
+        const conversation = await prisma.conversation.upsert({
+          where: {
+            buyerId_sellerId: {
+              buyerId: order.buyerId,
+              sellerId: order.sellerId,
+            },
+          },
+          create: {
+            buyerId: order.buyerId,
+            sellerId: order.sellerId,
+            orderId: order.id,
+          },
+          update: {
+            orderId: order.id,
+          },
+        });
+
+        await prisma.message.create({
+          data: {
+            conversationId: conversation.id,
+            senderId: order.buyerId,
+            content: `📦 Order #${order.orderNumber} has been placed and paid. Work can begin!`,
+            type: 'ORDER_UPDATE',
+            deliveredAt: new Date(),
+          },
+        });
+
+        await prisma.conversation.update({
+          where: { id: conversation.id },
+          data: {
+            lastMessageAt: new Date(),
+            unreadSellerCount: { increment: 1 },
+          },
+        });
       } else if (paymentStatus === 'CANCELLED' || paymentStatus === 'FAILED') {
         await prisma.order.update({
           where: { id: order.id },
@@ -418,6 +454,42 @@ router.post('/ozow', async (req, res) => {
           message: `You have a new order #${order.orderNumber}`,
           data: { orderId: order.id },
         });
+      });
+
+      // Create conversation and system message now that payment is confirmed
+      const conversation = await prisma.conversation.upsert({
+        where: {
+          buyerId_sellerId: {
+            buyerId: order.buyerId,
+            sellerId: order.sellerId,
+          },
+        },
+        create: {
+          buyerId: order.buyerId,
+          sellerId: order.sellerId,
+          orderId: order.id,
+        },
+        update: {
+          orderId: order.id,
+        },
+      });
+
+      await prisma.message.create({
+        data: {
+          conversationId: conversation.id,
+          senderId: order.buyerId,
+          content: `📦 Order #${order.orderNumber} has been placed and paid. Work can begin!`,
+          type: 'ORDER_UPDATE',
+          deliveredAt: new Date(),
+        },
+      });
+
+      await prisma.conversation.update({
+        where: { id: conversation.id },
+        data: {
+          lastMessageAt: new Date(),
+          unreadSellerCount: { increment: 1 },
+        },
       });
     } else if (status === 'Cancelled' || status === 'Error' || status === 'Abandoned') {
       await prisma.order.update({

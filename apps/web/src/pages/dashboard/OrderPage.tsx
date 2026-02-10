@@ -43,8 +43,17 @@ export default function OrderPage() {
   const [review, setReview] = useState('');
   const [showReviewModal, setShowReviewModal] = useState(false);
 
-  // Check if user was redirected from checkout
-  void searchParams.get('payment');
+  // Handle payment redirect query params
+  const paymentStatus = searchParams.get('payment');
+  useState(() => {
+    if (paymentStatus === 'success') {
+      toast.success('Order Placed Successfully! The seller has been notified.');
+    } else if (paymentStatus === 'cancelled') {
+      toast.info('Payment was cancelled. You can try again or cancel the order.');
+    } else if (paymentStatus === 'failed') {
+      toast.error('Payment failed. Please try again.');
+    }
+  });
 
   const { data: order, isLoading, error } = useQuery({
     queryKey: ['order', id],

@@ -36,7 +36,7 @@ export default function ServicePage() {
       const gateway = selectedGateway;
       try {
         // Initiate payment and redirect to payment gateway
-        toast.success('Order created! Redirecting to payment...');
+        toast.info('Redirecting to payment...');
         const payRes = await api.get<any>('/payments/initiate', {
           params: { orderId, gateway },
         });

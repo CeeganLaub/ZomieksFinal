@@ -26,9 +26,9 @@ const envSchema = z.object({
   PAYFAST_SANDBOX: z.string().transform(v => v === 'true').default('true'),
   
   // OZOW
-  OZOW_SITE_CODE: z.string(),
-  OZOW_PRIVATE_KEY: z.string(),
-  OZOW_API_KEY: z.string(),
+  OZOW_SITE_CODE: z.string().default(''),
+  OZOW_PRIVATE_KEY: z.string().default(''),
+  OZOW_API_KEY: z.string().default(''),
   OZOW_IS_TEST: z.string().transform(v => v === 'true').default('true'),
   
   // Upload
