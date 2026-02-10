@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -55,6 +55,7 @@ export default function OrderPage() {
     }
   });
 
+  // Redirect to conversation page after successful payment
   const { data: order, isLoading, error } = useQuery({
     queryKey: ['order', id],
     queryFn: async () => {
@@ -63,6 +64,23 @@ export default function OrderPage() {
     },
     enabled: !!id,
   });
+
+  useEffect(() => {
+    if (paymentStatus === 'success' && order?.sellerId) {
+      // Find or create conversation and redirect to it
+      api.post<any>('/conversations/start', {
+        participantId: order.sellerId,
+        orderId: order.id,
+      }).then(res => {
+        const convId = res.data?.conversationId;
+        if (convId) {
+          navigate(`/messages/${convId}`, { replace: true });
+        }
+      }).catch(() => {
+        // Stay on order page if conversation lookup fails
+      });
+    }
+  }, [paymentStatus, order, navigate]);
 
   const payMutation = useMutation({
     mutationFn: async (gateway: string) => {

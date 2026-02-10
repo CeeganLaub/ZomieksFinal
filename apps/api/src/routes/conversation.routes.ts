@@ -164,6 +164,69 @@ router.get('/:id', authenticate, async (req, res, next) => {
   }
 });
 
+// Send a message in a conversation
+router.post('/:id/messages', authenticate, async (req, res, next) => {
+  try {
+    const { content, attachments } = req.body;
+
+    if (!content || !content.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: 'Message content is required' },
+      });
+    }
+
+    const conversation = await prisma.conversation.findFirst({
+      where: {
+        id: req.params.id,
+        OR: [
+          { buyerId: req.user!.id },
+          { sellerId: req.user!.id },
+        ],
+      },
+    });
+
+    if (!conversation) {
+      return res.status(404).json({
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Conversation not found' },
+      });
+    }
+
+    const hasAttachments = Array.isArray(attachments) && attachments.length > 0;
+
+    const message = await prisma.message.create({
+      data: {
+        conversationId: conversation.id,
+        senderId: req.user!.id,
+        content: content.trim(),
+        type: hasAttachments ? 'FILE' : 'TEXT',
+        attachments: hasAttachments ? attachments : undefined,
+        deliveredAt: new Date(),
+      },
+      include: {
+        sender: {
+          select: { id: true, username: true, firstName: true, avatar: true },
+        },
+      },
+    });
+
+    // Update conversation metadata
+    const unreadField = conversation.buyerId === req.user!.id ? 'unreadSellerCount' : 'unreadBuyerCount';
+    await prisma.conversation.update({
+      where: { id: conversation.id },
+      data: {
+        lastMessageAt: new Date(),
+        [unreadField]: { increment: 1 },
+      },
+    });
+
+    res.status(201).json({ success: true, data: { message } });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Start or find a conversation (lightweight – no initial message required)
 router.post('/start', authenticate, async (req, res, next) => {
   try {

@@ -21,10 +21,10 @@ export default function InboxDropdown() {
   }, []);
 
   useEffect(() => {
-    if (isOpen && conversations.length === 0) {
+    if (isOpen) {
       fetchConversations();
     }
-  }, [isOpen, conversations.length, fetchConversations]);
+  }, [isOpen, fetchConversations]);
 
   // Calculate total unread count
   const totalUnread = conversations.reduce((acc, conv) => {

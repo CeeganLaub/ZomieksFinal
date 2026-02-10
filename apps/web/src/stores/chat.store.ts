@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import { api } from '../lib/api';
-import { socketClient } from '../lib/socket';
 
 interface Message {
   id: string;
@@ -54,7 +53,7 @@ interface ChatState {
   fetchConversation: (id: string) => Promise<void>;
   setActiveConversation: (conversation: Conversation | null) => void;
   addMessage: (message: Message) => void;
-  sendMessage: (conversationId: string, content: string, type?: string, attachments?: string[]) => void;
+  sendMessage: (conversationId: string, content: string, type?: string, attachments?: string[]) => Promise<void>;
   setTyping: (conversationId: string, userId: string, isTyping: boolean) => void;
 }
 
@@ -89,21 +88,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
         activeConversation: response.data.conversation,
         messages: response.data.messages,
       });
-      socketClient.joinConversation(id);
     } finally {
       set({ isLoading: false });
     }
   },
 
   setActiveConversation: (conversation) => {
-    const current = get().activeConversation;
-    if (current?.id) {
-      socketClient.leaveConversation(current.id);
-    }
     set({ activeConversation: conversation, messages: [] });
-    if (conversation?.id) {
-      socketClient.joinConversation(conversation.id);
-    }
   },
 
   addMessage: (message) => {
@@ -140,9 +131,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
     });
   },
 
-  sendMessage: (conversationId, content, _type = 'TEXT', _attachments) => {
-    // Socket currently only supports text messages
-    socketClient.sendMessage(conversationId, content);
+  sendMessage: async (conversationId, content, _type = 'TEXT', attachments) => {
+    try {
+      const res = await api.post<{ success: boolean; data: { message: Message } }>(
+        `/conversations/${conversationId}/messages`,
+        { content, attachments }
+      );
+      if (res.data?.message) {
+        get().addMessage(res.data.message);
+      }
+    } catch (err) {
+      console.error('Failed to send message:', err);
+      throw err;
+    }
   },
 
   setTyping: (conversationId, userId, isTyping) => {
@@ -161,6 +162,3 @@ export const useChatStore = create<ChatState>((set, get) => ({
     });
   },
 }));
-
-// Socket listeners are set up per-conversation when joining
-// See fetchConversation and setActiveConversation for socket setup

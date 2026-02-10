@@ -8,6 +8,7 @@ import { cn } from '../../lib/utils';
 import {
   ArrowLeftIcon,
   PaperAirplaneIcon,
+  PaperClipIcon,
   TagIcon,
   CheckIcon,
   XMarkIcon,
@@ -15,6 +16,8 @@ import {
   ArrowPathIcon,
   CreditCardIcon,
   ExclamationTriangleIcon,
+  DocumentIcon,
+  PhotoIcon,
 } from '@heroicons/react/24/outline';
 import { toast } from 'sonner';
 
@@ -57,7 +60,10 @@ export default function ConversationPage() {
   const [isSending, setIsSending] = useState(false);
   const [showGatewayPicker, setShowGatewayPicker] = useState<string | null>(null);
   const [showOffPlatformWarning, setShowOffPlatformWarning] = useState(true);
+  const [pendingAttachments, setPendingAttachments] = useState<Array<{ url: string; name: string; type: string }>>([]); 
+  const [isUploading, setIsUploading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (id) {
@@ -74,12 +80,59 @@ export default function ConversationPage() {
     prevMessageCountRef.current = messages.length;
   }, [messages]);
 
-  const handleSendMessage = useCallback((e: React.FormEvent) => {
+  const handleSendMessage = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMessage.trim() || !id) return;
-    sendMessage(id, newMessage.trim());
-    setNewMessage('');
-  }, [newMessage, id, sendMessage]);
+    if ((!newMessage.trim() && pendingAttachments.length === 0) || !id) return;
+    const content = newMessage.trim() || (pendingAttachments.length > 0 ? '📎 Attachment' : '');
+    const attachmentUrls = pendingAttachments.length > 0 ? pendingAttachments.map(a => a.url) : undefined;
+    try {
+      await sendMessage(id, content, 'TEXT', attachmentUrls);
+      setNewMessage('');
+      setPendingAttachments([]);
+    } catch {
+      toast.error('Failed to send message');
+    }
+  }, [newMessage, id, sendMessage, pendingAttachments]);
+
+  const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('File must be less than 10MB');
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      const formData = new FormData();
+      const isImage = file.type.startsWith('image/');
+      formData.append(isImage ? 'image' : 'file', file);
+
+      const token = localStorage.getItem('auth-storage');
+      const parsed = token ? JSON.parse(token) : null;
+      const authToken = parsed?.state?.token;
+
+      const res = await fetch(`/api/v1/uploads/${isImage ? 'image' : 'file'}`, {
+        method: 'POST',
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+        body: formData,
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error?.message || 'Upload failed');
+
+      setPendingAttachments(prev => [...prev, {
+        url: data.data.url,
+        name: file.name,
+        type: file.type,
+      }]);
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to upload file');
+    } finally {
+      setIsUploading(false);
+    }
+  }, []);
 
   const handleSendOffer = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -265,6 +318,33 @@ export default function ConversationPage() {
                   : 'bg-card border rounded-bl-md'
               )}>
                 <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
+                {/* Render attachments */}
+                {message.attachments && Array.isArray(message.attachments) && message.attachments.length > 0 && (
+                  <div className="mt-2 space-y-1.5">
+                    {(message.attachments as string[]).map((url, i) => {
+                      const isImg = /\.(jpg|jpeg|png|gif|webp)$/i.test(url) || url.includes('/images/');
+                      return isImg ? (
+                        <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="block">
+                          <img src={url} alt="Attachment" className="max-w-full max-h-48 rounded-lg" />
+                        </a>
+                      ) : (
+                        <a
+                          key={i}
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={cn(
+                            'flex items-center gap-2 text-xs px-2 py-1.5 rounded-lg',
+                            isOwn ? 'bg-primary-foreground/10 text-primary-foreground hover:bg-primary-foreground/20' : 'bg-muted hover:bg-muted/80'
+                          )}
+                        >
+                          <DocumentIcon className="h-4 w-4 shrink-0" />
+                          <span className="truncate">{url.split('/').pop()}</span>
+                        </a>
+                      );
+                    })}
+                  </div>
+                )}
                 <p className={cn(
                   'text-[10px] mt-1',
                   isOwn ? 'text-primary-foreground/60' : 'text-muted-foreground'
@@ -388,6 +468,28 @@ export default function ConversationPage() {
 
       {/* Message input */}
       <div className="border-t bg-card p-4 rounded-b-xl">
+        {/* Pending attachments preview */}
+        {pendingAttachments.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-3">
+            {pendingAttachments.map((att, i) => (
+              <div key={i} className="flex items-center gap-1.5 bg-muted px-2.5 py-1.5 rounded-lg text-xs">
+                {att.type.startsWith('image/') ? (
+                  <PhotoIcon className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+                ) : (
+                  <DocumentIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                )}
+                <span className="truncate max-w-[120px]">{att.name}</span>
+                <button
+                  type="button"
+                  onClick={() => setPendingAttachments(prev => prev.filter((_, j) => j !== i))}
+                  className="p-0.5 hover:bg-background rounded"
+                >
+                  <XMarkIcon className="h-3 w-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
         <form onSubmit={handleSendMessage} className="flex items-center gap-2">
           {isSeller && !showOfferForm && (
             <button
@@ -399,6 +501,26 @@ export default function ConversationPage() {
               <CurrencyDollarIcon className="h-5 w-5" />
             </button>
           )}
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isUploading}
+            className="p-2.5 hover:bg-muted rounded-lg transition-colors text-muted-foreground shrink-0"
+            title="Attach file"
+          >
+            {isUploading ? (
+              <ArrowPathIcon className="h-5 w-5 animate-spin" />
+            ) : (
+              <PaperClipIcon className="h-5 w-5" />
+            )}
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            className="hidden"
+            accept="image/*,.pdf,.zip,.doc,.docx,.xls,.xlsx"
+            onChange={handleFileSelect}
+          />
           <input
             type="text"
             value={newMessage}
@@ -408,7 +530,7 @@ export default function ConversationPage() {
           />
           <button
             type="submit"
-            disabled={!newMessage.trim()}
+            disabled={!newMessage.trim() && pendingAttachments.length === 0}
             className="p-2.5 bg-primary text-primary-foreground rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-50 shrink-0"
           >
             <PaperAirplaneIcon className="h-5 w-5" />
