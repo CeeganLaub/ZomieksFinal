@@ -28,10 +28,12 @@ router.get('/', authenticate, async (req, res, next) => {
   try {
     const { status, pipelineStageId, labelId, cursor, page = '1', limit = '20' } = req.query;
 
-    const isSeller = req.user!.isSeller;
-    const where: Record<string, unknown> = isSeller
-      ? { sellerId: req.user!.id }
-      : { buyerId: req.user!.id };
+    const where: Record<string, unknown> = {
+      OR: [
+        { buyerId: req.user!.id },
+        { sellerId: req.user!.id },
+      ],
+    };
 
     if (status) where.status = status as string;
     if (pipelineStageId) where.pipelineStageId = pipelineStageId as string;
