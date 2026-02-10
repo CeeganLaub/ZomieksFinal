@@ -172,7 +172,7 @@ router.post('/payfast/subscription', async (req, res) => {
 
     const subscription = await prisma.subscription.findUnique({
       where: { id: subscriptionId },
-      include: { tier: true },
+      include: { tier: true, service: { select: { sellerId: true, title: true } } },
     });
 
     if (!subscription) {
@@ -212,6 +212,39 @@ router.post('/payfast/subscription', async (req, res) => {
         await prisma.subscription.update({
           where: { id: subscription.id },
           data: { status: 'ACTIVE' },
+        });
+
+        // Create conversation between buyer and seller
+        const conversation = await prisma.conversation.upsert({
+          where: {
+            buyerId_sellerId: {
+              buyerId: subscription.buyerId,
+              sellerId: subscription.service.sellerId,
+            },
+          },
+          create: {
+            buyerId: subscription.buyerId,
+            sellerId: subscription.service.sellerId,
+          },
+          update: {},
+        });
+
+        await prisma.message.create({
+          data: {
+            conversationId: conversation.id,
+            senderId: subscription.buyerId,
+            content: `📦 Subscription started for "${subscription.service.title}" — ${subscription.tier.name} plan. Work can begin!`,
+            type: 'ORDER_UPDATE',
+            deliveredAt: new Date(),
+          },
+        });
+
+        await prisma.conversation.update({
+          where: { id: conversation.id },
+          data: {
+            lastMessageAt: new Date(),
+            unreadSellerCount: { increment: 1 },
+          },
         });
 
         await sendNotification({
