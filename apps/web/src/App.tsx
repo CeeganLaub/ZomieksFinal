@@ -1,7 +1,7 @@
 import { Routes, Route } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { useAuthStore } from './stores/auth.store';
-import { useEffect, Suspense, lazy } from 'react';
+import { useEffect, useState, Suspense, lazy } from 'react';
 
 // Layouts (keep eager - needed immediately)
 import MainLayout from './layouts/MainLayout';
@@ -77,12 +77,20 @@ const DevPanel = lazy(() => import('./components/DevPanel'));
 
 function App() {
   const { initialize, isLoading } = useAuthStore();
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    initialize();
-  }, [initialize]);
+    // Wait for zustand persist to restore state from localStorage
+    const unsub = useAuthStore.persist.onFinishHydration(() => setHydrated(true));
+    if (useAuthStore.persist.hasHydrated()) setHydrated(true);
+    return unsub;
+  }, []);
 
-  if (isLoading) {
+  useEffect(() => {
+    if (hydrated) initialize();
+  }, [hydrated, initialize]);
+
+  if (!hydrated || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>

@@ -1564,9 +1564,9 @@ I have helped over 50 businesses grow their social media presence and increase e
   // Create course enrollments for the buyer
   await prisma.courseEnrollment.createMany({
     data: [
-      { userId: buyerUser.id, courseId: course1.id, amountPaid: 499, progressPercent: 35 },
-      { userId: buyerUser.id, courseId: course2.id, amountPaid: 799, progressPercent: 10 },
-      { userId: buyerUser.id, courseId: additionalCourses[3].id, amountPaid: 449, progressPercent: 80 },
+      { userId: buyerUser.id, courseId: course1.id, amountPaid: 499, paidAt: new Date(), progressPercent: 35 },
+      { userId: buyerUser.id, courseId: course2.id, amountPaid: 799, paidAt: new Date(), progressPercent: 10 },
+      { userId: buyerUser.id, courseId: additionalCourses[3].id, amountPaid: 449, paidAt: new Date(), progressPercent: 80 },
     ],
   });
 

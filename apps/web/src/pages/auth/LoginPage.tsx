@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -21,7 +21,14 @@ type LoginForm = z.infer<typeof loginSchema>;
 export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
-  const { login } = useAuthStore();
+  const { login, isAuthenticated, user: currentUser } = useAuthStore();
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated && currentUser) {
+      navigate(currentUser.isAdmin ? '/admin' : '/explore', { replace: true });
+    }
+  }, [isAuthenticated, currentUser, navigate]);
 
   const { 
     register, 
@@ -37,7 +44,8 @@ export default function LoginPage() {
       await login(data.email, data.password);
       toast.success('Welcome back!');
       const user = useAuthStore.getState().user;
-      navigate(user?.isAdmin ? '/admin' : '/dashboard');
+      const target = user?.isAdmin ? '/admin' : '/explore';
+      navigate(target, { replace: true });
     } catch (error: any) {
       toast.error(error.message || 'Login failed');
     } finally {
