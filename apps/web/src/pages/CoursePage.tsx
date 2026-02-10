@@ -73,6 +73,7 @@ export default function CoursePage() {
   });
 
   const [showRefundConfirm, setShowRefundConfirm] = useState(false);
+  const [showGatewaySelect, setShowGatewaySelect] = useState(false);
 
   const startConversation = useMutation({
     mutationFn: async () => {
@@ -139,8 +140,6 @@ export default function CoursePage() {
       return next;
     });
   };
-
-  const [showGatewaySelect, setShowGatewaySelect] = useState(false);
 
   const handleEnroll = () => {
     if (!user) {
