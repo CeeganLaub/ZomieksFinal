@@ -127,7 +127,7 @@ export default function MyCoursesPage() {
                   </div>
                 )}
                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                  <div className="bg-white rounded-full p-3">
+                  <div className="bg-card rounded-full p-3">
                     <PlayIcon className="h-6 w-6 text-primary" />
                   </div>
                 </div>

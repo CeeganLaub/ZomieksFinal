@@ -455,24 +455,38 @@ export const subscriptionsApi = {
 };
 
 // Uploads helper
+async function uploadFormData(endpoint: string, fieldName: string, file: File): Promise<any> {
+  const formData = new FormData();
+  formData.append(fieldName, file);
+  const token = getAuthToken();
+  const response = await fetch(`${API_URL}/api/v1/uploads${endpoint}`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: formData,
+  });
+  const data = await response.json();
+  if (!data.success) throw new Error(data.error?.message || 'Upload failed');
+  return data.data;
+}
+
 export const uploadsApi = {
-  upload: (file: File, category: 'avatar' | 'service' | 'portfolio' | 'delivery' | 'message' | 'document') =>
-    api.upload('/uploads', file, category),
-  
-  uploadAvatar: async (file: File) => {
+  uploadImage: (file: File) => uploadFormData('/image', 'image', file) as Promise<{ url: string; thumbnail: string; filename: string }>,
+  uploadImages: async (files: File[]) => {
+    const formData = new FormData();
+    files.forEach(f => formData.append('images', f));
     const token = getAuthToken();
-    const response = await fetch(`${API_URL}/api/v1/uploads/avatar`, {
+    const response = await fetch(`${API_URL}/api/v1/uploads/images`, {
       method: 'POST',
-      headers: {
-        'Content-Type': file.type,
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: file,
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
     });
     const data = await response.json();
     if (!data.success) throw new Error(data.error?.message || 'Upload failed');
-    return data.data as { key: string; url: string };
+    return data.data as { images: { url: string; filename: string; originalName: string }[] };
   },
+  uploadVideo: (file: File) => uploadFormData('/video', 'video', file) as Promise<{ url: string; filename: string; originalName: string; size: number; mimeType: string }>,
+  uploadAvatar: (file: File) => uploadFormData('/avatar', 'avatar', file) as Promise<{ url: string }>,
+  uploadFile: (file: File) => uploadFormData('/file', 'file', file) as Promise<{ url: string; filename: string; originalName: string; size: number; mimeType: string }>,
 };
 
 // Courses API

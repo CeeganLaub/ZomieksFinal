@@ -105,8 +105,8 @@ export default function SellerCoursesPage() {
                     'Lifetime access — no monthly fees',
                   ].map((item, i) => (
                     <li key={i} className="flex items-center gap-2 text-sm">
-                      <div className="w-5 h-5 rounded-full bg-green-100 flex items-center justify-center shrink-0">
-                        <svg className="w-3 h-3 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+                      <div className="w-5 h-5 rounded-full bg-green-500/15 flex items-center justify-center shrink-0">
+                        <svg className="w-3 h-3 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
                       </div>
                       {item}
                     </li>
@@ -184,9 +184,9 @@ export default function SellerCoursesPage() {
                 )}
                 {/* Status badge */}
                 <div className={`absolute top-2 right-2 px-2 py-0.5 rounded text-xs font-medium ${
-                  course.status === 'PUBLISHED' ? 'bg-green-100 text-green-700' :
-                  course.status === 'ARCHIVED' ? 'bg-gray-100 text-gray-600' :
-                  'bg-yellow-100 text-yellow-700'
+                  course.status === 'PUBLISHED' ? 'bg-green-500/15 text-green-500' :
+                  course.status === 'ARCHIVED' ? 'bg-muted text-muted-foreground' :
+                  'bg-yellow-500/15 text-yellow-500'
                 }`}>
                   {course.status}
                 </div>

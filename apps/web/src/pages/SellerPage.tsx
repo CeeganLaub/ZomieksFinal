@@ -1,11 +1,13 @@
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { usersApi, conversationsApi } from '../lib/api';
 import { useAuthStore } from '../stores/auth.store';
 import { formatCurrency } from '../lib/utils';
 import { StarIcon, ChatBubbleLeftRightIcon, ShieldCheckIcon, MapPinIcon } from '@heroicons/react/24/solid';
-import { PlayCircleIcon } from '@heroicons/react/24/outline';
+import { PlayCircleIcon, XMarkIcon, ArrowRightIcon, CheckIcon } from '@heroicons/react/24/outline';
 import { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { toast } from 'sonner';
 
 // Social platform icons (simple SVG paths)
 const socialIcons: Record<string, string> = {
@@ -16,6 +18,7 @@ const socialIcons: Record<string, string> = {
   youtube: 'M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z',
   tiktok: 'M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z',
   website: 'M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm-1 17.93c-3.94-.49-7-3.85-7-7.93 0-.62.08-1.22.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z',
+  github: 'M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.6.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z',
 };
 
 function SocialIcon({ platform }: { platform: string }) {
@@ -42,12 +45,280 @@ function getButtonClasses(style: string) {
   }
 }
 
+// ==================== PDP Modal ====================
+function PDPModal({
+  open,
+  onClose,
+  item,
+  type,
+  seller,
+  theme,
+}: {
+  open: boolean;
+  onClose: () => void;
+  item: any;
+  type: 'service' | 'course';
+  seller: any;
+  theme: { bg: string; text: string; accent: string; buttonStyle: string; font: string };
+}) {
+  const { user: currentUser } = useAuthStore();
+  const navigate = useNavigate();
+  const [msgText, setMsgText] = useState('');
+  const [showMsg, setShowMsg] = useState(false);
+
+  const sendMessage = useMutation({
+    mutationFn: async () => {
+      const subject = type === 'service' ? `Enquiry about: ${item.title}` : `Question about course: ${item.title}`;
+      const res = await conversationsApi.start({
+        participantId: seller.id,
+        content: `${subject}\n\n${msgText}`,
+      });
+      return res.data;
+    },
+    onSuccess: () => {
+      setMsgText('');
+      setShowMsg(false);
+      toast.success('Message sent! Check your inbox.');
+    },
+  });
+
+  if (!item) return null;
+
+  const isService = type === 'service';
+  const images = isService ? (item.images || []) : [item.thumbnail].filter(Boolean);
+  const price = isService
+    ? item.packages?.[0]?.price ? Number(item.packages[0].price) : null
+    : Number(item.price || 0);
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+            onClick={onClose}
+          />
+          <motion.div
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 50 }}
+            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+            className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl shadow-2xl"
+            style={{ backgroundColor: theme.bg, color: theme.text, fontFamily: theme.font }}
+          >
+            {/* Close */}
+            <button
+              onClick={onClose}
+              className="absolute top-3 right-3 z-10 w-8 h-8 rounded-full flex items-center justify-center"
+              style={{ backgroundColor: `${theme.text}15` }}
+            >
+              <XMarkIcon className="w-4 h-4" />
+            </button>
+
+            {/* Image */}
+            {images[0] && (
+              <div className="w-full h-56 overflow-hidden rounded-t-2xl sm:rounded-t-2xl">
+                <img src={images[0]} alt={item.title} className="w-full h-full object-cover" />
+              </div>
+            )}
+
+            <div className="p-6 space-y-5">
+              {/* Title + Price */}
+              <div>
+                <div className="flex items-start justify-between gap-3">
+                  <h2 className="text-xl font-bold leading-tight">{item.title}</h2>
+                  {price !== null && (
+                    <span className="text-xl font-bold flex-shrink-0" style={{ color: theme.accent }}>
+                      {formatCurrency(price)}
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-3 mt-2 text-sm opacity-60">
+                  <span className="flex items-center gap-1">
+                    <StarIcon className="w-3.5 h-3.5" style={{ color: '#FBBF24' }} />
+                    {Number(item.rating || 0).toFixed(1)}
+                    {item.reviewCount != null && ` (${item.reviewCount})`}
+                  </span>
+                  {isService && item.packages && (
+                    <span>{item.packages.length} package{item.packages.length !== 1 ? 's' : ''}</span>
+                  )}
+                  {!isService && (
+                    <span>{item.enrollCount || 0} students · {item.level || 'All levels'}</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Description */}
+              {item.description && (
+                <p className="text-sm leading-relaxed opacity-75 line-clamp-4">
+                  {item.description}
+                </p>
+              )}
+
+              {/* Packages (services) */}
+              {isService && item.packages && item.packages.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="text-sm font-semibold opacity-60 uppercase tracking-wider">Packages</h3>
+                  {item.packages.map((pkg: any, i: number) => (
+                    <div
+                      key={i}
+                      className="p-3 rounded-xl flex items-center justify-between"
+                      style={{ backgroundColor: `${theme.text}08`, border: `1px solid ${theme.text}12` }}
+                    >
+                      <div>
+                        <p className="font-medium text-sm">{pkg.name}</p>
+                        {pkg.deliveryDays && (
+                          <p className="text-xs opacity-50">{pkg.deliveryDays} day delivery</p>
+                        )}
+                      </div>
+                      <span className="font-bold" style={{ color: theme.accent }}>
+                        {formatCurrency(Number(pkg.price))}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Course sections */}
+              {!isService && item.sections && item.sections.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="text-sm font-semibold opacity-60 uppercase tracking-wider">
+                    {item.sections.length} Section{item.sections.length !== 1 ? 's' : ''} · {item.sections.reduce((acc: number, s: any) => acc + (s.lessons?.length || 0), 0)} Lessons
+                  </h3>
+                  {item.sections.slice(0, 3).map((section: any, i: number) => (
+                    <div
+                      key={i}
+                      className="p-3 rounded-xl"
+                      style={{ backgroundColor: `${theme.text}08`, border: `1px solid ${theme.text}12` }}
+                    >
+                      <p className="font-medium text-sm">{section.title}</p>
+                      <p className="text-xs opacity-50 mt-0.5">{section.lessons?.length || 0} lessons</p>
+                    </div>
+                  ))}
+                  {item.sections.length > 3 && (
+                    <p className="text-xs opacity-40 text-center">+{item.sections.length - 3} more sections</p>
+                  )}
+                </div>
+              )}
+
+              {/* Features / outcomes */}
+              {!isService && item.learningOutcomes && item.learningOutcomes.length > 0 && (
+                <div className="space-y-1.5">
+                  <h3 className="text-sm font-semibold opacity-60 uppercase tracking-wider">What you'll learn</h3>
+                  {item.learningOutcomes.slice(0, 4).map((outcome: string, i: number) => (
+                    <div key={i} className="flex items-start gap-2 text-sm">
+                      <CheckIcon className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: theme.accent }} />
+                      <span className="opacity-75">{outcome}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Action buttons */}
+              <div className="space-y-2 pt-2">
+                {/* View full page */}
+                <button
+                  onClick={() => {
+                    onClose();
+                    if (isService) {
+                      navigate(`/services/${seller.username}/${item.slug}`);
+                    } else {
+                      navigate(`/courses/${item.slug}`);
+                    }
+                  }}
+                  className={getButtonClasses(theme.buttonStyle)}
+                  style={{
+                    backgroundColor: theme.buttonStyle === 'outline' ? 'transparent' : theme.accent,
+                    color: theme.buttonStyle === 'outline' ? theme.accent : '#fff',
+                    borderColor: theme.accent,
+                  }}
+                >
+                  View Full {isService ? 'Service' : 'Course'} <ArrowRightIcon className="w-4 h-4 inline ml-1" />
+                </button>
+
+                {/* Contact seller about this item */}
+                {currentUser && currentUser.id !== seller.id && (
+                  <>
+                    {!showMsg ? (
+                      <button
+                        onClick={() => setShowMsg(true)}
+                        className={getButtonClasses('outline')}
+                        style={{ borderColor: `${theme.text}30`, color: theme.text }}
+                      >
+                        <ChatBubbleLeftRightIcon className="w-4 h-4 inline mr-1.5" />
+                        Ask About This {isService ? 'Service' : 'Course'}
+                      </button>
+                    ) : (
+                      <div className="space-y-2">
+                        <textarea
+                          value={msgText}
+                          onChange={(e) => setMsgText(e.target.value)}
+                          rows={3}
+                          placeholder={`Hi, I'm interested in "${item.title}"...`}
+                          className="w-full rounded-xl px-4 py-3 text-sm backdrop-blur border focus:outline-none focus:ring-2 resize-none"
+                          style={{
+                            backgroundColor: `${theme.text}08`,
+                            borderColor: `${theme.text}20`,
+                            color: theme.text,
+                          }}
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setShowMsg(false)}
+                            className="flex-1 py-2 rounded-lg text-sm"
+                            style={{ backgroundColor: `${theme.text}08`, color: theme.text }}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={() => sendMessage.mutate()}
+                            disabled={!msgText.trim() || sendMessage.isPending}
+                            className="flex-1 py-2 rounded-lg text-sm font-medium"
+                            style={{
+                              backgroundColor: theme.accent,
+                              color: '#fff',
+                              opacity: !msgText.trim() ? 0.5 : 1,
+                            }}
+                          >
+                            {sendMessage.isPending ? 'Sending...' : 'Send'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {!currentUser && (
+                  <Link
+                    to={`/login?redirect=/sellers/${seller.username}`}
+                    className={`block text-center ${getButtonClasses('outline')}`}
+                    style={{ borderColor: `${theme.text}30`, color: theme.text }}
+                  >
+                    <ChatBubbleLeftRightIcon className="w-4 h-4 inline mr-1.5" />
+                    Sign in to Contact Seller
+                  </Link>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
+  );
+}
+
+// ==================== MAIN PAGE ====================
 export default function SellerPage() {
   const { username } = useParams<{ username: string }>();
   const { user: currentUser } = useAuthStore();
   const [activeTab, setActiveTab] = useState<'services' | 'courses'>('services');
   const [messageOpen, setMessageOpen] = useState(false);
   const [messageText, setMessageText] = useState('');
+  const [pdpItem, setPdpItem] = useState<any>(null);
+  const [pdpType, setPdpType] = useState<'service' | 'course'>('service');
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['seller-profile', username],
@@ -66,13 +337,13 @@ export default function SellerPage() {
     onSuccess: () => {
       setMessageOpen(false);
       setMessageText('');
-      alert('Message sent! Check your messages.');
+      toast.success('Message sent! Check your inbox.');
     },
   });
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-neutral-950">
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500" />
       </div>
     );
@@ -80,11 +351,11 @@ export default function SellerPage() {
 
   if (error || !data?.data?.user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-neutral-950">
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-white mb-2">Seller Not Found</h1>
-          <p className="text-neutral-400 mb-4">This seller page doesn't exist.</p>
-          <Link to="/explore" className="text-emerald-400 hover:underline">
+          <h1 className="text-2xl font-bold mb-2">Seller Not Found</h1>
+          <p className="text-muted-foreground mb-4">This seller page doesn't exist.</p>
+          <Link to="/explore" className="text-emerald-500 hover:underline">
             Browse services
           </Link>
         </div>
@@ -106,9 +377,28 @@ export default function SellerPage() {
   };
 
   const socialLinks = (profile?.bioSocialLinks as any[]) || [];
+  const featuredItems = (profile?.bioFeaturedItems as any[]) || [];
   const services = seller.services || [];
   const courses = profile?.courses || [];
   const reviews = seller.receivedReviews || [];
+
+  // Build featured items list from IDs
+  const featuredList = featuredItems
+    .map((fi: any) => {
+      if (fi.type === 'service') {
+        const svc = services.find((s: any) => s.id === fi.id);
+        return svc ? { ...svc, _type: 'service' } : null;
+      } else {
+        const course = courses.find((c: any) => c.id === fi.id);
+        return course ? { ...course, _type: 'course' } : null;
+      }
+    })
+    .filter(Boolean);
+
+  const openPDP = (item: any, type: 'service' | 'course') => {
+    setPdpItem(item);
+    setPdpType(type);
+  };
 
   // If BioLink is not enabled, show standard profile
   if (!hasBiolink) {
@@ -270,7 +560,7 @@ export default function SellerPage() {
           <p className="text-sm opacity-70 mt-1">{profile.professionalTitle}</p>
 
           {profile.bioHeadline && (
-            <p className="mt-3 text-sm opacity-80">{profile.bioHeadline}</p>
+            <p className="mt-3 text-sm opacity-80 max-w-xs mx-auto">{profile.bioHeadline}</p>
           )}
 
           {/* Verification + Rating */}
@@ -322,30 +612,41 @@ export default function SellerPage() {
               {profile.bioCtaText || 'Get in Touch'}
             </button>
 
-            {messageOpen && (
-              <div className="mt-3 space-y-3">
-                <textarea
-                  value={messageText}
-                  onChange={(e) => setMessageText(e.target.value)}
-                  rows={3}
-                  placeholder="Write a message..."
-                  className="w-full rounded-lg px-4 py-3 text-sm bg-white/10 backdrop-blur border border-white/20 focus:outline-none focus:ring-2 resize-none"
-                  style={{ color: theme.text }}
-                />
-                <button
-                  onClick={() => startConversation.mutate()}
-                  disabled={!messageText.trim() || startConversation.isPending}
-                  className={getButtonClasses(theme.buttonStyle)}
-                  style={{
-                    backgroundColor: theme.accent,
-                    color: '#fff',
-                    opacity: !messageText.trim() ? 0.5 : 1,
-                  }}
+            <AnimatePresence>
+              {messageOpen && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="mt-3 space-y-3 overflow-hidden"
                 >
-                  {startConversation.isPending ? 'Sending...' : 'Send Message'}
-                </button>
-              </div>
-            )}
+                  <textarea
+                    value={messageText}
+                    onChange={(e) => setMessageText(e.target.value)}
+                    rows={3}
+                    placeholder="Write a message..."
+                    className="w-full rounded-xl px-4 py-3 text-sm backdrop-blur border focus:outline-none focus:ring-2 resize-none"
+                    style={{
+                      backgroundColor: `${theme.text}08`,
+                      borderColor: `${theme.text}20`,
+                      color: theme.text,
+                    }}
+                  />
+                  <button
+                    onClick={() => startConversation.mutate()}
+                    disabled={!messageText.trim() || startConversation.isPending}
+                    className={getButtonClasses(theme.buttonStyle)}
+                    style={{
+                      backgroundColor: theme.accent,
+                      color: '#fff',
+                      opacity: !messageText.trim() ? 0.5 : 1,
+                    }}
+                  >
+                    {startConversation.isPending ? 'Sending...' : 'Send Message'}
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         )}
 
@@ -365,7 +666,72 @@ export default function SellerPage() {
           </div>
         )}
 
-        {/* Tabs */}
+        {/* Featured Items */}
+        {featuredList.length > 0 && (
+          <div className="mt-8">
+            <h2 className="text-sm font-semibold uppercase tracking-wider opacity-50 mb-3 text-center">Featured</h2>
+            <div className="space-y-3">
+              {featuredList.map((item: any) => {
+                const isService = item._type === 'service';
+                const image = isService ? item.images?.[0] : item.thumbnail;
+                const price = isService
+                  ? item.packages?.[0]?.price ? Number(item.packages[0].price) : null
+                  : Number(item.price || 0);
+                return (
+                  <motion.button
+                    key={`${item._type}-${item.id}`}
+                    whileHover={{ scale: 1.01 }}
+                    whileTap={{ scale: 0.99 }}
+                    onClick={() => openPDP(item, item._type)}
+                    className="w-full flex items-center gap-4 p-4 rounded-xl transition-all text-left"
+                    style={{ backgroundColor: `${theme.text}06`, border: `1px solid ${theme.text}12` }}
+                  >
+                    {image ? (
+                      <img src={image} alt="" className="w-16 h-16 rounded-xl object-cover flex-shrink-0" />
+                    ) : (
+                      <div
+                        className="w-16 h-16 rounded-xl flex-shrink-0 flex items-center justify-center"
+                        style={{ backgroundColor: `${theme.accent}15` }}
+                      >
+                        {isService ? (
+                          <span className="text-2xl" style={{ color: theme.accent }}>★</span>
+                        ) : (
+                          <PlayCircleIcon className="w-8 h-8" style={{ color: theme.accent }} />
+                        )}
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full"
+                          style={{ backgroundColor: `${theme.accent}20`, color: theme.accent }}
+                        >
+                          {isService ? 'Service' : 'Course'}
+                        </span>
+                      </div>
+                      <h3 className="font-semibold mt-1 truncate">{item.title}</h3>
+                      <div className="flex items-center gap-2 mt-0.5 text-xs opacity-50">
+                        <StarIcon className="w-3 h-3" style={{ color: '#FBBF24' }} />
+                        {Number(item.rating || 0).toFixed(1)}
+                        {isService ? ` · ${item.reviewCount || 0} reviews` : ` · ${item.enrollCount || 0} students`}
+                      </div>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      {price !== null && (
+                        <span className="font-bold text-sm" style={{ color: theme.accent }}>
+                          {formatCurrency(price)}
+                        </span>
+                      )}
+                      <ArrowRightIcon className="w-4 h-4 ml-auto opacity-30 mt-1" />
+                    </div>
+                  </motion.button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Tabs: Services & Courses */}
         {(services.length > 0 || courses.length > 0) && (
           <div className="mt-8">
             <div className="flex border-b" style={{ borderColor: `${theme.text}20` }}>
@@ -399,10 +765,12 @@ export default function SellerPage() {
             {activeTab === 'services' && (
               <div className="mt-4 space-y-3">
                 {services.map((service: any) => (
-                  <Link
+                  <motion.button
                     key={service.id}
-                    to={`/services/${seller.username}/${service.slug}`}
-                    className="flex items-center gap-4 p-4 rounded-xl transition-all hover:scale-[1.01]"
+                    whileHover={{ scale: 1.01 }}
+                    whileTap={{ scale: 0.99 }}
+                    onClick={() => openPDP(service, 'service')}
+                    className="w-full flex items-center gap-4 p-4 rounded-xl transition-all text-left"
                     style={{ backgroundColor: `${theme.text}08`, border: `1px solid ${theme.text}15` }}
                   >
                     {service.images?.[0] && (
@@ -426,7 +794,7 @@ export default function SellerPage() {
                           : 'Free'}
                       </span>
                     </div>
-                  </Link>
+                  </motion.button>
                 ))}
               </div>
             )}
@@ -435,10 +803,12 @@ export default function SellerPage() {
             {activeTab === 'courses' && (
               <div className="mt-4 space-y-3">
                 {courses.map((course: any) => (
-                  <Link
+                  <motion.button
                     key={course.id}
-                    to={`/courses/${course.slug}`}
-                    className="flex items-center gap-4 p-4 rounded-xl transition-all hover:scale-[1.01]"
+                    whileHover={{ scale: 1.01 }}
+                    whileTap={{ scale: 0.99 }}
+                    onClick={() => openPDP(course, 'course')}
+                    className="w-full flex items-center gap-4 p-4 rounded-xl transition-all text-left"
                     style={{ backgroundColor: `${theme.text}08`, border: `1px solid ${theme.text}15` }}
                   >
                     {course.thumbnail ? (
@@ -468,7 +838,7 @@ export default function SellerPage() {
                         {formatCurrency(Number(course.price))}
                       </span>
                     </div>
-                  </Link>
+                  </motion.button>
                 ))}
               </div>
             )}
@@ -487,7 +857,10 @@ export default function SellerPage() {
                   style={{ backgroundColor: `${theme.text}08`, border: `1px solid ${theme.text}15` }}
                 >
                   <div className="flex items-center gap-2 mb-2">
-                    <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-xs font-bold overflow-hidden">
+                    <div
+                      className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold overflow-hidden"
+                      style={{ backgroundColor: `${theme.text}10` }}
+                    >
                       {review.author.avatar ? (
                         <img src={review.author.avatar} alt="" className="w-full h-full object-cover" />
                       ) : (
@@ -524,6 +897,16 @@ export default function SellerPage() {
           </p>
         </div>
       </div>
+
+      {/* PDP Modal */}
+      <PDPModal
+        open={!!pdpItem}
+        onClose={() => setPdpItem(null)}
+        item={pdpItem}
+        type={pdpType}
+        seller={seller}
+        theme={theme}
+      />
     </div>
   );
 }

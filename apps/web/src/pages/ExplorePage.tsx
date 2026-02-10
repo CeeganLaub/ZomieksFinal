@@ -240,9 +240,9 @@ export default function ExplorePage() {
                           {service.title}
                         </h3>
                         <div className="flex items-center gap-2">
-                          <div className="flex items-center gap-1 bg-yellow-50 px-2 py-0.5 rounded-full">
+                          <div className="flex items-center gap-1 bg-yellow-500/10 px-2 py-0.5 rounded-full">
                             <StarIcon className="h-3.5 w-3.5 text-yellow-500" />
-                            <span className="text-xs font-bold text-yellow-700">
+                            <span className="text-xs font-bold text-yellow-500">
                               {service.rating ? Number(service.rating).toFixed(1) : 'New'}
                             </span>
                           </div>
@@ -277,7 +277,7 @@ export default function ExplorePage() {
       <div className="h-px bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
 
       {/* Featured Courses */}
-      <section className="py-16 bg-gray-950 text-white relative overflow-hidden">
+      <section className="py-16 bg-muted/30 relative overflow-hidden">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-0 right-0 w-96 h-96 bg-purple-600/5 rounded-full blur-3xl" />
           <div className="absolute bottom-0 left-0 w-72 h-72 bg-primary/5 rounded-full blur-3xl" />
@@ -295,8 +295,8 @@ export default function ExplorePage() {
                 <AcademicCapIcon className="h-6 w-6 text-purple-400" />
               </div>
               <div>
-                <h2 className="text-2xl md:text-3xl font-bold text-white">Popular Courses</h2>
-                <p className="text-gray-400 text-sm">Learn new skills from expert sellers</p>
+                <h2 className="text-2xl md:text-3xl font-bold">Popular Courses</h2>
+                <p className="text-muted-foreground text-sm">Learn new skills from expert sellers</p>
               </div>
             </div>
             <Link
@@ -329,7 +329,7 @@ export default function ExplorePage() {
               {courses.map((course: any) => (
                 <motion.div key={course.id} variants={fadeInUp}>
                   <Link to={`/courses/${course.slug}`} className="group block">
-                    <div className="rounded-xl overflow-hidden bg-gray-800/50 hover:shadow-xl hover:shadow-purple-500/10 transition-all duration-300 border border-gray-700/50 hover:border-purple-500/30">
+                    <div className="rounded-xl overflow-hidden bg-muted/50 hover:shadow-xl hover:shadow-purple-500/10 transition-all duration-300 border border-border hover:border-purple-500/30">
                       {/* Thumbnail */}
                       <div className="aspect-video bg-muted relative overflow-hidden">
                         {course.thumbnail ? (
@@ -371,7 +371,7 @@ export default function ExplorePage() {
                                     className={`h-3.5 w-3.5 ${
                                       star <= Math.round(Number(course.rating))
                                         ? 'text-yellow-400 fill-yellow-400'
-                                        : 'text-gray-300'
+                                        : 'text-muted'
                                     }`}
                                   />
                                 ))}

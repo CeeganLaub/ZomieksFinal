@@ -474,13 +474,13 @@ export default function ServicePage() {
 
             {/* Trust badges */}
             <div className="mt-4 space-y-2">
-              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center gap-2">
-                <ShieldCheckIcon className="h-5 w-5 text-emerald-600 shrink-0" />
-                <span className="text-xs text-emerald-700 font-medium">Secure Payment — Funds held in escrow</span>
+              <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg flex items-center gap-2">
+                <ShieldCheckIcon className="h-5 w-5 text-emerald-500 shrink-0" />
+                <span className="text-xs text-emerald-500 font-medium">Secure Payment — Funds held in escrow</span>
               </div>
-              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-2">
-                <CreditCardIcon className="h-5 w-5 text-blue-600 shrink-0" />
-                <span className="text-xs text-blue-700 font-medium">PayFast & Ozow accepted</span>
+              <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg flex items-center gap-2">
+                <CreditCardIcon className="h-5 w-5 text-blue-500 shrink-0" />
+                <span className="text-xs text-blue-500 font-medium">PayFast & Ozow accepted</span>
               </div>
             </div>
           </div>

@@ -5,9 +5,20 @@ import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
+import { motion, AnimatePresence } from 'framer-motion';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
-import { PlusIcon, TrashIcon, PhotoIcon } from '@heroicons/react/24/outline';
+import { Input } from '@/components/ui/Input';
+import { Textarea } from '@/components/ui/Textarea';
+import { GalleryUploader, ImageUploader } from '@/components/ui/ImageUploader';
+import {
+  PlusIcon,
+  TrashIcon,
+  CheckIcon,
+  CubeIcon,
+  TagIcon,
+  SparklesIcon,
+} from '@heroicons/react/24/outline';
 
 const packageSchema = z.object({
   tier: z.enum(['BASIC', 'STANDARD', 'PREMIUM']),
@@ -47,6 +58,39 @@ const defaultPackage = {
   features: [''],
 };
 
+const fadeIn = {
+  initial: { opacity: 0, y: 20 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: -20 },
+  transition: { duration: 0.3 },
+};
+
+const stepLabels = ['Details', 'Pricing', 'Review'];
+
+function StepIndicator({ current }: { current: number }) {
+  return (
+    <div className="flex items-center justify-center gap-2 mb-8">
+      {stepLabels.map((label, i) => {
+        const stepNum = i + 1;
+        const isActive = stepNum === current;
+        const isComplete = stepNum < current;
+        return (
+          <div key={i} className="flex items-center gap-2">
+            {i > 0 && <div className={`w-12 h-0.5 transition-colors duration-300 ${isComplete ? 'bg-primary' : 'bg-border'}`} />}
+            <div className="flex items-center gap-2">
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold transition-all duration-300
+                ${isComplete ? 'bg-primary text-primary-foreground' : isActive ? 'bg-primary text-primary-foreground ring-4 ring-primary/20' : 'bg-muted text-muted-foreground border border-border'}`}>
+                {isComplete ? <CheckIcon className="w-4 h-4" /> : stepNum}
+              </div>
+              <span className={`text-sm font-medium hidden sm:block ${isActive ? 'text-foreground' : 'text-muted-foreground'}`}>{label}</span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function CreateServicePage() {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
@@ -79,19 +123,13 @@ export default function CreateServicePage() {
     name: 'packages',
   });
 
-  // FAQs for future use
-  // const { fields: faqFields, append: appendFaq, remove: removeFaq } = useFieldArray({
-  //   control,
-  //   name: 'faqs',
-  // });
-
   const watchedTags = watch('tags');
   const watchedImages = watch('images');
   const watchedCategory = watch('categoryId');
+  const watchedVideo = watch('video');
 
   const createServiceMutation = useMutation({
     mutationFn: async (data: ServiceFormData) => {
-      // First create the service
       const serviceRes = await api.post<any>('/services', {
         title: data.title,
         categoryId: data.categoryId,
@@ -105,8 +143,6 @@ export default function CreateServicePage() {
       });
       
       const serviceId = serviceRes.data.data.service.id;
-      
-      // Add packages in parallel
       await Promise.all(
         data.packages.map(pkg => api.post(`/services/${serviceId}/packages`, pkg))
       );
@@ -129,360 +165,349 @@ export default function CreateServicePage() {
     }
   };
 
-  const removeTag = (index: number) => {
-    setValue('tags', watchedTags.filter((_, i) => i !== index));
-  };
-
-  const addImageUrl = () => {
-    const url = prompt('Enter image URL:');
-    if (url) {
-      setValue('images', [...watchedImages, url]);
-    }
-  };
-
   const selectedCategory = categories?.find((c: any) => c.id === watchedCategory);
 
-  const onSubmit = (data: ServiceFormData) => {
-    createServiceMutation.mutate(data);
-  };
+  const onSubmit = (data: ServiceFormData) => createServiceMutation.mutate(data);
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold mb-2">Create a New Service</h1>
-      <p className="text-muted-foreground mb-8">
-        Step {step} of 3: {step === 1 ? 'Basic Info' : step === 2 ? 'Packages & Pricing' : 'Review'}
-      </p>
-
-      {/* Progress Bar */}
-      <div className="flex gap-2 mb-8">
-        {[1, 2, 3].map((s) => (
-          <div
-            key={s}
-            className={`h-2 flex-1 rounded-full ${s <= step ? 'bg-primary' : 'bg-gray-200'}`}
-          />
-        ))}
-      </div>
+    <div className="max-w-3xl mx-auto pb-12">
+      <StepIndicator current={step} />
 
       <form onSubmit={handleSubmit(onSubmit)}>
-        {/* Step 1: Basic Info */}
-        {step === 1 && (
-          <div className="space-y-6">
-            <div>
-              <label className="block text-sm font-medium mb-2">Service Title</label>
-              <input
-                {...register('title')}
-                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                placeholder="I will create a professional logo design"
-              />
-              {errors.title && (
-                <p className="text-red-500 text-sm mt-1">{errors.title.message}</p>
-              )}
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">Category</label>
-                <select
-                  {...register('categoryId')}
-                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                >
-                  <option value="">Select a category</option>
-                  {categories?.map((cat: any) => (
-                    <option key={cat.id} value={cat.id}>{cat.name}</option>
-                  ))}
-                </select>
-                {errors.categoryId && (
-                  <p className="text-red-500 text-sm mt-1">{errors.categoryId.message}</p>
-                )}
-              </div>
-
-              {selectedCategory?.children?.length > 0 && (
-                <div>
-                  <label className="block text-sm font-medium mb-2">Subcategory</label>
-                  <select
-                    {...register('subcategoryId')}
-                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                  >
-                    <option value="">Select a subcategory</option>
-                    {selectedCategory.children.map((sub: any) => (
-                      <option key={sub.id} value={sub.id}>{sub.name}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">Description</label>
-              <textarea
-                {...register('description')}
-                rows={6}
-                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                placeholder="Describe your service in detail. What will buyers get? What's your process?"
-              />
-              {errors.description && (
-                <p className="text-red-500 text-sm mt-1">{errors.description.message}</p>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">Tags ({watchedTags.length}/5)</label>
-              <div className="flex gap-2 mb-2 flex-wrap">
-                {watchedTags.map((tag, i) => (
-                  <span
-                    key={i}
-                    className="bg-gray-100 px-3 py-1 rounded-full text-sm flex items-center gap-2"
-                  >
-                    {tag}
-                    <button type="button" onClick={() => removeTag(i)} className="text-gray-500 hover:text-red-500">
-                      ×
-                    </button>
-                  </span>
-                ))}
-              </div>
-              <div className="flex gap-2">
-                <input
-                  value={tagInput}
-                  onChange={(e) => setTagInput(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addTag())}
-                  className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                  placeholder="Add a tag and press Enter"
-                />
-                <Button type="button" variant="outline" onClick={addTag}>Add</Button>
-              </div>
-              {errors.tags && (
-                <p className="text-red-500 text-sm mt-1">{errors.tags.message}</p>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">Images</label>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                {watchedImages.map((img, i) => (
-                  <div key={i} className="relative aspect-video bg-gray-100 rounded-lg overflow-hidden">
-                    <img src={img} alt="" className="w-full h-full object-cover" />
-                    <button
-                      type="button"
-                      onClick={() => setValue('images', watchedImages.filter((_, idx) => idx !== i))}
-                      className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full"
-                    >
-                      <TrashIcon className="h-4 w-4" />
-                    </button>
+        <AnimatePresence mode="wait">
+          {/* Step 1: Basic Info */}
+          {step === 1 && (
+            <motion.div key="step1" {...fadeIn}>
+              <div className="rounded-2xl border bg-card text-card-foreground shadow-sm overflow-hidden">
+                <div className="p-6 pb-4 border-b border-border/50">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-xl bg-primary/10">
+                      <SparklesIcon className="h-6 w-6 text-primary" />
+                    </div>
+                    <div>
+                      <h1 className="text-xl font-semibold">Create a New Service</h1>
+                      <p className="text-sm text-muted-foreground">Describe your service and upload images</p>
+                    </div>
                   </div>
-                ))}
-                <button
-                  type="button"
-                  onClick={addImageUrl}
-                  className="aspect-video border-2 border-dashed rounded-lg flex flex-col items-center justify-center text-muted-foreground hover:text-primary hover:border-primary transition-colors"
-                >
-                  <PhotoIcon className="h-8 w-8 mb-2" />
-                  <span className="text-sm">Add Image</span>
-                </button>
-              </div>
-              {errors.images && (
-                <p className="text-red-500 text-sm mt-1">{errors.images.message}</p>
-              )}
-            </div>
+                </div>
 
-            <div>
-              <label className="block text-sm font-medium mb-2">Video URL (optional)</label>
-              <input
-                {...register('video')}
-                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                placeholder="https://youtube.com/... or direct video URL"
-              />
-              <p className="text-xs text-muted-foreground mt-1">Add a video to showcase your service</p>
-            </div>
+                <div className="p-6 space-y-6">
+                  <Input
+                    id="title"
+                    label="Service Title"
+                    placeholder="I will create a professional logo design"
+                    error={errors.title?.message}
+                    {...register('title')}
+                  />
 
-            <div className="flex justify-end">
-              <Button type="button" onClick={() => setStep(2)}>Continue to Pricing</Button>
-            </div>
-          </div>
-        )}
-
-        {/* Step 2: Packages */}
-        {step === 2 && (
-          <div className="space-y-6">
-            <div>
-              <label className="block text-sm font-medium mb-2">Pricing Type</label>
-              <select
-                {...register('pricingType')}
-                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-              >
-                <option value="ONE_TIME">One-time purchases only</option>
-                <option value="SUBSCRIPTION">Subscriptions only</option>
-                <option value="BOTH">Both one-time and subscriptions</option>
-              </select>
-            </div>
-
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="font-semibold">Packages</h3>
-                {packageFields.length < 3 && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => appendPackage({
-                      ...defaultPackage,
-                      tier: packageFields.length === 1 ? 'STANDARD' : 'PREMIUM',
-                      name: packageFields.length === 1 ? 'Standard' : 'Premium',
-                    })}
-                  >
-                    <PlusIcon className="h-4 w-4 mr-2" />
-                    Add Package
-                  </Button>
-                )}
-              </div>
-
-              {packageFields.map((field, index) => (
-                <div key={field.id} className="border rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-4">
-                    <select
-                      {...register(`packages.${index}.tier`)}
-                      className="font-semibold text-lg bg-transparent"
-                    >
-                      <option value="BASIC">Basic</option>
-                      <option value="STANDARD">Standard</option>
-                      <option value="PREMIUM">Premium</option>
-                    </select>
-                    {packageFields.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => removePackage(index)}
-                        className="text-red-500 hover:text-red-700"
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-1.5">Category</label>
+                      <select
+                        {...register('categoryId')}
+                        className="w-full h-10 px-3 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
                       >
-                        <TrashIcon className="h-5 w-5" />
-                      </button>
+                        <option value="">Select a category</option>
+                        {categories?.map((cat: any) => (
+                          <option key={cat.id} value={cat.id}>{cat.name}</option>
+                        ))}
+                      </select>
+                      {errors.categoryId && <p className="mt-1 text-sm text-destructive">{errors.categoryId.message}</p>}
+                    </div>
+
+                    {selectedCategory?.children?.length > 0 && (
+                      <div>
+                        <label className="block text-sm font-medium text-foreground mb-1.5">Subcategory</label>
+                        <select
+                          {...register('subcategoryId')}
+                          className="w-full h-10 px-3 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                        >
+                          <option value="">Select a subcategory</option>
+                          {selectedCategory.children.map((sub: any) => (
+                            <option key={sub.id} value={sub.id}>{sub.name}</option>
+                          ))}
+                        </select>
+                      </div>
                     )}
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium mb-1">Package Name</label>
-                      <input
-                        {...register(`packages.${index}.name`)}
-                        className="w-full px-3 py-2 border rounded-lg"
-                        placeholder="e.g., Basic Logo"
-                      />
+                  <Textarea
+                    id="description"
+                    label="Description"
+                    placeholder="Describe your service in detail. What will buyers get? What's your process?"
+                    rows={6}
+                    error={errors.description?.message}
+                    {...register('description')}
+                  />
+
+                  {/* Tags */}
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-2">
+                      <TagIcon className="w-4 h-4 inline mr-1" /> Tags ({watchedTags.length}/5)
+                    </label>
+                    <div className="flex gap-2 mb-2 flex-wrap">
+                      {watchedTags.map((tag, i) => (
+                        <span key={i} className="bg-primary/10 text-primary px-3 py-1 rounded-full text-sm flex items-center gap-1.5 font-medium">
+                          {tag}
+                          <button type="button" onClick={() => setValue('tags', watchedTags.filter((_, idx) => idx !== i))} className="hover:text-destructive transition-colors">×</button>
+                        </span>
+                      ))}
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium mb-1">Price (ZAR)</label>
+                    <div className="flex gap-2">
                       <input
-                        type="number"
-                        {...register(`packages.${index}.price`, { valueAsNumber: true })}
-                        className="w-full px-3 py-2 border rounded-lg"
-                        min="50"
+                        value={tagInput}
+                        onChange={(e) => setTagInput(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTag(); } }}
+                        className="flex-1 h-10 px-3 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                        placeholder="Add a tag and press Enter"
                       />
+                      <Button type="button" variant="outline" onClick={addTag}>Add</Button>
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium mb-1">Delivery Days</label>
-                      <input
-                        type="number"
-                        {...register(`packages.${index}.deliveryDays`, { valueAsNumber: true })}
-                        className="w-full px-3 py-2 border rounded-lg"
-                        min="1"
-                        max="90"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium mb-1">Revisions</label>
-                      <input
-                        type="number"
-                        {...register(`packages.${index}.revisions`, { valueAsNumber: true })}
-                        className="w-full px-3 py-2 border rounded-lg"
-                        min="0"
-                        max="99"
-                      />
-                    </div>
+                    {errors.tags && <p className="mt-1 text-sm text-destructive">{errors.tags.message}</p>}
                   </div>
 
-                  <div className="mt-4">
-                    <label className="block text-sm font-medium mb-1">Description</label>
-                    <textarea
-                      {...register(`packages.${index}.description`)}
-                      rows={2}
-                      className="w-full px-3 py-2 border rounded-lg"
-                      placeholder="What's included in this package?"
-                    />
-                  </div>
+                  {/* Image Gallery Upload */}
+                  <GalleryUploader
+                    value={watchedImages}
+                    onChange={(urls) => setValue('images', urls)}
+                    max={5}
+                    label="Service Images"
+                  />
+                  {errors.images && <p className="text-sm text-destructive">{errors.images.message}</p>}
 
-                  <div className="mt-4">
-                    <label className="block text-sm font-medium mb-1">Features (one per line)</label>
-                    <textarea
-                      rows={3}
-                      className="w-full px-3 py-2 border rounded-lg"
-                      placeholder="Source file included&#10;High resolution&#10;Commercial use"
-                      onChange={(e) => {
-                        const features = e.target.value.split('\n').filter(f => f.trim());
-                        setValue(`packages.${index}.features`, features.length > 0 ? features : ['']);
-                      }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
+                  {/* Video Upload */}
+                  <ImageUploader
+                    value={watchedVideo || ''}
+                    onChange={(url) => setValue('video', url)}
+                    variant="video"
+                    label="Service Video (optional)"
+                  />
 
-            <div className="flex justify-between">
-              <Button type="button" variant="outline" onClick={() => setStep(1)}>Back</Button>
-              <Button type="button" onClick={() => setStep(3)}>Review & Submit</Button>
-            </div>
-          </div>
-        )}
-
-        {/* Step 3: Review */}
-        {step === 3 && (
-          <div className="space-y-6">
-            <div className="bg-gray-50 rounded-lg p-6">
-              <h3 className="font-semibold text-lg mb-4">Review Your Service</h3>
-              
-              <div className="space-y-4">
-                <div>
-                  <span className="text-sm text-muted-foreground">Title</span>
-                  <p className="font-medium">{watch('title')}</p>
-                </div>
-                
-                <div>
-                  <span className="text-sm text-muted-foreground">Category</span>
-                  <p className="font-medium">
-                    {categories?.find((c: any) => c.id === watch('categoryId'))?.name}
-                  </p>
-                </div>
-                
-                <div>
-                  <span className="text-sm text-muted-foreground">Tags</span>
-                  <div className="flex gap-2 flex-wrap mt-1">
-                    {watch('tags').map((tag, i) => (
-                      <span key={i} className="bg-gray-200 px-2 py-1 rounded text-sm">{tag}</span>
-                    ))}
-                  </div>
-                </div>
-                
-                <div>
-                  <span className="text-sm text-muted-foreground">Packages</span>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2">
-                    {watch('packages').map((pkg, i) => (
-                      <div key={i} className="border rounded-lg p-4 bg-white">
-                        <p className="font-semibold">{pkg.name}</p>
-                        <p className="text-2xl font-bold text-primary">R{pkg.price}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {pkg.deliveryDays} days • {pkg.revisions} revisions
-                        </p>
-                      </div>
-                    ))}
+                  <div className="flex justify-end pt-2">
+                    <Button type="button" onClick={() => setStep(2)} size="lg">
+                      Continue to Pricing
+                    </Button>
                   </div>
                 </div>
               </div>
-            </div>
+            </motion.div>
+          )}
 
-            <div className="flex justify-between">
-              <Button type="button" variant="outline" onClick={() => setStep(2)}>Back</Button>
-              <Button type="submit" disabled={createServiceMutation.isPending}>
-                {createServiceMutation.isPending ? 'Creating...' : 'Create Service'}
-              </Button>
-            </div>
-          </div>
-        )}
+          {/* Step 2: Packages */}
+          {step === 2 && (
+            <motion.div key="step2" {...fadeIn}>
+              <div className="rounded-2xl border bg-card text-card-foreground shadow-sm overflow-hidden">
+                <div className="p-6 pb-4 border-b border-border/50">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-xl bg-primary/10">
+                      <CubeIcon className="h-6 w-6 text-primary" />
+                    </div>
+                    <div>
+                      <h1 className="text-xl font-semibold">Packages & Pricing</h1>
+                      <p className="text-sm text-muted-foreground">Define your service tiers and prices</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-6 space-y-6">
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1.5">Pricing Type</label>
+                    <select
+                      {...register('pricingType')}
+                      className="w-full h-10 px-3 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                    >
+                      <option value="ONE_TIME">One-time purchases only</option>
+                      <option value="SUBSCRIPTION">Subscriptions only</option>
+                      <option value="BOTH">Both one-time and subscriptions</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-semibold text-foreground">Packages</h3>
+                      {packageFields.length < 3 && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => appendPackage({
+                            ...defaultPackage,
+                            tier: packageFields.length === 1 ? 'STANDARD' : 'PREMIUM',
+                            name: packageFields.length === 1 ? 'Standard' : 'Premium',
+                          })}
+                        >
+                          <PlusIcon className="h-4 w-4 mr-1.5" /> Add Tier
+                        </Button>
+                      )}
+                    </div>
+
+                    {packageFields.map((field, index) => (
+                      <motion.div
+                        key={field.id}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="border border-border rounded-xl p-5 bg-muted/20"
+                      >
+                        <div className="flex items-center justify-between mb-4">
+                          <select
+                            {...register(`packages.${index}.tier`)}
+                            className="font-semibold text-base bg-transparent text-foreground border-none focus:outline-none"
+                          >
+                            <option value="BASIC">Basic</option>
+                            <option value="STANDARD">Standard</option>
+                            <option value="PREMIUM">Premium</option>
+                          </select>
+                          {packageFields.length > 1 && (
+                            <button type="button" onClick={() => removePackage(index)} className="text-destructive/60 hover:text-destructive transition-colors p-1">
+                              <TrashIcon className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <Input
+                            id={`pkg-name-${index}`}
+                            label="Package Name"
+                            placeholder="e.g., Basic Logo"
+                            {...register(`packages.${index}.name`)}
+                          />
+                          <Input
+                            id={`pkg-price-${index}`}
+                            label="Price (ZAR)"
+                            type="number"
+                            {...register(`packages.${index}.price`, { valueAsNumber: true })}
+                          />
+                          <Input
+                            id={`pkg-delivery-${index}`}
+                            label="Delivery Days"
+                            type="number"
+                            {...register(`packages.${index}.deliveryDays`, { valueAsNumber: true })}
+                          />
+                          <Input
+                            id={`pkg-revisions-${index}`}
+                            label="Revisions"
+                            type="number"
+                            {...register(`packages.${index}.revisions`, { valueAsNumber: true })}
+                          />
+                        </div>
+
+                        <div className="mt-4">
+                          <Textarea
+                            id={`pkg-desc-${index}`}
+                            label="Description"
+                            rows={2}
+                            placeholder="What's included in this package?"
+                            {...register(`packages.${index}.description`)}
+                          />
+                        </div>
+
+                        <div className="mt-4">
+                          <label className="block text-sm font-medium text-foreground mb-1">Features (one per line)</label>
+                          <textarea
+                            rows={3}
+                            className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                            placeholder={"Source file included\nHigh resolution\nCommercial use"}
+                            onChange={(e) => {
+                              const features = e.target.value.split('\n').filter(f => f.trim());
+                              setValue(`packages.${index}.features`, features.length > 0 ? features : ['']);
+                            }}
+                          />
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+
+                  <div className="flex justify-between pt-2">
+                    <Button type="button" variant="outline" onClick={() => setStep(1)}>Back</Button>
+                    <Button type="button" onClick={() => setStep(3)} size="lg">Review & Submit</Button>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Step 3: Review */}
+          {step === 3 && (
+            <motion.div key="step3" {...fadeIn}>
+              <div className="rounded-2xl border bg-card text-card-foreground shadow-sm overflow-hidden">
+                <div className="p-6 pb-4 border-b border-border/50">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-xl bg-primary/10">
+                      <CheckIcon className="h-6 w-6 text-primary" />
+                    </div>
+                    <div>
+                      <h1 className="text-xl font-semibold">Review Your Service</h1>
+                      <p className="text-sm text-muted-foreground">Double-check everything before submitting</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-6 space-y-6">
+                  {/* Image preview */}
+                  {watchedImages.length > 0 && (
+                    <div className="rounded-xl overflow-hidden border border-border">
+                      <img src={watchedImages[0]} alt="Service preview" className="w-full aspect-video object-cover" />
+                    </div>
+                  )}
+
+                  <div className="bg-muted/50 rounded-xl p-5 space-y-4">
+                    <div>
+                      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Title</span>
+                      <p className="font-semibold text-lg mt-0.5">{watch('title')}</p>
+                    </div>
+                    
+                    <div>
+                      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Category</span>
+                      <p className="font-medium mt-0.5">
+                        {categories?.find((c: any) => c.id === watch('categoryId'))?.name || 'Not selected'}
+                      </p>
+                    </div>
+                    
+                    <div>
+                      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Tags</span>
+                      <div className="flex gap-2 flex-wrap mt-1.5">
+                        {watch('tags').map((tag, i) => (
+                          <span key={i} className="bg-primary/10 text-primary px-2.5 py-0.5 rounded-full text-sm font-medium">{tag}</span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Packages</span>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-2">
+                      {watch('packages').map((pkg, i) => (
+                        <div key={i} className="border border-border rounded-xl p-4 bg-card">
+                          <p className="font-semibold">{pkg.name}</p>
+                          <p className="text-2xl font-bold text-primary mt-1">R{pkg.price}</p>
+                          <p className="text-sm text-muted-foreground mt-0.5">
+                            {pkg.deliveryDays} days &middot; {pkg.revisions} revisions
+                          </p>
+                          {pkg.features.filter(Boolean).length > 0 && (
+                            <ul className="mt-2 space-y-1">
+                              {pkg.features.filter(Boolean).map((f, fi) => (
+                                <li key={fi} className="text-xs text-muted-foreground flex items-start gap-1.5">
+                                  <CheckIcon className="w-3 h-3 text-primary mt-0.5 shrink-0" /> {f}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex justify-between pt-2">
+                    <Button type="button" variant="outline" onClick={() => setStep(2)}>Back</Button>
+                    <Button type="submit" size="lg" isLoading={createServiceMutation.isPending}>
+                      Create Service
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </form>
     </div>
   );

@@ -240,7 +240,7 @@ export default function CoursePage() {
               <motion.div
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
-                className="bg-white text-gray-900 rounded-xl shadow-xl p-6"
+                className="bg-card text-card-foreground rounded-xl shadow-xl p-6"
               >
                 {/* Preview */}
                 {course.thumbnail && (
@@ -262,7 +262,7 @@ export default function CoursePage() {
                     {canRefund && (
                       <Button
                         variant="outline"
-                        className="w-full text-orange-600 border-orange-200 hover:bg-orange-50"
+                        className="w-full text-orange-500 border-orange-500/20 hover:bg-orange-500/10"
                         size="sm"
                         onClick={() => setShowRefundConfirm(true)}
                       >
@@ -278,7 +278,7 @@ export default function CoursePage() {
                   </div>
                 ) : isPendingPayment ? (
                   <div className="space-y-2">
-                    <div className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3 text-center">
+                    <div className="text-sm text-amber-500 bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 text-center">
                       Payment not yet confirmed. You can retry below.
                     </div>
                     <Button className="w-full" size="lg" onClick={handleEnroll} isLoading={enrollMutation.isPending}>
@@ -307,16 +307,16 @@ export default function CoursePage() {
                   </Button>
                 )}
 
-                <div className="mt-4 space-y-2 text-sm text-gray-600">
+                <div className="mt-4 space-y-2 text-sm text-muted-foreground">
                   <div className="flex items-center gap-2"><ClockIcon className="h-4 w-4" /> {formatDuration(course.totalDuration || 0)} of content</div>
                   <div className="flex items-center gap-2"><DocumentTextIcon className="h-4 w-4" /> {totalLessons} lessons</div>
                   <div className="flex items-center gap-2"><CheckCircleIcon className="h-4 w-4" /> Lifetime access</div>
                 </div>
 
                 {/* Trust badge */}
-                <div className="mt-4 p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center gap-2">
-                  <ShieldCheckIcon className="h-5 w-5 text-emerald-600 shrink-0" />
-                  <span className="text-xs text-emerald-700 font-medium">24h Money-Back Guarantee</span>
+                <div className="mt-4 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg flex items-center gap-2">
+                  <ShieldCheckIcon className="h-5 w-5 text-emerald-500 shrink-0" />
+                  <span className="text-xs text-emerald-500 font-medium">24h Money-Back Guarantee</span>
                 </div>
 
                 {/* Message Instructor */}
@@ -435,7 +435,7 @@ export default function CoursePage() {
                           {[1, 2, 3, 4, 5].map((star) => (
                             <StarIcon
                               key={star}
-                              className={`h-4 w-4 ${star <= review.rating ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'}`}
+                              className={`h-4 w-4 ${star <= review.rating ? 'text-yellow-400 fill-yellow-400' : 'text-muted'}`}
                             />
                           ))}
                         </div>
@@ -496,7 +496,7 @@ export default function CoursePage() {
       {/* Refund Confirmation Modal */}
       {showRefundConfirm && refundBreakdown && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+          <div className="bg-card rounded-lg p-6 w-full max-w-md mx-4">
             <h2 className="text-xl font-bold mb-2">Request Course Refund</h2>
             <p className="text-sm text-muted-foreground mb-4">
               A refund will be credited to your account balance after fee deductions. 
@@ -504,7 +504,7 @@ export default function CoursePage() {
             </p>
 
             {/* Fee breakdown */}
-            <div className="bg-gray-50 border rounded-lg p-4 mb-4 space-y-2 text-sm">
+            <div className="bg-muted/50 border rounded-lg p-4 mb-4 space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Course price</span>
                 <span className="font-medium">R{refundBreakdown.coursePrice.toFixed(2)}</span>
@@ -525,9 +525,9 @@ export default function CoursePage() {
               </div>
             </div>
 
-            <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-4 text-sm">
-              <p className="font-medium text-orange-800">Refund Policy</p>
-              <ul className="text-orange-700 mt-1 space-y-1">
+            <div className="bg-orange-500/10 border border-orange-500/20 rounded-lg p-3 mb-4 text-sm">
+              <p className="font-medium text-orange-500">Refund Policy</p>
+              <ul className="text-orange-400 mt-1 space-y-1">
                 <li>• {Math.floor(hoursLeft)} hours remaining in refund window</li>
                 <li>• {progressPercent.toFixed(0)}% of course completed ({REFUND_POLICY.COURSE_REFUND_MAX_PROGRESS}% max)</li>
                 {paymentMethod === 'CREDIT' && (

@@ -158,9 +158,9 @@ export default function CoursesPage() {
       </motion.section>
 
       {/* Trust strip */}
-      <div className="bg-gray-950 py-3">
+      <div className="bg-muted/50 py-3">
         <div className="container">
-          <div className="flex flex-wrap justify-center gap-x-8 gap-y-1 text-sm text-gray-400">
+          <div className="flex flex-wrap justify-center gap-x-8 gap-y-1 text-sm text-muted-foreground">
             <span className="flex items-center gap-1.5">
               <ShieldCheckIcon className="h-4 w-4 text-primary" />
               24h Money-Back Guarantee
@@ -263,7 +263,7 @@ export default function CoursesPage() {
                                 <StarIcon
                                   key={star}
                                   className={`h-3.5 w-3.5 ${
-                                    star <= Math.round(Number(course.rating)) ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'
+                                    star <= Math.round(Number(course.rating)) ? 'text-yellow-400 fill-yellow-400' : 'text-muted'
                                   }`}
                                 />
                               ))}
