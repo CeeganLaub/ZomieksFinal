@@ -113,6 +113,8 @@ export async function releaseOrderEscrow(orderId: string): Promise<void> {
 }
 
 // Process refund (release escrow back to buyer) with fee deduction
+// buyerId + creditAmount: when provided, the credit balance increment happens
+// inside the SAME transaction to guarantee atomicity.
 export async function processOrderRefund(
   orderId: string,
   reason: string,
@@ -120,8 +122,10 @@ export async function processOrderRefund(
     refundAmount?: number; // Custom refund amount (for admin overrides)
     processingFee?: number;
     buyerFeeKept?: number;
+    buyerId?: string;      // If set, credit the buyer atomically
+    creditAmount?: number; // Amount to add to buyer's creditBalance
   } = {}
-): Promise<{ refundId: string; refundAmount: number; processingFee: number }> {
+): Promise<{ refundId: string; refundAmount: number; processingFee: number; creditBalance?: number }> {
   return await prisma.$transaction(async (tx) => {
     const order = await tx.order.findUnique({
       where: { id: orderId },
@@ -190,6 +194,16 @@ export async function processOrderRefund(
       },
     });
 
+    // Credit buyer's balance atomically inside same transaction
+    let creditBalance: number | undefined;
+    if (options.buyerId && options.creditAmount && options.creditAmount > 0) {
+      const user = await tx.user.update({
+        where: { id: options.buyerId },
+        data: { creditBalance: { increment: options.creditAmount } },
+      });
+      creditBalance = Number(user.creditBalance);
+    }
+
     // TODO: Process actual refund through payment gateway
     // For PayFast: Use API to refund
     // For OZOW: Manual process required
@@ -198,6 +212,7 @@ export async function processOrderRefund(
       refundId: refund.id,
       refundAmount: actualRefundAmount,
       processingFee,
+      creditBalance,
     };
   });
 }

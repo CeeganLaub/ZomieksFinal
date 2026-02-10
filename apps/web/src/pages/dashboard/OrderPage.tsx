@@ -126,6 +126,7 @@ export default function OrderPage() {
       }
       queryClient.invalidateQueries({ queryKey: ['order', id] });
       setShowRefundModal(false);
+      setShowCancelModal(false);
     },
     onError: (err: any) => {
       toast.error(err.message || 'Failed to cancel order');
@@ -133,6 +134,7 @@ export default function OrderPage() {
   });
 
   const [showRefundModal, setShowRefundModal] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
 
   if (isLoading) {
@@ -156,6 +158,7 @@ export default function OrderPage() {
   const canPay = order.status === 'PENDING_PAYMENT';
   const canAccept = order.status === 'DELIVERED';
   const canDispute = ['DELIVERED', 'IN_PROGRESS'].includes(order.status);
+  const isPaid = order.status !== 'PENDING_PAYMENT';
   const canCancel = ['PENDING_PAYMENT', 'PAID', 'IN_PROGRESS'].includes(order.status) && (!order.deliveries || order.deliveries.length === 0);
 
   return (
@@ -462,7 +465,7 @@ export default function OrderPage() {
           </Card>
 
           {/* Actions */}
-          {canCancel && (
+          {canCancel && isPaid && (
             <Button
               variant="outline"
               className="w-full text-orange-600 border-orange-200 hover:bg-orange-50"
@@ -470,6 +473,16 @@ export default function OrderPage() {
             >
               <ArrowPathIcon className="h-4 w-4 mr-2" />
               Cancel & Refund
+            </Button>
+          )}
+          {canCancel && !isPaid && (
+            <Button
+              variant="outline"
+              className="w-full text-muted-foreground border-muted hover:bg-muted/50"
+              onClick={() => setShowCancelModal(true)}
+            >
+              <XCircleIcon className="h-4 w-4 mr-2" />
+              Cancel Order
             </Button>
           )}
           {canDispute && (
@@ -543,7 +556,42 @@ export default function OrderPage() {
           </div>
         </div>
       )}
-      {/* Refund Confirmation Modal */}
+      {/* Cancel Confirmation Modal (unpaid orders) */}
+      {showCancelModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-background rounded-lg p-6 w-full max-w-md mx-4">
+            <h2 className="text-xl font-bold mb-2">Cancel Order</h2>
+            <p className="text-sm text-muted-foreground mb-4">
+              This order hasn't been paid yet. It will simply be cancelled — no refund is needed.
+            </p>
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-1">Reason (optional)</label>
+              <textarea
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                rows={2}
+                className="w-full px-3 py-2 border rounded-lg text-sm"
+                placeholder="Why are you cancelling?"
+              />
+            </div>
+            <div className="flex gap-3">
+              <Button variant="outline" className="flex-1" onClick={() => setShowCancelModal(false)}>
+                Keep Order
+              </Button>
+              <Button
+                className="flex-1"
+                variant="destructive"
+                onClick={() => cancelRefundMutation.mutate(cancelReason)}
+                disabled={cancelRefundMutation.isPending}
+              >
+                {cancelRefundMutation.isPending ? 'Cancelling...' : 'Confirm Cancel'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Refund Confirmation Modal (paid orders) */}
       {showRefundModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-background rounded-lg p-6 w-full max-w-md mx-4">

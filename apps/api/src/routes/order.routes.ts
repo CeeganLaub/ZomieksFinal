@@ -478,25 +478,40 @@ router.post('/:id/cancel', authenticate, async (req, res, next) => {
       });
     }
 
-    // If order is paid, process refund to credit balance with fee deduction
-    if (order.status !== 'PENDING_PAYMENT') {
+    // Defense-in-depth: verify actual payment exists before issuing any refund
+    const completedTransaction = order.status !== 'PENDING_PAYMENT'
+      ? await prisma.transaction.findFirst({ where: { orderId: order.id, status: 'COMPLETED' } })
+      : null;
+
+    // If order is paid AND a completed transaction exists, process refund
+    if (order.status !== 'PENDING_PAYMENT' && completedTransaction) {
       const baseAmount = Number(order.baseAmount);
       const buyerFee = Number(order.buyerFee);
       const totalAmount = Number(order.totalAmount);
 
       const feeBreakdown = calculateServiceRefund(baseAmount, buyerFee, totalAmount);
 
-      // Process escrow refund
-      await processOrderRefund(order.id, req.body.reason || 'Buyer cancelled', {
+      // Use optimistic locking: only cancel if status hasn't changed since we read it
+      const lockResult = await prisma.order.updateMany({
+        where: { id: order.id, status: order.status },
+        data: { status: 'REFUNDED' },
+      });
+      if (lockResult.count === 0) {
+        return res.status(409).json({
+          success: false,
+          error: { code: 'CONFLICT', message: 'Order status changed. Please refresh and try again.' },
+        });
+      }
+      // Revert optimistic status — processOrderRefund sets it to REFUNDED inside its transaction
+      await prisma.order.update({ where: { id: order.id }, data: { status: order.status } });
+
+      // Process escrow refund + credit buyer atomically in one transaction
+      const result = await processOrderRefund(order.id, req.body.reason || 'Buyer cancelled', {
         refundAmount: feeBreakdown.refundAmount,
         processingFee: feeBreakdown.processingFee,
         buyerFeeKept: feeBreakdown.buyerFeeKept,
-      });
-
-      // Credit refund amount to user balance
-      const user = await prisma.user.update({
-        where: { id: req.user!.id },
-        data: { creditBalance: { increment: feeBreakdown.refundAmount } },
+        buyerId: req.user!.id,
+        creditAmount: feeBreakdown.refundAmount,
       });
 
       return res.json({
@@ -509,14 +524,14 @@ router.post('/:id/cancel', authenticate, async (req, res, next) => {
             processingFee: feeBreakdown.processingFee,
             totalDeducted: feeBreakdown.totalDeducted,
             refundAmount: feeBreakdown.refundAmount,
-            creditBalance: Number(user.creditBalance),
+            creditBalance: result.creditBalance ?? 0,
           },
           message: `R${feeBreakdown.refundAmount.toFixed(2)} has been credited to your account balance. R${feeBreakdown.totalDeducted.toFixed(2)} retained as fees.`,
         },
       });
     }
 
-    // Unpaid order — just cancel
+    // Unpaid order (or paid without a transaction record — edge case) — just cancel, no refund
     const updated = await prisma.order.update({
       where: { id: order.id },
       data: {
