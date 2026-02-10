@@ -893,11 +893,12 @@ model Conversation {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([buyerId, sellerId])
+  @@unique([buyerId, sellerId, orderId])
   @@index([sellerId, status])
   @@index([pipelineStageId])
   @@index([buyerId, lastMessageAt])
   @@index([sellerId, lastMessageAt])
+  @@index([orderId])
 }
 
 enum ConversationStatus {

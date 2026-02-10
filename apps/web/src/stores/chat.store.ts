@@ -37,6 +37,7 @@ interface Conversation {
     firstName?: string;
     avatar?: string;
   };
+  order?: { id: string; orderNumber: string; status: string } | null;
   messages: { content: string; type: string; createdAt: string }[];
 }
 

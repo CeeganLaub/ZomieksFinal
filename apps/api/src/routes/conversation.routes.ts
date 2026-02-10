@@ -258,10 +258,10 @@ router.post('/start', authenticate, async (req, res, next) => {
     const buyerId = recipient.isSeller ? req.user!.id : participantId;
     const sellerId = recipient.isSeller ? participantId : req.user!.id;
 
-    // Find existing conversation or create one
-    let conversation = await prisma.conversation.findUnique({
-      where: { buyerId_sellerId: { buyerId, sellerId } },
-    });
+    // Find existing conversation for this order, or create one
+    let conversation = orderId
+      ? await prisma.conversation.findFirst({ where: { buyerId, sellerId, orderId } })
+      : await prisma.conversation.findFirst({ where: { buyerId, sellerId }, orderBy: { lastMessageAt: 'desc' } });
 
     if (!conversation) {
       const defaultStage = await prisma.pipelineStage.findFirst({
@@ -336,26 +336,19 @@ router.post(
       const buyerId = recipient.isSeller ? req.user!.id : recipientId;
       const sellerId = recipient.isSeller ? recipientId : req.user!.id;
 
-      // Create or find existing conversation
-      let conversation = await prisma.conversation.findUnique({
-        where: { buyerId_sellerId: { buyerId, sellerId } },
+      // Always create a new conversation (per-order threads)
+      const defaultStage = await prisma.pipelineStage.findFirst({
+        where: { userId: sellerId, isDefault: true },
       });
 
-      if (!conversation) {
-        // Get default pipeline stage for seller
-        const defaultStage = await prisma.pipelineStage.findFirst({
-          where: { userId: sellerId, isDefault: true },
-        });
-
-        conversation = await prisma.conversation.create({
-          data: {
-            buyerId,
-            sellerId,
-            pipelineStageId: defaultStage?.id,
-            source: serviceId ? 'service' : 'direct',
-          },
-        });
-      }
+      const conversation = await prisma.conversation.create({
+        data: {
+          buyerId,
+          sellerId,
+          pipelineStageId: defaultStage?.id,
+          source: serviceId ? 'service' : 'direct',
+        },
+      });
 
       // Create initial message
       const message = await prisma.message.create({

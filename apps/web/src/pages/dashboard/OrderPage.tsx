@@ -440,8 +440,8 @@ export default function OrderPage() {
                   <p className="text-sm text-muted-foreground">@{order.seller?.username}</p>
                 </div>
               </div>
-              <Link to={`/messages/${order.seller?.id}`}>
-                <Button variant="outline" className="w-full">
+              <Link to={order.conversation?.id ? `/messages/${order.conversation.id}` : '#'}>
+                <Button variant="outline" className="w-full" disabled={!order.conversation?.id}>
                   <ChatBubbleLeftRightIcon className="h-4 w-4 mr-2" />
                   Contact Seller
                 </Button>

@@ -149,6 +149,9 @@ export default function MessagesPage() {
                         >
                           {isBuyer ? 'Buying' : 'Selling'}
                         </span>
+                        {(conversation as any).order?.orderNumber && (
+                          <span className="text-xs text-muted-foreground">#{(conversation as any).order.orderNumber}</span>
+                        )}
                       </div>
                       {conversation.lastMessageAt && (
                         <span className="text-xs text-muted-foreground shrink-0">

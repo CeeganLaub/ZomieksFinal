@@ -95,20 +95,11 @@ router.post('/payfast', async (req, res) => {
           });
         });
 
-        // Create conversation and system message now that payment is confirmed
-        const conversation = await prisma.conversation.upsert({
-          where: {
-            buyerId_sellerId: {
-              buyerId: order.buyerId,
-              sellerId: order.sellerId,
-            },
-          },
-          create: {
+        // Create conversation for this specific order
+        const conversation = await prisma.conversation.create({
+          data: {
             buyerId: order.buyerId,
             sellerId: order.sellerId,
-            orderId: order.id,
-          },
-          update: {
             orderId: order.id,
           },
         });
@@ -214,19 +205,12 @@ router.post('/payfast/subscription', async (req, res) => {
           data: { status: 'ACTIVE' },
         });
 
-        // Create conversation between buyer and seller
-        const conversation = await prisma.conversation.upsert({
-          where: {
-            buyerId_sellerId: {
-              buyerId: subscription.buyerId,
-              sellerId: subscription.service.sellerId,
-            },
-          },
-          create: {
+        // Create conversation between buyer and seller for subscription
+        const conversation = await prisma.conversation.create({
+          data: {
             buyerId: subscription.buyerId,
             sellerId: subscription.service.sellerId,
           },
-          update: {},
         });
 
         await prisma.message.create({
@@ -489,20 +473,11 @@ router.post('/ozow', async (req, res) => {
         });
       });
 
-      // Create conversation and system message now that payment is confirmed
-      const conversation = await prisma.conversation.upsert({
-        where: {
-          buyerId_sellerId: {
-            buyerId: order.buyerId,
-            sellerId: order.sellerId,
-          },
-        },
-        create: {
+      // Create conversation for this specific order
+      const conversation = await prisma.conversation.create({
+        data: {
           buyerId: order.buyerId,
           sellerId: order.sellerId,
-          orderId: order.id,
-        },
-        update: {
           orderId: order.id,
         },
       });
