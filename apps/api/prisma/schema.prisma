@@ -137,10 +137,12 @@ model SellerProfile {
   bioTextColor       String   @default("#ffffff")
   bioButtonStyle     String   @default("rounded")   // rounded | pill | square | outline
   bioFont            String   @default("Inter")
-  bioSocialLinks     Json?    // [{ platform, url, icon }]
+  bioSocialLinks     Json?    // [{ platform, url, icon }] — deprecated, kept for compat
   bioFeaturedItems   Json?    // [{ type: 'service'|'course', id, order }]
   bioCtaText         String   @default("Get in Touch")
   bioEnabled         Boolean  @default(false)
+  bioTemplate        String   @default("services-showcase") // services-showcase | portfolio-gallery | course-academy | chat-first | classic-funnel
+  bioQuickReplies    Json?    // string[] — quick-reply chips for chat bubble
 
   // Relations
   courses      Course[]

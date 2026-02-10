@@ -55,6 +55,7 @@ const SellerCoursesPage = lazy(() => import('./pages/seller/SellerCoursesPage'))
 const CreateCoursePage = lazy(() => import('./pages/seller/CreateCoursePage'));
 const SellerAnalyticsPage = lazy(() => import('./pages/seller/SellerAnalyticsPage'));
 const BioLinkBuilderPage = lazy(() => import('./pages/BioLinkBuilderPage'));
+const BioLinkPage = lazy(() => import('./pages/BioLinkPage'));
 
 // Admin pages (lazy loaded)
 const AdminDashboardPage = lazy(() => import('./pages/admin/AdminDashboardPage'));
@@ -169,6 +170,9 @@ function App() {
           <Route path="/admin/fees" element={<FeesPage />} />
           <Route path="/admin/configuration" element={<ConfigurationPage />} />
         </Route>
+
+        {/* BioLink standalone page — must be LAST (catch-all for vanity URLs) */}
+        <Route path="/:username" element={<BioLinkPage />} />
       </Routes>
       </Suspense>
     </ErrorBoundary>

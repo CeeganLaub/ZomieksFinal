@@ -448,6 +448,8 @@ router.get('/seller/biolink', authenticate, requireSeller, async (req, res, next
         bioFeaturedItems: true,
         bioCtaText: true,
         bioEnabled: true,
+        bioTemplate: true,
+        bioQuickReplies: true,
         displayName: true,
         professionalTitle: true,
         subscription: { select: { status: true } },
@@ -482,6 +484,8 @@ router.put('/seller/biolink', authenticate, requireSeller, async (req, res, next
       bioFeaturedItems,
       bioCtaText,
       bioEnabled,
+      bioTemplate,
+      bioQuickReplies,
     } = req.body;
 
     const profile = await prisma.sellerProfile.update({
@@ -498,6 +502,8 @@ router.put('/seller/biolink', authenticate, requireSeller, async (req, res, next
         ...(bioFeaturedItems !== undefined && { bioFeaturedItems }),
         ...(bioCtaText !== undefined && { bioCtaText }),
         ...(bioEnabled !== undefined && { bioEnabled }),
+        ...(bioTemplate !== undefined && { bioTemplate }),
+        ...(bioQuickReplies !== undefined && { bioQuickReplies }),
       },
       select: {
         bioHeadline: true,
@@ -511,6 +517,8 @@ router.put('/seller/biolink', authenticate, requireSeller, async (req, res, next
         bioFeaturedItems: true,
         bioCtaText: true,
         bioEnabled: true,
+        bioTemplate: true,
+        bioQuickReplies: true,
       },
     });
 
@@ -588,6 +596,8 @@ router.get('/:username', optionalAuth, async (req, res, next) => {
             bioFeaturedItems: true,
             bioCtaText: true,
             bioEnabled: true,
+            bioTemplate: true,
+            bioQuickReplies: true,
             // Courses from this seller
             courses: {
               where: { status: 'PUBLISHED' },

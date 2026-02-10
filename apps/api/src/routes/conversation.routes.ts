@@ -1,10 +1,12 @@
 import { Router } from 'express';
-import { authenticate, requireSeller } from '@/middleware/auth.js';
+import { authenticate, requireSeller, optionalAuth } from '@/middleware/auth.js';
 import { prisma } from '@/lib/prisma.js';
 import { validate } from '@/middleware/validate.js';
 import { processAutoTriggers } from '@/services/crm.service.js';
 import { notificationQueue } from '@/lib/queue.js';
 import { logger } from '@/lib/logger.js';
+import { authService } from '@/services/auth.service.js';
+import bcrypt from 'bcryptjs';
 import { 
   sendMessageSchema, 
   createConversationSchema,
@@ -304,6 +306,125 @@ router.post('/start', authenticate, async (req, res, next) => {
     res.status(201).json({
       success: true,
       data: { conversationId: conversation.id, conversation },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Guest chat start (email capture → conversation, no login required)
+router.post('/guest-start', async (req, res, next) => {
+  try {
+    const { sellerUsername, name, email, initialMessage } = req.body;
+
+    if (!sellerUsername || !name || !email) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'MISSING_FIELD', message: 'sellerUsername, name, and email are required' },
+      });
+    }
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'INVALID_EMAIL', message: 'Please provide a valid email address' },
+      });
+    }
+
+    // Find the seller
+    const seller = await prisma.user.findUnique({
+      where: { username: sellerUsername.toLowerCase() },
+      select: { id: true, isSeller: true },
+    });
+
+    if (!seller || !seller.isSeller) {
+      return res.status(404).json({
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Seller not found' },
+      });
+    }
+
+    // Find or create guest user by email
+    const normalizedEmail = email.toLowerCase().trim();
+    let guestUser = await prisma.user.findUnique({
+      where: { email: normalizedEmail },
+      select: { id: true },
+    });
+
+    if (!guestUser) {
+      const nameParts = name.trim().split(/\s+/);
+      const firstName = nameParts[0] || 'Guest';
+      const lastName = nameParts.slice(1).join(' ') || '';
+      const baseUsername = `guest_${normalizedEmail.split('@')[0]}`.replace(/[^a-z0-9_]/g, '').slice(0, 30);
+      let username = baseUsername;
+      let attempt = 0;
+      while (await prisma.user.findUnique({ where: { username } })) {
+        attempt++;
+        username = `${baseUsername}${attempt}`;
+      }
+      const passwordHash = await bcrypt.hash(crypto.randomUUID(), 12);
+      guestUser = await prisma.user.create({
+        data: {
+          email: normalizedEmail,
+          username,
+          passwordHash,
+          firstName,
+          lastName,
+          isEmailVerified: false,
+        },
+        select: { id: true },
+      });
+    }
+
+    // Find or create conversation
+    let conversation = await prisma.conversation.findFirst({
+      where: { buyerId: guestUser.id, sellerId: seller.id },
+      orderBy: { lastMessageAt: 'desc' },
+    });
+
+    if (!conversation) {
+      const defaultStage = await prisma.pipelineStage.findFirst({
+        where: { userId: seller.id, isDefault: true },
+      });
+      conversation = await prisma.conversation.create({
+        data: {
+          buyerId: guestUser.id,
+          sellerId: seller.id,
+          pipelineStageId: defaultStage?.id,
+          source: `biolink:${sellerUsername}`,
+        },
+      });
+    }
+
+    // Send initial message if provided
+    if (initialMessage && initialMessage.trim()) {
+      await prisma.message.create({
+        data: {
+          conversationId: conversation.id,
+          senderId: guestUser.id,
+          content: initialMessage.trim(),
+          type: 'TEXT',
+          deliveredAt: new Date(),
+        },
+      });
+      await prisma.conversation.update({
+        where: { id: conversation.id },
+        data: { lastMessageAt: new Date(), unreadSellerCount: { increment: 1 } },
+      });
+    }
+
+    // Generate a guest token for continued chat
+    const { accessToken } = await authService.generateTokens(guestUser.id);
+
+    res.status(201).json({
+      success: true,
+      data: {
+        conversationId: conversation.id,
+        guestToken: accessToken,
+        guestUserId: guestUser.id,
+      },
     });
   } catch (error) {
     next(error);

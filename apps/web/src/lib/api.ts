@@ -367,6 +367,9 @@ export const conversationsApi = {
   start: (data: { participantId: string; orderId?: string; content?: string }) =>
     api.post<ApiResponse<{ conversationId: string }>>('/conversations/start', data),
   
+  guestStart: (data: { sellerUsername: string; name: string; email: string; initialMessage?: string }) =>
+    api.post<ApiResponse<{ conversationId: string; guestToken: string; guestUserId: string }>>('/conversations/guest-start', data),
+  
   sendMessage: (id: string, data: { content: string; attachments?: string[]; offerDetails?: any }) =>
     api.post<ApiResponse<{ messageId: string }>>(`/conversations/${id}/messages`, data),
   

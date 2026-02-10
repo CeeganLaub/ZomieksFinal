@@ -9,7 +9,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   EyeIcon,
   PaintBrushIcon,
-  LinkIcon,
   SparklesIcon,
   ArrowTopRightOnSquareIcon,
   TrashIcon,
@@ -18,27 +17,20 @@ import {
   CubeIcon,
   AcademicCapIcon,
   PhotoIcon,
+  ClipboardDocumentIcon,
+  ChatBubbleLeftRightIcon,
+  Squares2X2Icon,
 } from '@heroicons/react/24/outline';
-import { StarIcon, ShieldCheckIcon } from '@heroicons/react/24/solid';
+import { ShieldCheckIcon, CheckIcon } from '@heroicons/react/24/solid';
 import { toast } from 'sonner';
+import { BIOLINK_FONTS, loadAllFonts } from '../lib/fonts';
+import { TEMPLATES, TEMPLATE_IDS, DEFAULT_TEMPLATE } from './biolink/templates/index';
 
-const FONT_OPTIONS = ['Inter', 'Poppins', 'Roboto', 'Playfair Display', 'Space Grotesk', 'DM Sans'];
 const BUTTON_STYLES = [
   { value: 'rounded', label: 'Rounded' },
   { value: 'pill', label: 'Pill' },
   { value: 'square', label: 'Square' },
   { value: 'outline', label: 'Outline' },
-];
-
-const SOCIAL_PLATFORMS = [
-  { value: 'twitter', label: 'X / Twitter', icon: '𝕏' },
-  { value: 'instagram', label: 'Instagram', icon: '📸' },
-  { value: 'linkedin', label: 'LinkedIn', icon: '💼' },
-  { value: 'facebook', label: 'Facebook', icon: '📘' },
-  { value: 'youtube', label: 'YouTube', icon: '▶️' },
-  { value: 'tiktok', label: 'TikTok', icon: '🎵' },
-  { value: 'github', label: 'GitHub', icon: '🐙' },
-  { value: 'website', label: 'Website', icon: '🌐' },
 ];
 
 const COLOR_PRESETS = [
@@ -51,12 +43,13 @@ const COLOR_PRESETS = [
   { bg: '#18181b', text: '#fafafa', accent: '#f97316', name: 'Midnight' },
   { bg: '#fef2f2', text: '#7f1d1d', accent: '#ef4444', name: 'Rose Blush' },
   { bg: '#022c22', text: '#d1fae5', accent: '#34d399', name: 'Forest' },
+  { bg: '#1e1b4b', text: '#e0e7ff', accent: '#818cf8', name: 'Indigo Night' },
+  { bg: '#fffbeb', text: '#78350f', accent: '#f59e0b', name: 'Amber Light' },
+  { bg: '#0f172a', text: '#e2e8f0', accent: '#06b6d4', name: 'Cyan Dark' },
+  { bg: '#fdf2f8', text: '#831843', accent: '#ec4899', name: 'Pink Blush' },
+  { bg: '#14532d', text: '#bbf7d0', accent: '#4ade80', name: 'Lime Forest' },
+  { bg: '#27272a', text: '#fafafa', accent: '#fbbf24', name: 'Gold Zinc' },
 ];
-
-interface SocialLink {
-  platform: string;
-  url: string;
-}
 
 interface FeaturedItem {
   type: 'service' | 'course';
@@ -64,12 +57,15 @@ interface FeaturedItem {
   order: number;
 }
 
-type TabKey = 'design' | 'cover' | 'featured' | 'social' | 'preview';
+type TabKey = 'template' | 'design' | 'cover' | 'featured' | 'chat' | 'preview';
 
 export default function BioLinkBuilderPage() {
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
-  const [activeSection, setActiveSection] = useState<TabKey>('design');
+  const [activeSection, setActiveSection] = useState<TabKey>('template');
+
+  // Load all fonts for the dropdown previews
+  useEffect(() => { loadAllFonts(); }, []);
 
   // Check subscription
   const { data: subData, isLoading: subLoading } = useQuery({
@@ -111,8 +107,11 @@ export default function BioLinkBuilderPage() {
   const [bioFont, setBioFont] = useState('Inter');
   const [bioCtaText, setBioCtaText] = useState('Get in Touch');
   const [bioEnabled, setBioEnabled] = useState(false);
-  const [socialLinks, setSocialLinks] = useState<SocialLink[]>([]);
+  const [bioTemplate, setBioTemplate] = useState(DEFAULT_TEMPLATE);
+  const [bioQuickReplies, setBioQuickReplies] = useState<string[]>([]);
   const [featuredItems, setFeaturedItems] = useState<FeaturedItem[]>([]);
+  const [newChip, setNewChip] = useState('');
+  const [linkCopied, setLinkCopied] = useState(false);
 
   // Load data into form
   useEffect(() => {
@@ -127,7 +126,8 @@ export default function BioLinkBuilderPage() {
       setBioFont(b.bioFont || 'Inter');
       setBioCtaText(b.bioCtaText || 'Get in Touch');
       setBioEnabled(b.bioEnabled || false);
-      setSocialLinks(b.bioSocialLinks || []);
+      setBioTemplate(b.bioTemplate || DEFAULT_TEMPLATE);
+      setBioQuickReplies(b.bioQuickReplies || []);
       setFeaturedItems(b.bioFeaturedItems || []);
     }
   }, [biolinkData]);
@@ -145,7 +145,8 @@ export default function BioLinkBuilderPage() {
         bioFont,
         bioCtaText,
         bioEnabled,
-        bioSocialLinks: socialLinks.filter(l => l.url.trim()),
+        bioTemplate,
+        bioQuickReplies,
         bioFeaturedItems: featuredItems,
       }),
     onSuccess: () => {
@@ -175,18 +176,15 @@ export default function BioLinkBuilderPage() {
     },
   });
 
-  const addSocialLink = () => {
-    setSocialLinks([...socialLinks, { platform: 'website', url: '' }]);
+  const addQuickReply = () => {
+    const text = newChip.trim();
+    if (!text || bioQuickReplies.includes(text)) return;
+    setBioQuickReplies([...bioQuickReplies, text]);
+    setNewChip('');
   };
 
-  const removeSocialLink = (index: number) => {
-    setSocialLinks(socialLinks.filter((_, i) => i !== index));
-  };
-
-  const updateSocialLink = (index: number, field: keyof SocialLink, value: string) => {
-    const updated = [...socialLinks];
-    updated[index] = { ...updated[index], [field]: value };
-    setSocialLinks(updated);
+  const removeQuickReply = (index: number) => {
+    setBioQuickReplies(bioQuickReplies.filter((_, i) => i !== index));
   };
 
   const toggleFeaturedItem = (type: 'service' | 'course', id: string) => {
@@ -272,28 +270,32 @@ export default function BioLinkBuilderPage() {
   }
 
   // ========== BUILDER ==========
-  const biolinkUrl = `${window.location.origin}/sellers/${user?.username}`;
+  const biolinkUrl = `${window.location.origin}/${user?.username}`;
+
+  const copyLink = () => {
+    navigator.clipboard.writeText(biolinkUrl).then(() => {
+      setLinkCopied(true);
+      toast.success('Link copied!');
+      setTimeout(() => setLinkCopied(false), 2000);
+    });
+  };
 
   const tabs: { key: TabKey; icon: typeof PaintBrushIcon; label: string }[] = [
+    { key: 'template', icon: Squares2X2Icon, label: 'Template' },
     { key: 'design', icon: PaintBrushIcon, label: 'Design' },
-    { key: 'cover', icon: PhotoIcon, label: 'Cover & Media' },
+    { key: 'cover', icon: PhotoIcon, label: 'Cover' },
     { key: 'featured', icon: CubeIcon, label: 'Featured' },
-    { key: 'social', icon: LinkIcon, label: 'Social' },
+    { key: 'chat', icon: ChatBubbleLeftRightIcon, label: 'Chat' },
     { key: 'preview', icon: EyeIcon, label: 'Preview' },
   ];
 
   return (
     <div className="max-w-5xl mx-auto py-8 px-4">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
         <div>
           <h1 className="text-2xl font-bold">BioLink Builder</h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            Customise your public storefront at{' '}
-            <a href={biolinkUrl} target="_blank" rel="noopener noreferrer" className="text-emerald-500 hover:underline">
-              /sellers/{user?.username}
-            </a>
-          </p>
+          <p className="text-muted-foreground text-sm mt-1">Your standalone storefront page</p>
         </div>
         <div className="flex items-center gap-2">
           <Button
@@ -318,6 +320,15 @@ export default function BioLinkBuilderPage() {
             Save Changes
           </Button>
         </div>
+      </div>
+
+      {/* Share link bar */}
+      <div className="mb-4 flex items-center gap-2 bg-muted rounded-xl px-4 py-2.5">
+        <span className="text-sm text-muted-foreground truncate flex-1 font-mono">{biolinkUrl}</span>
+        <Button variant="outline" size="sm" onClick={copyLink} className="flex-shrink-0">
+          {linkCopied ? <CheckIcon className="w-4 h-4 mr-1 text-emerald-500" /> : <ClipboardDocumentIcon className="w-4 h-4 mr-1" />}
+          {linkCopied ? 'Copied' : 'Copy'}
+        </Button>
       </div>
 
       {/* Status bar */}
@@ -349,6 +360,48 @@ export default function BioLinkBuilderPage() {
       </div>
 
       <AnimatePresence mode="wait">
+        {/* Template Section */}
+        {activeSection === 'template' && (
+          <motion.div key="template" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
+            <div className="max-w-3xl space-y-6">
+              <div className="bg-card border rounded-xl p-6">
+                <h3 className="font-semibold flex items-center gap-2 mb-1">
+                  <Squares2X2Icon className="w-4 h-4 text-primary" /> Choose a Template
+                </h3>
+                <p className="text-sm text-muted-foreground mb-6">
+                  Pick a layout that best matches your brand. You can switch anytime.
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {TEMPLATE_IDS.map((tid) => {
+                    const t = TEMPLATES[tid];
+                    const isActive = bioTemplate === tid;
+                    return (
+                      <button
+                        key={tid}
+                        onClick={() => setBioTemplate(tid)}
+                        className={`text-left p-4 rounded-xl border-2 transition-all ${
+                          isActive
+                            ? 'border-emerald-500 bg-emerald-500/5 ring-2 ring-emerald-500/20'
+                            : 'border-border hover:border-muted-foreground/30'
+                        }`}
+                      >
+                        <div className="text-3xl mb-2">{t.icon}</div>
+                        <h4 className="font-semibold text-sm">{t.name}</h4>
+                        <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{t.description}</p>
+                        {isActive && (
+                          <span className="inline-flex items-center gap-1 mt-2 text-xs text-emerald-500 font-medium">
+                            <CheckIcon className="w-3.5 h-3.5" /> Active
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
         {/* Design Section */}
         {activeSection === 'design' && (
           <motion.div key="design" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
@@ -367,15 +420,6 @@ export default function BioLinkBuilderPage() {
                       maxLength={200}
                     />
                     <p className="text-xs text-muted-foreground mt-1">{bioHeadline.length}/200</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium mb-1.5 block">CTA Button Text</label>
-                    <Input
-                      value={bioCtaText}
-                      onChange={(e) => setBioCtaText(e.target.value)}
-                      placeholder="Get in Touch"
-                      maxLength={30}
-                    />
                   </div>
                 </div>
 
@@ -442,7 +486,7 @@ export default function BioLinkBuilderPage() {
                     onChange={(e) => setBioFont(e.target.value)}
                     className="w-full rounded-md border bg-background px-3 py-2 text-sm"
                   >
-                    {FONT_OPTIONS.map((font) => (
+                    {BIOLINK_FONTS.map((font) => (
                       <option key={font} value={font} style={{ fontFamily: font }}>{font}</option>
                     ))}
                   </select>
@@ -643,66 +687,70 @@ export default function BioLinkBuilderPage() {
           </motion.div>
         )}
 
-        {/* Social Links Section */}
-        {activeSection === 'social' && (
-          <motion.div key="social" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
-            <div className="max-w-2xl space-y-4">
+        {/* Chat & Quick Replies Section */}
+        {activeSection === 'chat' && (
+          <motion.div key="chat" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
+            <div className="max-w-2xl space-y-6">
               <div className="bg-card border rounded-xl p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-semibold flex items-center gap-2">
-                    <LinkIcon className="w-4 h-4 text-primary" /> Social Links
-                  </h3>
-                  <Button variant="outline" size="sm" onClick={addSocialLink}>
+                <h3 className="font-semibold flex items-center gap-2 mb-1">
+                  <ChatBubbleLeftRightIcon className="w-4 h-4 text-primary" /> Quick Reply Chips
+                </h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Add suggested messages visitors can tap to start a conversation. These appear in the chat bubble and Chat-First template.
+                </p>
+
+                {/* Current chips */}
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {bioQuickReplies.map((chip, i) => (
+                    <span
+                      key={i}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-sm bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"
+                    >
+                      {chip}
+                      <button
+                        onClick={() => removeQuickReply(i)}
+                        className="ml-0.5 hover:text-red-400 transition-colors"
+                      >
+                        <TrashIcon className="w-3.5 h-3.5" />
+                      </button>
+                    </span>
+                  ))}
+                  {bioQuickReplies.length === 0 && (
+                    <p className="text-sm text-muted-foreground py-2">
+                      No quick replies yet. Defaults will be used: "View services", "Check pricing", "Ask me anything"
+                    </p>
+                  )}
+                </div>
+
+                {/* Add new chip */}
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={newChip}
+                    onChange={(e) => setNewChip(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addQuickReply())}
+                    placeholder="e.g., What are your rates?"
+                    maxLength={50}
+                    className="flex-1"
+                  />
+                  <Button variant="outline" size="sm" onClick={addQuickReply} disabled={!newChip.trim()}>
                     <PlusIcon className="w-4 h-4 mr-1" /> Add
                   </Button>
                 </div>
+              </div>
 
-                {socialLinks.length === 0 && (
-                  <div className="text-center py-10 bg-muted/30 rounded-xl">
-                    <LinkIcon className="w-10 h-10 text-muted-foreground/40 mx-auto mb-2" />
-                    <p className="text-sm text-muted-foreground">No social links yet.</p>
-                    <p className="text-xs text-muted-foreground mt-1">Add links to display on your BioLink page.</p>
-                  </div>
-                )}
-
-                <div className="space-y-3">
-                  {socialLinks.map((link, index) => {
-                    const platform = SOCIAL_PLATFORMS.find(p => p.value === link.platform);
-                    return (
-                      <motion.div
-                        key={index}
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        className="flex items-center gap-3 p-3 bg-muted/30 rounded-xl"
-                      >
-                        <span className="text-lg w-8 text-center">{platform?.icon || '🌐'}</span>
-                        <select
-                          value={link.platform}
-                          onChange={(e) => updateSocialLink(index, 'platform', e.target.value)}
-                          className="rounded-md border bg-background px-2 py-1.5 text-sm w-28"
-                        >
-                          {SOCIAL_PLATFORMS.map((p) => (
-                            <option key={p.value} value={p.value}>{p.label}</option>
-                          ))}
-                        </select>
-                        <Input
-                          value={link.url}
-                          onChange={(e) => updateSocialLink(index, 'url', e.target.value)}
-                          placeholder="https://..."
-                          className="flex-1"
-                        />
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removeSocialLink(index)}
-                          className="text-muted-foreground hover:text-destructive"
-                        >
-                          <TrashIcon className="w-4 h-4" />
-                        </Button>
-                      </motion.div>
-                    );
-                  })}
-                </div>
+              <div className="bg-card border rounded-xl p-6">
+                <h3 className="font-semibold flex items-center gap-2 mb-1">
+                  <ChatBubbleLeftRightIcon className="w-4 h-4 text-primary" /> CTA Button Text
+                </h3>
+                <p className="text-sm text-muted-foreground mb-3">
+                  The main call-to-action button text shown on your BioLink.
+                </p>
+                <Input
+                  value={bioCtaText}
+                  onChange={(e) => setBioCtaText(e.target.value)}
+                  placeholder="Get in Touch"
+                  maxLength={30}
+                />
               </div>
             </div>
           </motion.div>
@@ -713,6 +761,14 @@ export default function BioLinkBuilderPage() {
           <motion.div key="preview" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
             <div className="flex justify-center">
               <div className="w-full max-w-[420px]">
+                {/* Template badge */}
+                <div className="text-center mb-4">
+                  <span className="inline-flex items-center gap-2 px-3 py-1.5 bg-muted rounded-full text-sm">
+                    <span>{TEMPLATES[bioTemplate]?.icon || '🛍️'}</span>
+                    <span className="font-medium">{TEMPLATES[bioTemplate]?.name || 'Services Showcase'}</span>
+                  </span>
+                </div>
+
                 <div className="border rounded-2xl overflow-hidden shadow-2xl">
                   {/* Cover image */}
                   {bioCoverImage && (
@@ -721,7 +777,7 @@ export default function BioLinkBuilderPage() {
                     </div>
                   )}
                   <div
-                    className={`p-6 text-center min-h-[500px] ${bioCoverImage ? '' : ''}`}
+                    className={`p-6 text-center min-h-[500px]`}
                     style={{ backgroundColor: bioBackgroundColor, color: bioTextColor, fontFamily: bioFont }}
                   >
                     <div
@@ -747,25 +803,7 @@ export default function BioLinkBuilderPage() {
                       <span className="flex items-center gap-1" style={{ color: bioThemeColor }}>
                         <ShieldCheckIcon className="w-4 h-4" /> Verified
                       </span>
-                      <span className="flex items-center gap-1">
-                        <StarIcon className="w-4 h-4" style={{ color: '#FBBF24' }} /> 5.0
-                      </span>
                     </div>
-
-                    {/* Social icons */}
-                    {socialLinks.filter(l => l.url).length > 0 && (
-                      <div className="flex items-center justify-center gap-2 mt-4">
-                        {socialLinks.filter(l => l.url).map((link, i) => (
-                          <div
-                            key={i}
-                            className="w-9 h-9 rounded-full flex items-center justify-center text-xs"
-                            style={{ backgroundColor: `${bioThemeColor}20`, color: bioThemeColor }}
-                          >
-                            {SOCIAL_PLATFORMS.find(p => p.value === link.platform)?.icon || '🌐'}
-                          </div>
-                        ))}
-                      </div>
-                    )}
 
                     {/* CTA */}
                     <div
@@ -779,6 +817,21 @@ export default function BioLinkBuilderPage() {
                     >
                       {bioCtaText || 'Get in Touch'}
                     </div>
+
+                    {/* Quick reply chips preview */}
+                    {bioQuickReplies.length > 0 && (
+                      <div className="flex flex-wrap justify-center gap-2 mt-4">
+                        {bioQuickReplies.map((chip, i) => (
+                          <span
+                            key={i}
+                            className="text-xs px-3 py-1 rounded-full border"
+                            style={{ borderColor: `${bioThemeColor}40`, color: bioThemeColor }}
+                          >
+                            {chip}
+                          </span>
+                        ))}
+                      </div>
+                    )}
 
                     {/* Featured items preview */}
                     {featuredItems.length > 0 && (
@@ -815,6 +868,19 @@ export default function BioLinkBuilderPage() {
 
                     <p className="mt-8 text-xs opacity-20">Powered by Zomieks</p>
                   </div>
+                </div>
+
+                {/* Open full preview link */}
+                <div className="text-center mt-4">
+                  <a
+                    href={biolinkUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-emerald-500 hover:underline inline-flex items-center gap-1"
+                  >
+                    <ArrowTopRightOnSquareIcon className="w-4 h-4" />
+                    Open full BioLink page
+                  </a>
                 </div>
               </div>
             </div>
