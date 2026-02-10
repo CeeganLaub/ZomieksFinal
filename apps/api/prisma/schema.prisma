@@ -1314,6 +1314,7 @@ model CourseEnrollment {
   amountPaid     Decimal        @db.Decimal(10, 2)
   gateway        PaymentGateway @default(CREDIT)
   transactionId  String?
+  paidAt         DateTime?
 
   // Escrow (reverse relation, FK lives on EscrowHold)
   escrowHold     EscrowHold?

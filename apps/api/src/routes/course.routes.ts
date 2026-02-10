@@ -4,6 +4,8 @@ import { prisma } from '@/lib/prisma.js';
 import { validate } from '@/middleware/validate.js';
 import { createCourseSchema, updateCourseSchema, courseSectionSchema, courseLessonSchema, courseReviewSchema, isCourseRefundEligible, calculateCourseFees, calculateCourseRefund, COURSE_FEES, REFUND_POLICY } from '@zomieks/shared';
 import { processCourseEscrowHold } from '@/services/escrow.service.js';
+import { createPayFastPayment, createOzowPayment } from '@/services/payment.service.js';
+import { env } from '@/config/env.js';
 
 const router = Router();
 
@@ -168,6 +170,7 @@ router.get('/:slug', optionalAuth, async (req, res, next) => {
           refundedAmount: true,
           amountPaid: true,
           gateway: true,
+          paidAt: true,
           lessonsCompleted: { select: { id: true } },
         },
       });
@@ -220,44 +223,80 @@ router.post('/:courseId/enroll', authenticate, async (req, res, next) => {
 
     const coursePrice = Number(course.price);
     const fees = calculateCourseFees(coursePrice);
+    const requestedGateway = (req.body?.gateway as string)?.toUpperCase();
     let gateway: 'CREDIT' | 'PAYFAST' | 'OZOW' = 'CREDIT';
 
     if (coursePrice > 0) {
-      const user = await prisma.user.findUnique({
+      const currentUser = await prisma.user.findUnique({
         where: { id: req.user!.id },
-        select: { creditBalance: true },
+        select: { creditBalance: true, email: true, firstName: true, lastName: true },
       });
-      const creditBalance = Number(user?.creditBalance || 0);
+      const creditBalance = Number(currentUser?.creditBalance || 0);
 
       if (creditBalance >= coursePrice) {
         gateway = 'CREDIT';
-      } else if (creditBalance > 0) {
-        return res.status(400).json({
-          success: false,
-          error: {
-            code: 'INSUFFICIENT_CREDIT',
-            message: `Insufficient credit balance. Course costs R${coursePrice.toFixed(2)}, you have R${creditBalance.toFixed(2)}. Full payment via credit required.`,
+      } else {
+        // Pay via payment gateway
+        gateway = requestedGateway === 'OZOW' ? 'OZOW' : 'PAYFAST';
+
+        // Create a pending enrollment (not paid yet — paidAt is null)
+        const enrollment = await prisma.courseEnrollment.create({
+          data: {
+            userId: req.user!.id,
+            courseId,
+            amountPaid: course.price,
+            gateway,
           },
         });
-      } else {
-        // No credit — direct enrollment (gateway payment not yet integrated for courses)
-        // Mark as PAYFAST placeholder for now — actual gateway integration TBD
-        gateway = 'PAYFAST';
+
+        // Generate payment URL
+        let paymentUrl: string;
+        const courseSlug = course.slug || courseId;
+
+        if (gateway === 'PAYFAST') {
+          paymentUrl = await createPayFastPayment({
+            paymentId: enrollment.id,
+            amount: coursePrice,
+            itemName: course.title,
+            email: currentUser!.email,
+            firstName: currentUser!.firstName || 'Customer',
+            lastName: currentUser!.lastName || '',
+            returnUrl: `${env.APP_URL}/courses/${courseSlug}?payment=success`,
+            cancelUrl: `${env.APP_URL}/courses/${courseSlug}?payment=cancelled`,
+            notifyUrl: `${env.API_URL}/webhooks/payfast`,
+          });
+        } else {
+          paymentUrl = await createOzowPayment({
+            transactionReference: enrollment.id,
+            amount: coursePrice,
+            bankReference: `Course: ${course.title.slice(0, 40)}`,
+            customerEmail: currentUser!.email,
+            successUrl: `${env.APP_URL}/courses/${courseSlug}?payment=success`,
+            cancelUrl: `${env.APP_URL}/courses/${courseSlug}?payment=cancelled`,
+            errorUrl: `${env.APP_URL}/courses/${courseSlug}?payment=failed`,
+            notifyUrl: `${env.API_URL}/webhooks/ozow`,
+          });
+        }
+
+        return res.status(201).json({
+          success: true,
+          data: { enrollmentId: enrollment.id, gateway, paymentUrl },
+        });
       }
     }
 
+    // Free course or credit payment — complete immediately
     const result = await prisma.$transaction(async (tx) => {
-      // Create enrollment with gateway tracking
       const enrollment = await tx.courseEnrollment.create({
         data: {
           userId: req.user!.id,
           courseId,
           amountPaid: course.price,
           gateway: coursePrice > 0 ? gateway : 'CREDIT',
+          paidAt: new Date(),
         },
       });
 
-      // Deduct credit balance if paying with credit
       if (coursePrice > 0 && gateway === 'CREDIT') {
         await tx.user.update({
           where: { id: req.user!.id },
@@ -265,18 +304,11 @@ router.post('/:courseId/enroll', authenticate, async (req, res, next) => {
         });
       }
 
-      // Create escrow hold for paid courses (24h hold before seller payout)
       let escrowHoldId: string | null = null;
       if (coursePrice > 0) {
-        escrowHoldId = await processCourseEscrowHold(
-          tx,
-          enrollment.id,
-          coursePrice,
-          fees.sellerPayout
-        );
+        escrowHoldId = await processCourseEscrowHold(tx, enrollment.id, coursePrice, fees.sellerPayout);
       }
 
-      // Increment enrollment count
       await tx.course.update({
         where: { id: courseId },
         data: { enrollCount: { increment: 1 } },
@@ -433,6 +465,14 @@ router.get('/:courseId/learn', authenticate, async (req, res, next) => {
       return res.status(403).json({
         success: false,
         error: { code: 'NOT_ENROLLED', message: 'You must enroll in this course first' },
+      });
+    }
+
+    // Block access if payment hasn't been confirmed yet
+    if (Number(enrollment.amountPaid) > 0 && !enrollment.paidAt) {
+      return res.status(402).json({
+        success: false,
+        error: { code: 'PAYMENT_PENDING', message: 'Payment has not been confirmed yet' },
       });
     }
 

@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { prisma } from '@/lib/prisma.js';
 import { env } from '@/config/env.js';
 import { validatePayFastSignature, PAYFAST_IPS, validateOzowHash } from '@/services/payment.service.js';
-import { processEscrowHold } from '@/services/escrow.service.js';
+import { processEscrowHold, processCourseEscrowHold } from '@/services/escrow.service.js';
 import { sendNotification } from '@/services/notification.service.js';
 import { calculateOrderFees } from '@zomieks/shared';
 import { logger } from '@/lib/logger.js';
@@ -126,6 +126,34 @@ router.post('/payfast', async (req, res) => {
           where: { id: order.id },
           data: { status: 'CANCELLED' },
         });
+      }
+    }
+
+    // Check if this is a course enrollment payment
+    if (!order) {
+      const enrollment = await prisma.courseEnrollment.findUnique({
+        where: { id: paymentId },
+        include: { course: true },
+      });
+
+      if (enrollment && !enrollment.paidAt) {
+        if (paymentStatus === 'COMPLETE') {
+          const coursePrice = Number(enrollment.amountPaid);
+          const { calculateCourseFees } = await import('@zomieks/shared');
+          const fees = calculateCourseFees(coursePrice);
+
+          await prisma.$transaction(async (tx) => {
+            await tx.courseEnrollment.update({
+              where: { id: enrollment.id },
+              data: { paidAt: new Date(), transactionId: pfPaymentId },
+            });
+            await processCourseEscrowHold(tx, enrollment.id, coursePrice, fees.sellerPayout);
+            await tx.course.update({
+              where: { id: enrollment.courseId },
+              data: { enrollCount: { increment: 1 } },
+            });
+          });
+        }
       }
     }
 
@@ -421,10 +449,7 @@ router.post('/ozow', async (req, res) => {
 
     const order = await prisma.order.findUnique({ where: { id: transactionReference } });
 
-    if (!order) {
-      return res.status(404).json({ error: 'Order not found' });
-    }
-
+    if (order) {
     // Idempotency guard: skip if already processed
     if (order.status !== 'PENDING_PAYMENT') {
       logger.info(`OZOW webhook: Order ${order.id} already processed (status: ${order.status})`);
@@ -504,6 +529,36 @@ router.post('/ozow', async (req, res) => {
         where: { id: order.id },
         data: { status: 'CANCELLED' },
       });
+    }
+
+    } // end if (order)
+
+    // Check if this is a course enrollment payment
+    if (!order) {
+      const enrollment = await prisma.courseEnrollment.findUnique({
+        where: { id: transactionReference },
+        include: { course: true },
+      });
+
+      if (enrollment && !enrollment.paidAt) {
+        if (status === 'Complete') {
+          const coursePrice = Number(enrollment.amountPaid);
+          const { calculateCourseFees } = await import('@zomieks/shared');
+          const fees = calculateCourseFees(coursePrice);
+
+          await prisma.$transaction(async (tx) => {
+            await tx.courseEnrollment.update({
+              where: { id: enrollment.id },
+              data: { paidAt: new Date(), transactionId },
+            });
+            await processCourseEscrowHold(tx, enrollment.id, coursePrice, fees.sellerPayout);
+            await tx.course.update({
+              where: { id: enrollment.courseId },
+              data: { enrollCount: { increment: 1 } },
+            });
+          });
+        }
+      }
     }
 
     res.status(200).json({ success: true });

@@ -44,10 +44,16 @@ export default function CoursePage() {
   });
 
   const enrollMutation = useMutation({
-    mutationFn: (courseId: string) => coursesApi.enroll(courseId),
-    onSuccess: () => {
-      toast.success('Successfully enrolled! Start learning now.');
-      queryClient.invalidateQueries({ queryKey: ['course', slug] });
+    mutationFn: (params: { courseId: string; gateway?: string }) => coursesApi.enroll(params.courseId, params.gateway),
+    onSuccess: (res: any) => {
+      const paymentUrl = res.data?.paymentUrl;
+      if (paymentUrl) {
+        toast.info('Redirecting to payment...');
+        window.location.href = paymentUrl;
+      } else {
+        toast.success('Successfully enrolled! Start learning now.');
+        queryClient.invalidateQueries({ queryKey: ['course', slug] });
+      }
     },
     onError: (err: any) => {
       toast.error(err.message || 'Failed to enroll');
@@ -106,7 +112,7 @@ export default function CoursePage() {
     );
   }
 
-  const isEnrolled = !!course.enrollment;
+  const isEnrolled = !!course.enrollment && (Number(course.price) === 0 || !!course.enrollment.paidAt);
   const isRefunded = !!course.enrollment?.refundedAt;
   const totalLessons = course.sections?.reduce((acc: number, s: any) => acc + (s.lessons?.length || 0), 0) || 0;
 
@@ -134,12 +140,23 @@ export default function CoursePage() {
     });
   };
 
+  const [showGatewaySelect, setShowGatewaySelect] = useState(false);
+
   const handleEnroll = () => {
     if (!user) {
       navigate('/login');
       return;
     }
-    enrollMutation.mutate(course.id);
+    if (Number(course.price) > 0) {
+      setShowGatewaySelect(true);
+    } else {
+      enrollMutation.mutate({ courseId: course.id });
+    }
+  };
+
+  const handleGatewaySelect = (gateway: 'PAYFAST' | 'OZOW') => {
+    setShowGatewaySelect(false);
+    enrollMutation.mutate({ courseId: course.id, gateway });
   };
 
   return (
@@ -242,14 +259,27 @@ export default function CoursePage() {
                     )}
                   </div>
                 ) : (
-                  <Button
-                    className="w-full"
-                    size="lg"
-                    onClick={handleEnroll}
-                    isLoading={enrollMutation.isPending}
-                  >
-                    {Number(course.price) === 0 ? 'Enroll for Free' : `Enroll — R${Number(course.price).toFixed(0)}`}
-                  </Button>
+                  {showGatewaySelect ? (
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium text-center">Choose payment method:</p>
+                      <Button className="w-full" size="lg" onClick={() => handleGatewaySelect('PAYFAST')} isLoading={enrollMutation.isPending}>
+                        Pay with PayFast
+                      </Button>
+                      <Button className="w-full" variant="outline" size="lg" onClick={() => handleGatewaySelect('OZOW')} isLoading={enrollMutation.isPending}>
+                        Pay with Ozow
+                      </Button>
+                      <button className="w-full text-sm text-muted-foreground hover:underline" onClick={() => setShowGatewaySelect(false)}>Cancel</button>
+                    </div>
+                  ) : (
+                    <Button
+                      className="w-full"
+                      size="lg"
+                      onClick={handleEnroll}
+                      isLoading={enrollMutation.isPending}
+                    >
+                      {Number(course.price) === 0 ? 'Enroll for Free' : `Enroll — R${Number(course.price).toFixed(0)}`}
+                    </Button>
+                  )}
                 )}
 
                 <div className="mt-4 space-y-2 text-sm text-gray-600">

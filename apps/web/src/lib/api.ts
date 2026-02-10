@@ -485,8 +485,8 @@ export const coursesApi = {
     api.get<ApiResponse<any>>(`/courses/${slug}`),
 
   // Buyer
-  enroll: (courseId: string) =>
-    api.post<ApiResponse<{ enrollmentId: string }>>(`/courses/${courseId}/enroll`),
+  enroll: (courseId: string, gateway?: string) =>
+    api.post<ApiResponse<{ enrollmentId: string; paymentUrl?: string }>>(`/courses/${courseId}/enroll`, gateway ? { gateway } : {}),
 
   refund: (courseId: string, reason?: string) =>
     api.post<ApiResponse<{ refundId: string; refundAmount: number; newCreditBalance: number; message: string }>>(`/courses/${courseId}/refund`, { reason }),
