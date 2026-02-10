@@ -173,6 +173,19 @@ class SocketClient {
   private presenceSocket: DurableObjectSocket | null = null;
   private crmSocket: DurableObjectSocket | null = null;
 
+  private getAuthToken(): string | null {
+    try {
+      const storage = localStorage.getItem('auth-storage');
+      if (storage) {
+        const parsed = JSON.parse(storage);
+        return parsed.state?.token || null;
+      }
+    } catch {
+      // Ignore parsing errors
+    }
+    return null;
+  }
+
   setUser(userId: string, username: string): void {
     this.userId = userId;
     this.username = username;
@@ -196,9 +209,18 @@ class SocketClient {
       return this.chatSockets.get(conversationId)!;
     }
 
-    const url = `${WS_URL}/ws/chat/${conversationId}?userId=${this.userId}&username=${encodeURIComponent(this.username)}`;
+    const url = `${WS_URL}/ws/chat/${conversationId}?userId=${this.userId}`;
     const socket = new DurableObjectSocket(url);
     socket.connect();
+
+    // Send auth token as first message after connection
+    const token = this.getAuthToken();
+    if (token) {
+      socket.onConnect(() => {
+        socket.send({ type: 'auth', token });
+      });
+    }
+
     this.chatSockets.set(conversationId, socket);
 
     return socket;
@@ -272,8 +294,12 @@ class SocketClient {
     this.presenceSocket = new DurableObjectSocket(url);
     this.presenceSocket.connect();
 
-    // Send online status
+    // Send auth and online status after connection
+    const token = this.getAuthToken();
     this.presenceSocket.onConnect(() => {
+      if (token) {
+        this.presenceSocket?.send({ type: 'auth', token });
+      }
       this.presenceSocket?.send({ type: 'online', userId: this.userId, username: this.username });
     });
 

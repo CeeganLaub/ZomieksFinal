@@ -1,71 +1,78 @@
 import { Routes, Route } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { useAuthStore } from './stores/auth.store';
-import { useEffect } from 'react';
+import { useEffect, Suspense, lazy } from 'react';
 
-// Layouts
+// Layouts (keep eager - needed immediately)
 import MainLayout from './layouts/MainLayout';
 import AuthLayout from './layouts/AuthLayout';
 import DashboardLayout from './layouts/DashboardLayout';
 import AdminLayout from './layouts/AdminLayout';
 
-// Public pages
-import HomePage from './pages/HomePage';
-import ServicesPage from './pages/ServicesPage';
-import ServicePage from './pages/ServicePage';
-import SellerPage from './pages/SellerPage';
-import CoursesPage from './pages/CoursesPage';
-import CoursePage from './pages/CoursePage';
-import CoursePlayerPage from './pages/CoursePlayerPage';
-import ExplorePage from './pages/ExplorePage';
+// Loading fallback
+const PageLoader = () => (
+  <div className="min-h-screen flex items-center justify-center bg-background">
+    <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
+  </div>
+);
 
-// Auth pages
-import LoginPage from './pages/auth/LoginPage';
-import RegisterPage from './pages/auth/RegisterPage';
-import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
-import ResetPasswordPage from './pages/auth/ResetPasswordPage';
+// Public pages (lazy loaded)
+const HomePage = lazy(() => import('./pages/HomePage'));
+const ServicesPage = lazy(() => import('./pages/ServicesPage'));
+const ServicePage = lazy(() => import('./pages/ServicePage'));
+const SellerPage = lazy(() => import('./pages/SellerPage'));
+const CoursesPage = lazy(() => import('./pages/CoursesPage'));
+const CoursePage = lazy(() => import('./pages/CoursePage'));
+const CoursePlayerPage = lazy(() => import('./pages/CoursePlayerPage'));
+const ExplorePage = lazy(() => import('./pages/ExplorePage'));
 
-// Protected pages
-import DashboardPage from './pages/dashboard/DashboardPage';
-import OrdersPage from './pages/dashboard/OrdersPage';
-import OrderPage from './pages/dashboard/OrderPage';
-import MessagesPage from './pages/dashboard/MessagesPage';
-import ConversationPage from './pages/dashboard/ConversationPage';
-import SubscriptionsPage from './pages/dashboard/SubscriptionsPage';
-import SettingsPage from './pages/dashboard/SettingsPage';
+// Auth pages (lazy loaded)
+const LoginPage = lazy(() => import('./pages/auth/LoginPage'));
+const RegisterPage = lazy(() => import('./pages/auth/RegisterPage'));
+const ForgotPasswordPage = lazy(() => import('./pages/auth/ForgotPasswordPage'));
+const ResetPasswordPage = lazy(() => import('./pages/auth/ResetPasswordPage'));
 
-// Seller pages
-import SellerDashboardPage from './pages/seller/SellerDashboardPage';
-import SellerServicesPage from './pages/seller/SellerServicesPage';
-import CreateServicePage from './pages/seller/CreateServicePage';
-import EditServicePage from './pages/seller/EditServicePage';
-import SellerOrdersPage from './pages/seller/SellerOrdersPage';
-import SellerInboxPage from './pages/seller/SellerInboxPage';
-import EarningsPage from './pages/seller/EarningsPage';
-import BecomeSeller from './pages/seller/BecomeSeller';
-import SellerCoursesPage from './pages/seller/SellerCoursesPage';
-import CreateCoursePage from './pages/seller/CreateCoursePage';
-import SellerAnalyticsPage from './pages/seller/SellerAnalyticsPage';
-import BioLinkBuilderPage from './pages/BioLinkBuilderPage';
+// Protected pages (lazy loaded)
+const DashboardPage = lazy(() => import('./pages/dashboard/DashboardPage'));
+const OrdersPage = lazy(() => import('./pages/dashboard/OrdersPage'));
+const OrderPage = lazy(() => import('./pages/dashboard/OrderPage'));
+const MessagesPage = lazy(() => import('./pages/dashboard/MessagesPage'));
+const ConversationPage = lazy(() => import('./pages/dashboard/ConversationPage'));
+const SubscriptionsPage = lazy(() => import('./pages/dashboard/SubscriptionsPage'));
+const SettingsPage = lazy(() => import('./pages/dashboard/SettingsPage'));
 
-// Admin pages
-import AdminDashboardPage from './pages/admin/AdminDashboardPage';
-import AdminUsersPage from './pages/admin/AdminUsersPage';
-import AdminKYCPage from './pages/admin/AdminKYCPage';
-import AdminServicesPage from './pages/admin/AdminServicesPage';
-import AdminCoursesPage from './pages/admin/AdminCoursesPage';
-import AdminAnalyticsPage from './pages/admin/AdminAnalyticsPage';
-import AdminInboxPage from './pages/admin/AdminInboxPage';
-import AdminSellerManagementPage from './pages/admin/AdminSellerManagementPage';
-import FeesPage from './pages/admin/FeesPage';
-import ConfigurationPage from './pages/admin/ConfigurationPage';
+// Seller pages (lazy loaded)
+const SellerDashboardPage = lazy(() => import('./pages/seller/SellerDashboardPage'));
+const SellerServicesPage = lazy(() => import('./pages/seller/SellerServicesPage'));
+const CreateServicePage = lazy(() => import('./pages/seller/CreateServicePage'));
+const EditServicePage = lazy(() => import('./pages/seller/EditServicePage'));
+const SellerOrdersPage = lazy(() => import('./pages/seller/SellerOrdersPage'));
+const SellerInboxPage = lazy(() => import('./pages/seller/SellerInboxPage'));
+const EarningsPage = lazy(() => import('./pages/seller/EarningsPage'));
+const BecomeSeller = lazy(() => import('./pages/seller/BecomeSeller'));
+const SellerCoursesPage = lazy(() => import('./pages/seller/SellerCoursesPage'));
+const CreateCoursePage = lazy(() => import('./pages/seller/CreateCoursePage'));
+const SellerAnalyticsPage = lazy(() => import('./pages/seller/SellerAnalyticsPage'));
+const BioLinkBuilderPage = lazy(() => import('./pages/BioLinkBuilderPage'));
+
+// Admin pages (lazy loaded)
+const AdminDashboardPage = lazy(() => import('./pages/admin/AdminDashboardPage'));
+const AdminUsersPage = lazy(() => import('./pages/admin/AdminUsersPage'));
+const AdminKYCPage = lazy(() => import('./pages/admin/AdminKYCPage'));
+const AdminServicesPage = lazy(() => import('./pages/admin/AdminServicesPage'));
+const AdminCoursesPage = lazy(() => import('./pages/admin/AdminCoursesPage'));
+const AdminAnalyticsPage = lazy(() => import('./pages/admin/AdminAnalyticsPage'));
+const AdminInboxPage = lazy(() => import('./pages/admin/AdminInboxPage'));
+const AdminSellerManagementPage = lazy(() => import('./pages/admin/AdminSellerManagementPage'));
+const FeesPage = lazy(() => import('./pages/admin/FeesPage'));
+const ConfigurationPage = lazy(() => import('./pages/admin/ConfigurationPage'));
 
 // Components
 import ProtectedRoute from './components/ProtectedRoute';
 import SellerRoute from './components/SellerRoute';
 import AdminRoute from './components/AdminRoute';
 import ErrorBoundary from './components/ErrorBoundary';
-import DevPanel from './components/DevPanel';
+const DevPanel = lazy(() => import('./components/DevPanel'));
 
 function App() {
   const { initialize, isLoading } = useAuthStore();
@@ -85,8 +92,9 @@ function App() {
   return (
     <ErrorBoundary>
       <Toaster position="top-right" richColors />
-      <DevPanel />
-      <Routes>
+      {import.meta.env.DEV && <Suspense fallback={null}><DevPanel /></Suspense>}
+      <Suspense fallback={<PageLoader />}>
+        <Routes>
         {/* Public routes */}
         <Route element={<MainLayout />}>
           <Route path="/" element={<HomePage />} />
@@ -152,6 +160,7 @@ function App() {
           <Route path="/admin/configuration" element={<ConfigurationPage />} />
         </Route>
       </Routes>
+      </Suspense>
     </ErrorBoundary>
   );
 }

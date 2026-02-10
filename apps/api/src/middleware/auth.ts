@@ -8,6 +8,37 @@ import type { Role } from '@prisma/client';
 
 const AUTH_CACHE_TTL = 300; // 5 minutes
 
+/** Validate that a parsed cache entry has the required AuthUser shape */
+function isValidCachedUser(data: unknown): data is AuthUser {
+  if (!data || typeof data !== 'object') return false;
+  const obj = data as Record<string, unknown>;
+  return (
+    typeof obj.id === 'string' &&
+    typeof obj.email === 'string' &&
+    typeof obj.username === 'string' &&
+    typeof obj.firstName === 'string' &&
+    typeof obj.lastName === 'string' &&
+    typeof obj.isSeller === 'boolean' &&
+    typeof obj.isAdmin === 'boolean' &&
+    Array.isArray(obj.roles)
+  );
+}
+
+/** Safely parse a cached AuthUser from Redis */
+async function parseCachedUser(cacheKey: string): Promise<AuthUser | null> {
+  const cached = await redis.get(cacheKey);
+  if (!cached) return null;
+  try {
+    const parsed = JSON.parse(cached);
+    if (isValidCachedUser(parsed)) return parsed;
+    // Invalid shape — remove stale entry
+    await redis.del(cacheKey);
+  } catch {
+    await redis.del(cacheKey);
+  }
+  return null;
+}
+
 export interface AuthUser {
   id: string;
   email: string;
@@ -59,12 +90,7 @@ export const authenticate = async (
     
     // Check Redis cache first, then fall back to DB
     const cacheKey = `auth:user:${decoded.userId}`;
-    let authUser: AuthUser | null = null;
-
-    const cached = await redis.get(cacheKey);
-    if (cached) {
-      authUser = JSON.parse(cached);
-    }
+    let authUser: AuthUser | null = await parseCachedUser(cacheKey);
 
     if (!authUser) {
       const user = await prisma.user.findUnique({
@@ -122,10 +148,10 @@ export const optionalAuth = async (
     if (decoded.type === 'access') {
       // Use Redis cache like authenticate middleware for consistent performance
       const cacheKey = `auth:user:${decoded.userId}`;
-      const cached = await redis.get(cacheKey);
+      const cachedUser = await parseCachedUser(cacheKey);
 
-      if (cached) {
-        req.user = JSON.parse(cached);
+      if (cachedUser) {
+        req.user = cachedUser;
       } else {
         const user = await prisma.user.findUnique({
           where: { id: decoded.userId },
