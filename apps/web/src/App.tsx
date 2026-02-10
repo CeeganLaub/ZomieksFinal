@@ -39,6 +39,7 @@ const OrderPage = lazy(() => import('./pages/dashboard/OrderPage'));
 const MessagesPage = lazy(() => import('./pages/dashboard/MessagesPage'));
 const ConversationPage = lazy(() => import('./pages/dashboard/ConversationPage'));
 const SubscriptionsPage = lazy(() => import('./pages/dashboard/SubscriptionsPage'));
+const MyCoursesPage = lazy(() => import('./pages/dashboard/MyCoursesPage'));
 const SettingsPage = lazy(() => import('./pages/dashboard/SettingsPage'));
 
 // Seller pages (lazy loaded)
@@ -124,6 +125,7 @@ function App() {
           <Route path="/orders/:id" element={<OrderPage />} />
           <Route path="/messages" element={<MessagesPage />} />
           <Route path="/messages/:id" element={<ConversationPage />} />
+          <Route path="/my-courses" element={<MyCoursesPage />} />
           <Route path="/subscriptions" element={<SubscriptionsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/become-seller" element={<BecomeSeller />} />

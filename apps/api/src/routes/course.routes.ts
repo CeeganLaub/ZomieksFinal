@@ -102,6 +102,37 @@ router.get('/', optionalAuth, async (req, res, next) => {
   }
 });
 
+// Get my enrollments
+router.get('/my/enrollments', authenticate, async (req, res, next) => {
+  try {
+    const enrollments = await prisma.courseEnrollment.findMany({
+      where: { userId: req.user!.id },
+      include: {
+        course: {
+          select: {
+            id: true,
+            title: true,
+            slug: true,
+            thumbnail: true,
+            totalDuration: true,
+            seller: {
+              select: {
+                displayName: true,
+                user: { select: { username: true } },
+              },
+            },
+          },
+        },
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    res.json({ success: true, data: enrollments });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Get course detail (public)
 router.get('/:slug', optionalAuth, async (req, res, next) => {
   try {
@@ -203,19 +234,20 @@ router.post('/:courseId/enroll', authenticate, async (req, res, next) => {
       });
     }
 
-    // Check already enrolled (allow re-enrollment if previously refunded)
+    // Check already enrolled (allow re-enrollment if previously refunded or pending payment)
     const existing = await prisma.courseEnrollment.findUnique({
       where: { userId_courseId: { userId: req.user!.id, courseId } },
     });
-    if (existing && !existing.refundedAt) {
-      return res.status(400).json({
-        success: false,
-        error: { code: 'ALREADY_ENROLLED', message: 'Already enrolled in this course' },
-      });
-    }
-
-    // If re-enrolling after refund, delete the old enrollment first
-    if (existing && existing.refundedAt) {
+    if (existing) {
+      const isPending = Number(course.price) > 0 && !existing.paidAt;
+      const isRefunded = !!existing.refundedAt;
+      if (!isPending && !isRefunded) {
+        return res.status(400).json({
+          success: false,
+          error: { code: 'ALREADY_ENROLLED', message: 'Already enrolled in this course' },
+        });
+      }
+      // Delete pending or refunded enrollment to allow fresh attempt
       await prisma.courseEnrollment.delete({
         where: { id: existing.id },
       });
@@ -626,37 +658,6 @@ router.post('/:courseId/reviews', authenticate, validate(courseReviewSchema), as
     });
 
     res.json({ success: true, data: review });
-  } catch (error) {
-    next(error);
-  }
-});
-
-// Get my enrollments
-router.get('/my/enrollments', authenticate, async (req, res, next) => {
-  try {
-    const enrollments = await prisma.courseEnrollment.findMany({
-      where: { userId: req.user!.id },
-      include: {
-        course: {
-          select: {
-            id: true,
-            title: true,
-            slug: true,
-            thumbnail: true,
-            totalDuration: true,
-            seller: {
-              select: {
-                displayName: true,
-                user: { select: { username: true } },
-              },
-            },
-          },
-        },
-      },
-      orderBy: { updatedAt: 'desc' },
-    });
-
-    res.json({ success: true, data: enrollments });
   } catch (error) {
     next(error);
   }

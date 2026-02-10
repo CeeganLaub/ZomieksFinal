@@ -1,4 +1,4 @@
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { coursesApi, conversationsApi } from '../lib/api';
 import { useAuthStore } from '../stores/auth.store';
@@ -21,7 +21,7 @@ import {
   ChatBubbleLeftRightIcon,
   ShieldCheckIcon,
 } from '@heroicons/react/24/outline';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 function formatDuration(seconds: number): string {
   const hours = Math.floor(seconds / 3600);
@@ -35,6 +35,7 @@ export default function CoursePage() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
 
   const { data, isLoading } = useQuery({
@@ -91,6 +92,22 @@ export default function CoursePage() {
 
   const course = data?.data;
 
+  // Handle payment return query params
+  useEffect(() => {
+    const payment = searchParams.get('payment');
+    if (payment === 'success') {
+      toast.success('Payment received! You can now start learning.');
+      queryClient.invalidateQueries({ queryKey: ['course', slug] });
+      setSearchParams({}, { replace: true });
+    } else if (payment === 'cancelled') {
+      toast.info('Payment was cancelled. You can try again.');
+      setSearchParams({}, { replace: true });
+    } else if (payment === 'failed') {
+      toast.error('Payment failed. Please try again.');
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, setSearchParams, queryClient, slug]);
+
   if (isLoading) {
     return (
       <div className="max-w-7xl mx-auto px-4 py-8">
@@ -113,7 +130,9 @@ export default function CoursePage() {
     );
   }
 
-  const isEnrolled = !!course.enrollment && (Number(course.price) === 0 || !!course.enrollment.paidAt);
+  const isPaidCourse = Number(course.price) > 0;
+  const isPendingPayment = !!course.enrollment && isPaidCourse && !course.enrollment.paidAt && !course.enrollment.refundedAt;
+  const isEnrolled = !!course.enrollment && (!isPaidCourse || !!course.enrollment.paidAt);
   const isRefunded = !!course.enrollment?.refundedAt;
   const totalLessons = course.sections?.reduce((acc: number, s: any) => acc + (s.lessons?.length || 0), 0) || 0;
 
@@ -256,6 +275,15 @@ export default function CoursePage() {
                         This course was refunded (R{Number(course.enrollment?.refundedAmount).toFixed(2)} credited)
                       </p>
                     )}
+                  </div>
+                ) : isPendingPayment ? (
+                  <div className="space-y-2">
+                    <div className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3 text-center">
+                      Payment not yet confirmed. You can retry below.
+                    </div>
+                    <Button className="w-full" size="lg" onClick={handleEnroll} isLoading={enrollMutation.isPending}>
+                      Retry Payment — R{Number(course.price).toFixed(0)}
+                    </Button>
                   </div>
                 ) : showGatewaySelect ? (
                   <div className="space-y-2">

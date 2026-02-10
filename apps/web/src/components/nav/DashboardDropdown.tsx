@@ -9,12 +9,14 @@ import {
   ChatBubbleLeftRightIcon,
   CreditCardIcon,
   Cog6ToothIcon,
+  AcademicCapIcon,
 } from '@heroicons/react/24/outline';
 
 const buyerNavItems = [
   { href: '/dashboard', label: 'Dashboard', icon: HomeIcon },
   { href: '/orders', label: 'Orders', icon: ShoppingBagIcon },
   { href: '/messages', label: 'Messages', icon: ChatBubbleLeftRightIcon },
+  { href: '/my-courses', label: 'My Courses', icon: AcademicCapIcon },
   { href: '/subscriptions', label: 'Subscriptions', icon: CreditCardIcon },
   { href: '/settings', label: 'Settings', icon: Cog6ToothIcon },
 ];

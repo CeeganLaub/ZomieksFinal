@@ -239,6 +239,14 @@ export default function Header({ showSearch = true, variant = 'default' }: Heade
                       <ShoppingBagIcon className="h-5 w-5 text-muted-foreground" />
                       Orders
                     </Link>
+                    <Link
+                      to="/my-courses"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="flex items-center gap-3 py-3 px-4 rounded-xl hover:bg-muted transition-colors"
+                    >
+                      <AcademicCapIcon className="h-5 w-5 text-muted-foreground" />
+                      My Courses
+                    </Link>
                     {user?.isSeller ? (
                       <Link
                         to="/seller"
