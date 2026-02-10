@@ -83,6 +83,7 @@ export default function BioLinkBuilderPage() {
   const { data: sellerServicesData } = useQuery({
     queryKey: ['seller-services-list'],
     queryFn: () => api.get<any>('/services/seller/mine'),
+    select: (res) => res.data,
   });
 
   // Get seller's courses for featured items selection
@@ -94,7 +95,7 @@ export default function BioLinkBuilderPage() {
   const subscription = subData?.data?.subscription;
   const isSubscribed = subscription?.status === 'ACTIVE';
 
-  const sellerServices = sellerServicesData?.data?.services || sellerServicesData?.data || [];
+  const sellerServices = sellerServicesData || [];
   const sellerCourses = sellerCoursesData?.data || [];
 
   // Form state

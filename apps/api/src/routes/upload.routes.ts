@@ -5,7 +5,6 @@ import sharp from 'sharp';
 import crypto from 'crypto';
 import path from 'path';
 import fs from 'fs/promises';
-import { env } from '@/config/env.js';
 import { prisma } from '@/lib/prisma.js';
 
 const router = Router();
@@ -76,13 +75,11 @@ router.post('/image', authenticate, upload.single('image'), async (req, res, nex
       .webp({ quality: 80 })
       .toFile(thumbPath);
 
-    const baseUrl = env.UPLOADS_URL || `${env.API_URL}/uploads`;
-    
     res.json({
       success: true,
       data: {
-        url: `${baseUrl}/images/${filename}`,
-        thumbnail: `${baseUrl}/images/${thumbFilename}`,
+        url: `/uploads/images/${filename}`,
+        thumbnail: `/uploads/images/${thumbFilename}`,
         filename,
       },
     });
@@ -109,8 +106,7 @@ router.post('/avatar', authenticate, upload.single('avatar'), async (req, res, n
       .webp({ quality: 90 })
       .toFile(filepath);
 
-    const baseUrl = env.UPLOADS_URL || `${env.API_URL}/uploads`;
-    const avatarUrl = `${baseUrl}/images/${filename}`;
+    const avatarUrl = `/uploads/images/${filename}`;
 
     // Update user avatar
     await prisma.user.update({
@@ -143,12 +139,10 @@ router.post('/file', authenticate, upload.single('file'), async (req, res, next)
 
     await fs.writeFile(filepath, req.file.buffer);
 
-    const baseUrl = env.UPLOADS_URL || `${env.API_URL}/uploads`;
-    
     res.json({
       success: true,
       data: {
-        url: `${baseUrl}/files/${filename}`,
+        url: `/uploads/files/${filename}`,
         filename,
         originalName: req.file.originalname,
         size: req.file.size,
@@ -172,8 +166,6 @@ router.post('/images', authenticate, upload.array('images', 10), async (req, res
       });
     }
 
-    const baseUrl = env.UPLOADS_URL || `${env.API_URL}/uploads`;
-
     const settled = await Promise.allSettled(files.map(async (file) => {
       const filename = `${crypto.randomBytes(16).toString('hex')}.webp`;
       const filepath = path.join(imagesDir, filename);
@@ -184,7 +176,7 @@ router.post('/images', authenticate, upload.array('images', 10), async (req, res
         .toFile(filepath);
 
       return {
-        url: `${baseUrl}/images/${filename}`,
+        url: `/uploads/images/${filename}`,
         filename,
         originalName: file.originalname,
       };
@@ -241,12 +233,10 @@ router.post('/video', authenticate, videoUpload.single('video'), async (req, res
 
     await fs.writeFile(filepath, req.file.buffer);
 
-    const baseUrl = env.UPLOADS_URL || `${env.API_URL}/uploads`;
-
     res.json({
       success: true,
       data: {
-        url: `${baseUrl}/videos/${filename}`,
+        url: `/uploads/videos/${filename}`,
         filename,
         originalName: req.file.originalname,
         size: req.file.size,

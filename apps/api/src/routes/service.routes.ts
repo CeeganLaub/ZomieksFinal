@@ -177,6 +177,35 @@ router.get('/meta/categories', async (_req, res, next) => {
   }
 });
 
+// Get seller's own services (for builder / dashboard)
+router.get('/seller/mine', authenticate, requireSeller, async (req, res, next) => {
+  try {
+    const services = await prisma.service.findMany({
+      where: { sellerId: req.user!.id },
+      select: {
+        id: true,
+        title: true,
+        slug: true,
+        images: true,
+        rating: true,
+        reviewCount: true,
+        orderCount: true,
+        isActive: true,
+        status: true,
+        packages: {
+          where: { tier: 'BASIC' },
+          select: { price: true },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    res.json({ success: true, data: services });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Get single service (PDP)
 router.get('/:username/:slug', optionalAuth, async (req, res, next) => {
   try {
