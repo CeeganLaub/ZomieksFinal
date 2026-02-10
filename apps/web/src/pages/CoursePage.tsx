@@ -258,28 +258,26 @@ export default function CoursePage() {
                       </p>
                     )}
                   </div>
-                ) : (
-                  {showGatewaySelect ? (
-                    <div className="space-y-2">
-                      <p className="text-sm font-medium text-center">Choose payment method:</p>
-                      <Button className="w-full" size="lg" onClick={() => handleGatewaySelect('PAYFAST')} isLoading={enrollMutation.isPending}>
-                        Pay with PayFast
-                      </Button>
-                      <Button className="w-full" variant="outline" size="lg" onClick={() => handleGatewaySelect('OZOW')} isLoading={enrollMutation.isPending}>
-                        Pay with Ozow
-                      </Button>
-                      <button className="w-full text-sm text-muted-foreground hover:underline" onClick={() => setShowGatewaySelect(false)}>Cancel</button>
-                    </div>
-                  ) : (
-                    <Button
-                      className="w-full"
-                      size="lg"
-                      onClick={handleEnroll}
-                      isLoading={enrollMutation.isPending}
-                    >
-                      {Number(course.price) === 0 ? 'Enroll for Free' : `Enroll — R${Number(course.price).toFixed(0)}`}
+                ) : showGatewaySelect ? (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-center">Choose payment method:</p>
+                    <Button className="w-full" size="lg" onClick={() => handleGatewaySelect('PAYFAST')} isLoading={enrollMutation.isPending}>
+                      Pay with PayFast
                     </Button>
-                  )}
+                    <Button className="w-full" variant="outline" size="lg" onClick={() => handleGatewaySelect('OZOW')} isLoading={enrollMutation.isPending}>
+                      Pay with Ozow
+                    </Button>
+                    <button className="w-full text-sm text-muted-foreground hover:underline" onClick={() => setShowGatewaySelect(false)}>Cancel</button>
+                  </div>
+                ) : (
+                  <Button
+                    className="w-full"
+                    size="lg"
+                    onClick={handleEnroll}
+                    isLoading={enrollMutation.isPending}
+                  >
+                    {Number(course.price) === 0 ? 'Enroll for Free' : `Enroll — R${Number(course.price).toFixed(0)}`}
+                  </Button>
                 )}
 
                 <div className="mt-4 space-y-2 text-sm text-gray-600">
