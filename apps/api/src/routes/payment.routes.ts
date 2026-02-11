@@ -200,8 +200,11 @@ router.get('/earnings', authenticate, async (req, res, next) => {
       });
     }
 
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
     // Get earnings summary
-    const [pendingEscrow, releasedEscrow, pendingPayouts, completedPayouts] = await Promise.all([
+    const [pendingEscrow, releasedEscrow, releasedUnpaid, pendingPayouts, completedPayouts, thisMonthEscrow, sellerProfile] = await Promise.all([
       prisma.escrowHold.aggregate({
         where: {
           transaction: { order: { sellerId: req.user!.id } },
@@ -216,23 +219,47 @@ router.get('/earnings', authenticate, async (req, res, next) => {
         },
         _sum: { sellerAmount: true },
       }),
+      prisma.escrowHold.aggregate({
+        where: {
+          transaction: { order: { sellerId: req.user!.id } },
+          status: 'RELEASED',
+          payoutId: null,
+        },
+        _sum: { sellerAmount: true },
+      }),
       prisma.sellerPayout.aggregate({
-        where: { sellerId: req.user!.id, status: 'PENDING' },
+        where: { sellerId: req.user!.id, status: { in: ['PENDING', 'PROCESSING'] } },
         _sum: { amount: true },
       }),
       prisma.sellerPayout.aggregate({
         where: { sellerId: req.user!.id, status: 'COMPLETED' },
         _sum: { amount: true },
       }),
+      prisma.escrowHold.aggregate({
+        where: {
+          transaction: { order: { sellerId: req.user!.id } },
+          status: 'RELEASED',
+          releasedAt: { gte: startOfMonth },
+        },
+        _sum: { sellerAmount: true },
+      }),
+      prisma.sellerProfile.findUnique({
+        where: { userId: req.user!.id },
+        select: { kycStatus: true },
+      }),
     ]);
+
+    const availableToWithdraw = Number(releasedUnpaid._sum.sellerAmount || 0) - Number(pendingPayouts._sum.amount || 0);
 
     res.json({
       success: true,
       data: {
-        pendingEscrow: pendingEscrow._sum.sellerAmount || 0,
-        availableToWithdraw: pendingPayouts._sum.amount || 0,
-        totalWithdrawn: completedPayouts._sum.amount || 0,
-        totalEarned: releasedEscrow._sum.sellerAmount || 0,
+        pendingEscrow: Number(pendingEscrow._sum.sellerAmount || 0),
+        availableToWithdraw: Math.max(0, availableToWithdraw),
+        totalWithdrawn: Number(completedPayouts._sum.amount || 0),
+        totalEarned: Number(releasedEscrow._sum.sellerAmount || 0),
+        thisMonth: Number(thisMonthEscrow._sum.sellerAmount || 0),
+        kycStatus: sellerProfile?.kycStatus || 'PENDING',
       },
     });
   } catch (error) {
@@ -358,6 +385,53 @@ router.get('/bank-details', authenticate, async (req, res, next) => {
   try {
     const bankDetails = await prisma.bankDetails.findUnique({
       where: { userId: req.user!.id },
+    });
+
+    res.json({ success: true, data: { bankDetails } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Update bank details
+router.put('/bank-details', authenticate, async (req, res, next) => {
+  try {
+    const { bankName, accountNumber, branchCode, accountType, accountHolder } = req.body;
+
+    if (!bankName || !accountNumber || !branchCode || !accountType || !accountHolder) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'MISSING_FIELDS', message: 'All bank detail fields are required' },
+      });
+    }
+
+    const validAccountTypes = ['SAVINGS', 'CURRENT', 'TRANSMISSION'];
+    if (!validAccountTypes.includes(accountType)) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'INVALID_ACCOUNT_TYPE', message: 'Account type must be SAVINGS, CURRENT, or TRANSMISSION' },
+      });
+    }
+
+    const bankDetails = await prisma.bankDetails.upsert({
+      where: { userId: req.user!.id },
+      update: {
+        bankName,
+        accountNumber,
+        branchCode,
+        accountType,
+        accountHolder,
+        isVerified: false,
+        verifiedAt: null,
+      },
+      create: {
+        userId: req.user!.id,
+        bankName,
+        accountNumber,
+        branchCode,
+        accountType,
+        accountHolder,
+      },
     });
 
     res.json({ success: true, data: { bankDetails } });

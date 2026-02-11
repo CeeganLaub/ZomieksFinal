@@ -261,6 +261,9 @@ export const authApi = {
 
   changePassword: (data: { currentPassword: string; newPassword: string }) =>
     api.post<ApiResponse<null>>('/auth/change-password', data),
+
+  guestUpgrade: (data: { username: string; password: string; firstName: string; lastName: string; country: string }) =>
+    api.post<ApiResponse<{ accessToken: string; user: any }>>('/auth/guest-upgrade', data),
 };
 
 // Services API
@@ -343,6 +346,28 @@ export const usersApi = {
   updateBiolink: (data: any) => api.put<ApiResponse<any>>('/users/seller/biolink', data),
   
   toggleBiolink: () => api.post<ApiResponse<{ bioEnabled: boolean }>>('/users/seller/biolink/toggle'),
+
+  // FAQ
+  getFaq: () => api.get<ApiResponse<{ faq: any[] }>>('/users/seller/faq'),
+  createFaq: (data: { question: string; answer: string; keywords?: string[] }) =>
+    api.post<ApiResponse<{ faq: any }>>('/users/seller/faq', data),
+  updateFaq: (id: string, data: { question?: string; answer?: string; keywords?: string[] }) =>
+    api.put<ApiResponse<{ faq: any }>>(`/users/seller/faq/${id}`, data),
+  deleteFaq: (id: string) => api.delete<ApiResponse<null>>(`/users/seller/faq/${id}`),
+
+  // Digital Products
+  getProducts: () => api.get<ApiResponse<{ products: any[] }>>('/users/seller/products'),
+  createProduct: (data: { title: string; description: string; price: number; fileUrl: string; fileName: string; fileSize: number; thumbnail?: string }) =>
+    api.post<ApiResponse<{ product: any }>>('/users/seller/products', data),
+  updateProduct: (id: string, data: any) =>
+    api.put<ApiResponse<{ product: any }>>(`/users/seller/products/${id}`, data),
+  deleteProduct: (id: string) => api.delete<ApiResponse<null>>(`/users/seller/products/${id}`),
+
+  // BioLink Analytics
+  getBiolinkAnalytics: (days?: number) =>
+    api.get<ApiResponse<any>>('/users/seller/biolink/analytics', { params: days ? { days } : undefined }),
+  trackBiolinkEvent: (data: { username: string; event: string; metadata?: any }) =>
+    api.post<ApiResponse<null>>('/users/biolink/track', data),
 };
 
 // Seller Subscription API
@@ -433,6 +458,9 @@ export const paymentsApi = {
     api.post<ApiResponse<{ payoutId: string }>>('/payments/withdraw', data),
   
   bankDetails: () => api.get<ApiResponse<any[]>>('/payments/bank-details'),
+
+  updateBankDetails: (data: { bankName: string; accountNumber: string; branchCode: string; accountType: string; accountHolder: string }) =>
+    api.put<ApiResponse<any>>('/payments/bank-details', data),
 };
 
 // Subscriptions API

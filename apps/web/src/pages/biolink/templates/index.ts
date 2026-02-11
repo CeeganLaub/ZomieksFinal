@@ -20,8 +20,11 @@ export interface BioLinkSeller {
     level: number;
     isVerified: boolean;
     isAvailable: boolean;
+    vacationMode?: boolean;
+    vacationUntil?: string;
+    maxActiveOrders?: number;
+    activeOrderCount?: number;
     bioHeadline?: string;
-    bioCoverImage?: string;
     bioThemeColor: string;
     bioBackgroundColor: string;
     bioTextColor: string;
@@ -32,8 +35,12 @@ export interface BioLinkSeller {
     bioTemplate: string;
     bioQuickReplies?: string[];
     bioFeaturedItems?: { type: 'service' | 'course'; id: string; order: number }[];
+    bioShowTestimonials?: boolean;
+    bioTestimonialCount?: number;
     courses: BioLinkCourse[];
     subscription: { status: string };
+    digitalProducts?: BioLinkDigitalProduct[];
+    faqEntries?: BioLinkFaqEntry[];
   };
   services: BioLinkService[];
   receivedReviews: BioLinkReview[];
@@ -67,6 +74,24 @@ export interface BioLinkReview {
   comment: string;
   createdAt: string;
   author: { username: string; firstName: string; avatar?: string };
+  service?: { title: string };
+}
+
+export interface BioLinkDigitalProduct {
+  id: string;
+  title: string;
+  description: string;
+  price: number;
+  thumbnail?: string;
+  fileName: string;
+  fileSize: number;
+}
+
+export interface BioLinkFaqEntry {
+  id: string;
+  question: string;
+  answer: string;
+  keywords: string[];
 }
 
 export interface BioLinkTheme {

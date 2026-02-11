@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useLocation } from 'react-router-dom';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useChatStore } from '../../stores/chat.store';
 import { useAuthStore } from '../../stores/auth.store';
 import { api } from '../../lib/api';
@@ -18,6 +19,10 @@ import {
   ExclamationTriangleIcon,
   DocumentIcon,
   PhotoIcon,
+  InformationCircleIcon,
+  PlusIcon,
+  TrashIcon,
+  DocumentTextIcon,
 } from '@heroicons/react/24/outline';
 import { toast } from 'sonner';
 
@@ -50,9 +55,268 @@ interface Message {
   };
 }
 
+// ─── CRM Sidebar ─────────────────────────────────────────────
+const statusOptions = [
+  { value: 'OPEN', label: 'Open', color: 'bg-green-500' },
+  { value: 'PENDING', label: 'Pending', color: 'bg-yellow-500' },
+  { value: 'RESOLVED', label: 'Resolved', color: 'bg-gray-400' },
+  { value: 'SPAM', label: 'Spam', color: 'bg-red-400' },
+];
+
+const priorityOptions = [
+  { value: 'LOW', label: 'Low' },
+  { value: 'NORMAL', label: 'Normal' },
+  { value: 'HIGH', label: 'High' },
+  { value: 'URGENT', label: 'Urgent' },
+];
+
+function CrmSidebar({ conversationId, onClose }: { conversationId: string; onClose: () => void }) {
+  const queryClient = useQueryClient();
+  const [newNote, setNewNote] = useState('');
+
+  // Fetch conversation detail (includes labels, notes, order, etc)
+  const { data: convData } = useQuery({
+    queryKey: ['crm-conv-detail', conversationId],
+    queryFn: async () => {
+      const res = await api.get<any>(`/conversations/${conversationId}`);
+      return res.data.conversation;
+    },
+  });
+
+  // Fetch available labels
+  const { data: labels = [] } = useQuery({
+    queryKey: ['crm-labels'],
+    queryFn: async () => {
+      const res = await api.get<any>('/conversations/crm/labels');
+      return res.data?.labels || [];
+    },
+  });
+
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ['crm-conv-detail', conversationId] });
+  };
+
+  // Update conversation (status, priority, labels)
+  const updateMutation = useMutation({
+    mutationFn: (data: Record<string, any>) => api.patch(`/conversations/${conversationId}`, data),
+    onSuccess: invalidate,
+    onError: () => toast.error('Failed to update'),
+  });
+
+  // Add note
+  const addNoteMutation = useMutation({
+    mutationFn: (content: string) => api.post(`/conversations/${conversationId}/notes`, { content }),
+    onSuccess: () => { setNewNote(''); invalidate(); },
+    onError: () => toast.error('Failed to add note'),
+  });
+
+  // Delete note
+  const deleteNoteMutation = useMutation({
+    mutationFn: (noteId: string) => api.delete(`/conversations/${conversationId}/notes/${noteId}`),
+    onSuccess: invalidate,
+  });
+
+  if (!convData) {
+    return (
+      <div className="w-72 border-l bg-card flex items-center justify-center">
+        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
+      </div>
+    );
+  }
+
+  const buyer = convData.buyer;
+  const currentLabelsIds = (convData.labels || []).map((cl: any) => cl.label?.id || cl.labelId);
+  const notes = convData.notes || [];
+
+  const toggleLabel = (labelId: string) => {
+    const newIds = currentLabelsIds.includes(labelId)
+      ? currentLabelsIds.filter((id: string) => id !== labelId)
+      : [...currentLabelsIds, labelId];
+    updateMutation.mutate({ labelIds: newIds });
+  };
+
+  return (
+    <div className="w-72 border-l bg-card overflow-y-auto flex-shrink-0">
+      <div className="p-4 border-b flex items-center justify-between">
+        <h3 className="text-sm font-semibold">Client Info</h3>
+        <button onClick={onClose} className="p-1 hover:bg-muted rounded">
+          <XMarkIcon className="h-4 w-4" />
+        </button>
+      </div>
+
+      <div className="p-4 space-y-5">
+        {/* Contact Card */}
+        <div className="flex items-center gap-3">
+          {buyer?.avatar ? (
+            <img src={buyer.avatar} alt="" className="w-10 h-10 rounded-full object-cover" />
+          ) : (
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-purple-500 flex items-center justify-center text-white font-bold text-sm">
+              {buyer?.firstName?.charAt(0) || buyer?.username?.charAt(0) || '?'}
+            </div>
+          )}
+          <div className="min-w-0">
+            <p className="font-medium text-sm truncate">
+              {buyer?.firstName
+                ? `${buyer.firstName} ${buyer.lastName || ''}`.trim()
+                : buyer?.username || 'Client'}
+            </p>
+            <p className="text-xs text-muted-foreground truncate">@{buyer?.username}</p>
+          </div>
+        </div>
+
+        {/* Status */}
+        <div>
+          <label className="text-xs font-medium text-muted-foreground block mb-1.5">Status</label>
+          <div className="flex flex-wrap gap-1.5">
+            {statusOptions.map((s) => (
+              <button
+                key={s.value}
+                onClick={() => updateMutation.mutate({ status: s.value })}
+                className={cn(
+                  'flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors',
+                  convData.status === s.value
+                    ? 'border-primary bg-primary/10 text-primary'
+                    : 'border-transparent bg-muted/60 text-muted-foreground hover:bg-muted'
+                )}
+              >
+                <div className={cn('w-2 h-2 rounded-full', s.color)} />
+                {s.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Priority */}
+        <div>
+          <label className="text-xs font-medium text-muted-foreground block mb-1.5">Priority</label>
+          <select
+            value={convData.priority || 'NORMAL'}
+            onChange={(e) => updateMutation.mutate({ priority: e.target.value })}
+            className="w-full h-8 px-2 text-xs border rounded-lg bg-background focus:outline-none focus:ring-1 focus:ring-primary/20"
+          >
+            {priorityOptions.map((p) => (
+              <option key={p.value} value={p.value}>{p.label}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Labels */}
+        <div>
+          <label className="text-xs font-medium text-muted-foreground block mb-1.5">Labels</label>
+          <div className="flex flex-wrap gap-1.5">
+            {labels.map((label: any) => {
+              const isActive = currentLabelsIds.includes(label.id);
+              return (
+                <button
+                  key={label.id}
+                  onClick={() => toggleLabel(label.id)}
+                  className={cn(
+                    'px-2 py-0.5 rounded text-[11px] font-medium transition-all',
+                    isActive
+                      ? 'text-white ring-1 ring-white/20'
+                      : 'opacity-40 hover:opacity-70'
+                  )}
+                  style={{ backgroundColor: label.color }}
+                >
+                  {label.name}
+                </button>
+              );
+            })}
+            {labels.length === 0 && (
+              <p className="text-xs text-muted-foreground">No labels created</p>
+            )}
+          </div>
+        </div>
+
+        {/* Linked Order */}
+        {convData.order && (
+          <div>
+            <label className="text-xs font-medium text-muted-foreground block mb-1.5">Linked Order</label>
+            <Link
+              to={`/orders/${convData.order.id}`}
+              className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg hover:bg-muted transition-colors"
+            >
+              <DocumentTextIcon className="h-4 w-4 text-muted-foreground" />
+              <div className="min-w-0">
+                <p className="text-xs font-medium">#{convData.order.orderNumber}</p>
+                <p className="text-[10px] text-muted-foreground">{convData.order.status}</p>
+              </div>
+            </Link>
+          </div>
+        )}
+
+        {/* Notes */}
+        <div>
+          <label className="text-xs font-medium text-muted-foreground block mb-1.5">Notes</label>
+          <div className="space-y-2 mb-2">
+            {notes.map((note: any) => (
+              <div key={note.id} className="bg-yellow-50 border border-yellow-100 rounded-lg p-2 group">
+                <p className="text-xs whitespace-pre-wrap">{note.content}</p>
+                <div className="flex items-center justify-between mt-1">
+                  <span className="text-[10px] text-muted-foreground">
+                    {formatDistanceToNow(new Date(note.createdAt), { addSuffix: true })}
+                  </span>
+                  <button
+                    onClick={() => deleteNoteMutation.mutate(note.id)}
+                    className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-yellow-200 rounded transition-all"
+                  >
+                    <TrashIcon className="h-3 w-3 text-muted-foreground" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="flex gap-1.5">
+            <input
+              value={newNote}
+              onChange={(e) => setNewNote(e.target.value)}
+              placeholder="Add a note..."
+              className="flex-1 h-7 px-2 text-xs border rounded-lg bg-background focus:outline-none focus:ring-1 focus:ring-primary/20"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && newNote.trim()) {
+                  addNoteMutation.mutate(newNote.trim());
+                }
+              }}
+            />
+            <button
+              onClick={() => newNote.trim() && addNoteMutation.mutate(newNote.trim())}
+              disabled={!newNote.trim()}
+              className="h-7 px-2 bg-primary text-white rounded-lg text-xs disabled:opacity-50 hover:bg-primary/90"
+            >
+              <PlusIcon className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Activity Log */}
+        {convData.activities && convData.activities.length > 0 && (
+          <div>
+            <label className="text-xs font-medium text-muted-foreground block mb-1.5">Activity</label>
+            <div className="space-y-2">
+              {convData.activities.slice(0, 5).map((activity: any) => (
+                <div key={activity.id} className="flex gap-2 text-[11px]">
+                  <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground/40 mt-1.5 shrink-0" />
+                  <div>
+                    <p className="text-muted-foreground">{activity.description || activity.action}</p>
+                    <p className="text-[10px] text-muted-foreground/60">
+                      {formatDistanceToNow(new Date(activity.createdAt), { addSuffix: true })}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
 export default function ConversationPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuthStore();
+  const location = useLocation();
   const { activeConversation, messages, fetchConversation, sendMessage, isLoading } = useChatStore();
   const [newMessage, setNewMessage] = useState('');
   const [showOfferForm, setShowOfferForm] = useState(false);
@@ -60,10 +324,13 @@ export default function ConversationPage() {
   const [isSending, setIsSending] = useState(false);
   const [showGatewayPicker, setShowGatewayPicker] = useState<string | null>(null);
   const [showOffPlatformWarning, setShowOffPlatformWarning] = useState(true);
-  const [pendingAttachments, setPendingAttachments] = useState<Array<{ url: string; name: string; type: string }>>([]); 
+  const [pendingAttachments, setPendingAttachments] = useState<Array<{ url: string; name: string; type: string }>>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [showCrmSidebar, setShowCrmSidebar] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const isSellerRoute = location.pathname.startsWith('/seller/');
 
   useEffect(() => {
     if (id) {
@@ -223,12 +490,15 @@ export default function ConversationPage() {
   const isBuyer = activeConversation.buyerId === user?.id;
   const isSeller = activeConversation.sellerId === user?.id;
   const otherUser = isBuyer ? activeConversation.seller : activeConversation.buyer;
+  const backPath = isSellerRoute ? '/seller/inbox' : '/messages';
 
   return (
-    <div className="max-w-4xl mx-auto flex flex-col" style={{ height: 'calc(100vh - 140px)' }}>
+    <div className={cn('mx-auto flex', showCrmSidebar ? 'max-w-6xl' : 'max-w-4xl')} style={{ height: 'calc(100vh - 140px)' }}>
+      {/* Main chat column */}
+      <div className="flex-1 flex flex-col min-w-0">
       {/* Header */}
       <div className="flex items-center gap-3 p-4 border-b bg-card rounded-t-xl">
-        <Link to="/messages" className="p-2 hover:bg-muted rounded-lg transition-colors">
+        <Link to={backPath} className="p-2 hover:bg-muted rounded-lg transition-colors">
           <ArrowLeftIcon className="h-5 w-5" />
         </Link>
         {otherUser?.avatar ? (
@@ -254,6 +524,18 @@ export default function ConversationPage() {
             )}
           </div>
         </div>
+        {isSellerRoute && (
+          <button
+            onClick={() => setShowCrmSidebar(!showCrmSidebar)}
+            className={cn(
+              'p-2 rounded-lg transition-colors',
+              showCrmSidebar ? 'bg-primary/10 text-primary' : 'hover:bg-muted text-muted-foreground'
+            )}
+            title="Client info"
+          >
+            <InformationCircleIcon className="h-5 w-5" />
+          </button>
+        )}
       </div>
 
       {/* Off-Platform Warning Banner */}
@@ -544,6 +826,12 @@ export default function ConversationPage() {
           </button>
         </form>
       </div>
+      </div>
+
+      {/* CRM Sidebar (seller only) */}
+      {isSellerRoute && showCrmSidebar && id && (
+        <CrmSidebar conversationId={id} onClose={() => setShowCrmSidebar(false)} />
+      )}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { BioLinkTemplateProps, BioLinkService, BioLinkCourse } from './index';
-import { SellerAvatar, Stars, PriceBadge, PoweredByFooter } from './shared';
+import { SellerAvatar, Stars, PriceBadge, PoweredByFooter, ChatServiceCard, ChatCourseCard, AvailabilityBadge, DigitalProductStore } from './shared';
 
 interface ChatBubble {
   id: string;
@@ -90,9 +90,18 @@ export default function ChatFirst({ seller, theme, onChat, onServiceClick, onCou
           <div className="font-bold text-sm">{sp.displayName}</div>
           <div className="text-xs opacity-50">{sp.professionalTitle}</div>
         </div>
-        <div className="ml-auto flex items-center gap-1">
-          <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-          <span className="text-xs opacity-50">Online</span>
+        <div className="ml-auto">
+          <AvailabilityBadge
+            availability={{
+              isAvailable: sp.isAvailable,
+              vacationMode: sp.vacationMode,
+              vacationUntil: sp.vacationUntil,
+              responseTimeMinutes: sp.responseTimeMinutes,
+              activeOrderCount: sp.activeOrderCount,
+              maxActiveOrders: sp.maxActiveOrders,
+            }}
+            theme={theme}
+          />
         </div>
       </div>
 
@@ -117,54 +126,31 @@ export default function ChatFirst({ seller, theme, onChat, onServiceClick, onCou
               >
                 <p>{b.content}</p>
 
-                {/* Service/Course cards inline */}
+                {/* WhatsApp-style Service PDP cards */}
                 {b.type === 'services' && b.items && (
-                  <div className="mt-2 space-y-2">
+                  <div className="mt-2 space-y-3">
                     {(b.items as BioLinkService[]).map((svc) => (
-                      <button
+                      <ChatServiceCard
                         key={svc.id}
+                        service={svc}
+                        theme={theme}
+                        onChat={() => onChat({ type: 'service', id: svc.id, title: svc.title })}
                         onClick={() => onServiceClick(svc)}
-                        className="w-full text-left rounded-xl p-2 flex items-center gap-2"
-                        style={{ background: `${theme.themeColor}10` }}
-                      >
-                        {svc.images?.[0] ? (
-                          <img src={svc.images[0]} alt="" className="w-10 h-10 rounded-lg object-cover" loading="lazy" />
-                        ) : (
-                          <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: `${theme.themeColor}20` }}>🛍️</div>
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <div className="text-xs font-medium line-clamp-1">{svc.title}</div>
-                          <div className="flex items-center gap-1 mt-0.5">
-                            <Stars rating={Number(svc.rating)} color={theme.themeColor} size={8} />
-                            <PriceBadge price={svc.packages[0]?.price || 0} theme={theme} />
-                          </div>
-                        </div>
-                        <span className="text-xs opacity-40">→</span>
-                      </button>
+                      />
                     ))}
                   </div>
                 )}
 
+                {/* WhatsApp-style Course PDP cards */}
                 {b.type === 'courses' && b.items && (
-                  <div className="mt-2 space-y-2">
+                  <div className="mt-2 space-y-3">
                     {(b.items as unknown as BioLinkCourse[]).map((course) => (
-                      <button
+                      <ChatCourseCard
                         key={course.id}
+                        course={course}
+                        theme={theme}
                         onClick={() => onCourseClick(course)}
-                        className="w-full text-left rounded-xl p-2 flex items-center gap-2"
-                        style={{ background: `${theme.themeColor}10` }}
-                      >
-                        {course.thumbnail ? (
-                          <img src={course.thumbnail} alt="" className="w-10 h-10 rounded-lg object-cover" loading="lazy" />
-                        ) : (
-                          <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: `${theme.themeColor}20` }}>📚</div>
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <div className="text-xs font-medium line-clamp-1">{course.title}</div>
-                          <span className="text-xs opacity-50">{course.enrollCount} students · R{course.price}</span>
-                        </div>
-                        <span className="text-xs opacity-40">→</span>
-                      </button>
+                      />
                     ))}
                   </div>
                 )}
@@ -209,6 +195,13 @@ export default function ChatFirst({ seller, theme, onChat, onServiceClick, onCou
           💬 Start a live conversation
         </button>
       </div>
+
+      {/* Digital Products */}
+      {sp.digitalProducts && sp.digitalProducts.length > 0 && (
+        <div className="px-4 mt-4">
+          <DigitalProductStore products={sp.digitalProducts} theme={theme} onBuy={(p) => onChat(`I'd like to buy "${p.title}"`)} />
+        </div>
+      )}
 
       <PoweredByFooter theme={theme} />
     </div>

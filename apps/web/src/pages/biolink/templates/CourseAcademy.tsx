@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import type { BioLinkTemplateProps } from './index';
-import { SellerAvatar, ThemedButton, Stars, VerifiedBadge, ReviewCard, PoweredByFooter } from './shared';
+import { SellerAvatar, ThemedButton, Stars, VerifiedBadge, ReviewCard, PoweredByFooter, AvailabilityBadge, TestimonialWall, DigitalProductStore } from './shared';
 
 export default function CourseAcademy({ seller, theme, onChat, onCourseClick: _onCourseClick }: BioLinkTemplateProps) {
   const sp = seller.sellerProfile;
@@ -45,6 +45,19 @@ export default function CourseAcademy({ seller, theme, onChat, onCourseClick: _o
         <ThemedButton theme={theme} onClick={() => onChat()} size="lg">
           {sp.bioCtaText}
         </ThemedButton>
+        <div className="mt-4">
+          <AvailabilityBadge
+            availability={{
+              isAvailable: sp.isAvailable,
+              vacationMode: sp.vacationMode,
+              vacationUntil: sp.vacationUntil,
+              responseTimeMinutes: sp.responseTimeMinutes,
+              activeOrderCount: sp.activeOrderCount,
+              maxActiveOrders: sp.maxActiveOrders,
+            }}
+            theme={theme}
+          />
+        </div>
       </div>
 
       {/* Courses */}
@@ -147,15 +160,16 @@ export default function CourseAcademy({ seller, theme, onChat, onCourseClick: _o
         </div>
       )}
 
-      {/* Reviews */}
-      {seller.receivedReviews.length > 0 && (
+      {/* Digital Products */}
+      {sp.digitalProducts && sp.digitalProducts.length > 0 && (
+        <DigitalProductStore products={sp.digitalProducts} theme={theme} onBuy={(p) => onChat(`I'd like to buy "${p.title}"`)} />
+      )}
+
+      {/* Testimonial Wall */}
+      {sp.bioShowTestimonials !== false && seller.receivedReviews.length > 0 && (
         <div className="mb-8">
           <h2 className="text-xl font-bold mb-4">⭐ Student Reviews</h2>
-          <div className="space-y-3">
-            {seller.receivedReviews.map((r) => (
-              <ReviewCard key={r.id} review={r} theme={theme} />
-            ))}
-          </div>
+          <TestimonialWall reviews={seller.receivedReviews} theme={theme} maxVisible={sp.bioTestimonialCount || 6} />
         </div>
       )}
 

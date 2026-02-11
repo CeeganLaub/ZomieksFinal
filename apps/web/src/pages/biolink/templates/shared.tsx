@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import type { BioLinkTheme, BioLinkSeller, BioLinkReview } from './index';
+import type { BioLinkTheme, BioLinkSeller, BioLinkReview, BioLinkService, BioLinkCourse, BioLinkDigitalProduct } from './index';
 
 // ─── Button with seller's theme ───
 export function ThemedButton({
@@ -203,6 +203,305 @@ export function SectionHeader({
     >
       {children}
     </h2>
+  );
+}
+
+// ─── WhatsApp-Style Service PDP Card (for chat) ───
+export function ChatServiceCard({
+  service,
+  theme,
+  onChat,
+  onClick,
+}: {
+  service: BioLinkService;
+  theme: BioLinkTheme;
+  onChat?: () => void;
+  onClick?: () => void;
+}) {
+  const pkg = service.packages[0];
+  return (
+    <div
+      className="rounded-xl overflow-hidden w-full mt-2"
+      style={{ background: theme.backgroundColor, border: `1px solid ${theme.themeColor}25` }}
+    >
+      {/* Thumbnail */}
+      {service.images?.[0] ? (
+        <img src={service.images[0]} alt={service.title} className="w-full aspect-[16/9] object-cover" loading="lazy" />
+      ) : (
+        <div className="w-full aspect-[16/9] flex items-center justify-center text-3xl" style={{ background: `${theme.themeColor}12` }}>🛍️</div>
+      )}
+      {/* Body */}
+      <div className="p-3 space-y-2">
+        <h4 className="font-semibold text-sm line-clamp-1" style={{ color: theme.textColor }}>{service.title}</h4>
+        <div className="flex items-center gap-2">
+          <Stars rating={Number(service.rating)} color={theme.themeColor} size={11} />
+          <span className="text-xs opacity-50" style={{ color: theme.textColor }}>({service.reviewCount})</span>
+        </div>
+        {pkg && (
+          <div className="flex items-center gap-2">
+            <span className="text-base font-bold" style={{ color: theme.themeColor }}>R{Number(pkg.price).toLocaleString('en-ZA')}</span>
+            {pkg.deliveryDays && <span className="text-xs opacity-50" style={{ color: theme.textColor }}>· {pkg.deliveryDays} day delivery</span>}
+          </div>
+        )}
+        <div className="flex gap-2 pt-1">
+          {onChat && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onChat(); }}
+              className="flex-1 py-2 rounded-lg text-xs font-semibold"
+              style={{ background: theme.themeColor, color: '#fff' }}
+            >
+              💬 Chat about this
+            </button>
+          )}
+          {onClick && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onClick(); }}
+              className="py-2 px-3 rounded-lg text-xs font-medium"
+              style={{ border: `1px solid ${theme.themeColor}40`, color: theme.textColor }}
+            >
+              Details →
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── WhatsApp-Style Course PDP Card (for chat) ───
+export function ChatCourseCard({
+  course,
+  theme,
+  onClick,
+}: {
+  course: BioLinkCourse;
+  theme: BioLinkTheme;
+  onClick?: () => void;
+}) {
+  return (
+    <div
+      className="rounded-xl overflow-hidden w-full mt-2"
+      style={{ background: theme.backgroundColor, border: `1px solid ${theme.themeColor}25` }}
+    >
+      {course.thumbnail ? (
+        <img src={course.thumbnail} alt={course.title} className="w-full aspect-[16/9] object-cover" loading="lazy" />
+      ) : (
+        <div className="w-full aspect-[16/9] flex items-center justify-center text-3xl" style={{ background: `${theme.themeColor}12` }}>📚</div>
+      )}
+      <div className="p-3 space-y-2">
+        <h4 className="font-semibold text-sm line-clamp-1" style={{ color: theme.textColor }}>{course.title}</h4>
+        <div className="flex items-center gap-2">
+          <Stars rating={Number(course.rating)} color={theme.themeColor} size={11} />
+          <span className="text-xs opacity-50" style={{ color: theme.textColor }}>({course.reviewCount})</span>
+          <span className="text-xs opacity-50" style={{ color: theme.textColor }}>· {course.enrollCount} students</span>
+        </div>
+        <div className="flex items-center justify-between pt-1">
+          <span className="text-base font-bold" style={{ color: theme.themeColor }}>R{Number(course.price).toLocaleString('en-ZA')}</span>
+          <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full font-medium" style={{ background: `${theme.themeColor}15`, color: theme.themeColor }}>{course.level}</span>
+        </div>
+        {onClick && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onClick(); }}
+            className="w-full py-2 rounded-lg text-xs font-semibold mt-1"
+            style={{ background: theme.themeColor, color: '#fff' }}
+          >
+            View Course →
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Availability Badge ───
+export function AvailabilityBadge({
+  availability,
+  theme,
+}: {
+  availability: {
+    isAvailable: boolean;
+    vacationMode?: boolean;
+    vacationUntil?: string;
+    responseTimeMinutes?: number;
+    activeOrderCount?: number;
+    maxActiveOrders?: number;
+  };
+  theme: BioLinkTheme;
+}) {
+  const { isAvailable, vacationMode, vacationUntil, responseTimeMinutes, activeOrderCount = 0, maxActiveOrders = 5 } = availability;
+  const queuePosition = Math.max(0, activeOrderCount - maxActiveOrders + 1);
+
+  let dotColor = '#6b7280'; // grey
+  let label = 'Unavailable';
+
+  if (vacationMode) {
+    dotColor = '#ef4444'; // red
+    label = vacationUntil ? `On vacation until ${new Date(vacationUntil).toLocaleDateString('en-ZA', { month: 'short', day: 'numeric' })}` : 'On vacation';
+  } else if (isAvailable && queuePosition > 0) {
+    dotColor = '#f59e0b'; // amber
+    label = `Busy — ~${queuePosition} in queue`;
+  } else if (isAvailable) {
+    dotColor = '#22c55e'; // green
+    label = 'Available now';
+  }
+
+  const responseLabel = responseTimeMinutes
+    ? responseTimeMinutes < 60
+      ? `Usually responds in ${responseTimeMinutes}m`
+      : `Usually responds in ${Math.round(responseTimeMinutes / 60)}h`
+    : null;
+
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <div className="flex items-center gap-1.5">
+        <span
+          className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+          style={{
+            backgroundColor: dotColor,
+            boxShadow: isAvailable && !vacationMode && queuePosition === 0 ? `0 0 6px ${dotColor}` : 'none',
+            animation: isAvailable && !vacationMode && queuePosition === 0 ? 'pulse 2s infinite' : 'none',
+          }}
+        />
+        <span className="text-xs font-medium" style={{ color: theme.textColor, opacity: 0.7 }}>{label}</span>
+      </div>
+      {responseLabel && (
+        <span className="text-[10px] opacity-50" style={{ color: theme.textColor }}>{responseLabel}</span>
+      )}
+    </div>
+  );
+}
+
+// ─── Testimonial Wall ───
+export function TestimonialWall({
+  reviews,
+  theme,
+  maxVisible = 6,
+}: {
+  reviews: BioLinkReview[];
+  theme: BioLinkTheme;
+  maxVisible?: number;
+}) {
+  if (reviews.length === 0) return null;
+
+  const avgRating = reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length;
+  const distribution = [5, 4, 3, 2, 1].map((star) => ({
+    star,
+    count: reviews.filter((r) => r.rating === star).length,
+    pct: (reviews.filter((r) => r.rating === star).length / reviews.length) * 100,
+  }));
+
+  const visible = reviews.slice(0, maxVisible);
+
+  return (
+    <div>
+      {/* Aggregate header */}
+      <div className="text-center mb-6">
+        <div className="flex items-center justify-center gap-2 mb-2">
+          <Stars rating={Math.round(avgRating)} color={theme.themeColor} size={18} />
+          <span className="text-lg font-bold" style={{ color: theme.themeColor }}>{avgRating.toFixed(1)}</span>
+        </div>
+        <p className="text-sm opacity-60" style={{ color: theme.textColor }}>{reviews.length} review{reviews.length !== 1 ? 's' : ''} from Zomieks clients</p>
+        {/* Distribution bars */}
+        <div className="max-w-xs mx-auto mt-3 space-y-1">
+          {distribution.map(({ star, count, pct }) => (
+            <div key={star} className="flex items-center gap-2 text-xs">
+              <span className="w-4 text-right opacity-60" style={{ color: theme.textColor }}>{star}★</span>
+              <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: `${theme.themeColor}15` }}>
+                <div className="h-full rounded-full" style={{ width: `${pct}%`, background: theme.themeColor }} />
+              </div>
+              <span className="w-5 text-right opacity-40" style={{ color: theme.textColor }}>{count}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Review grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {visible.map((review) => (
+          <ReviewCard key={review.id} review={review} theme={theme} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Digital Product Card ───
+export function DigitalProductCard({
+  product,
+  theme,
+  onBuy,
+}: {
+  product: BioLinkDigitalProduct;
+  theme: BioLinkTheme;
+  onBuy: (product: BioLinkDigitalProduct) => void;
+}) {
+  const formatSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  return (
+    <div
+      className="rounded-xl overflow-hidden border"
+      style={{ borderColor: `${theme.themeColor}20`, background: `${theme.themeColor}05` }}
+    >
+      {product.thumbnail && (
+        <img src={product.thumbnail} alt={product.title} className="w-full h-32 object-cover" />
+      )}
+      <div className="p-4">
+        <h4 className="font-semibold text-sm" style={{ color: theme.textColor }}>
+          {product.title}
+        </h4>
+        {product.description && (
+          <p className="text-xs mt-1 opacity-60 line-clamp-2" style={{ color: theme.textColor }}>
+            {product.description}
+          </p>
+        )}
+        <div className="flex items-center justify-between mt-3">
+          <div>
+            <span className="font-bold text-sm" style={{ color: theme.themeColor }}>
+              ${product.price}
+            </span>
+            <span className="text-xs opacity-40 ml-2" style={{ color: theme.textColor }}>
+              {product.fileName} · {formatSize(product.fileSize)}
+            </span>
+          </div>
+          <button
+            onClick={() => onBuy(product)}
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white transition-opacity hover:opacity-90"
+            style={{ background: theme.themeColor }}
+          >
+            Buy
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Digital Product Store Section ───
+export function DigitalProductStore({
+  products,
+  theme,
+  onBuy,
+}: {
+  products: BioLinkDigitalProduct[];
+  theme: BioLinkTheme;
+  onBuy: (product: BioLinkDigitalProduct) => void;
+}) {
+  if (!products || products.length === 0) return null;
+  return (
+    <div className="mb-8">
+      <h2 className="text-lg font-bold mb-4" style={{ color: theme.textColor }}>
+        📦 Digital Products
+      </h2>
+      <div className="grid grid-cols-2 gap-3">
+        {products.map((p) => (
+          <DigitalProductCard key={p.id} product={p} theme={theme} onBuy={onBuy} />
+        ))}
+      </div>
+    </div>
   );
 }
 

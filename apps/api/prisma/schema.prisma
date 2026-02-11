@@ -131,7 +131,6 @@ model SellerProfile {
 
   // BioLink customization
   bioHeadline        String?
-  bioCoverImage      String?
   bioThemeColor      String   @default("#10B981")   // emerald-500
   bioBackgroundColor String   @default("#0a0a0a")   // near-black
   bioTextColor       String   @default("#ffffff")
@@ -144,9 +143,19 @@ model SellerProfile {
   bioTemplate        String   @default("services-showcase") // services-showcase | portfolio-gallery | course-academy | chat-first | classic-funnel
   bioQuickReplies    Json?    // string[] — quick-reply chips for chat bubble
 
+  // Availability fine-tuning
+  maxActiveOrders     Int     @default(5)
+
+  // Testimonials
+  bioShowTestimonials Boolean @default(true)
+  bioTestimonialCount Int     @default(6)
+
   // Relations
-  courses      Course[]
-  subscription SellerSubscription?
+  courses         Course[]
+  subscription    SellerSubscription?
+  digitalProducts DigitalProduct[]
+  faqEntries      BioFaqEntry[]
+  biolinkEvents   BioLinkEvent[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1372,4 +1381,78 @@ model CourseReview {
 
   @@unique([courseId, userId])
   @@index([courseId])
+}
+
+// ============ DIGITAL PRODUCT (BioLink mini-store) ============
+
+model DigitalProduct {
+  id              String        @id @default(cuid())
+  sellerProfileId String
+  sellerProfile   SellerProfile @relation(fields: [sellerProfileId], references: [id], onDelete: Cascade)
+
+  title       String
+  description String    @db.Text
+  price       Decimal   @db.Decimal(10, 2)
+  fileUrl     String    // uploaded file path
+  fileName    String
+  fileSize    Int       // bytes
+  thumbnail   String?
+  isActive    Boolean   @default(true)
+  order       Int       @default(0)
+
+  purchases DigitalProductPurchase[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([sellerProfileId, isActive])
+}
+
+model DigitalProductPurchase {
+  id        String         @id @default(cuid())
+  productId String
+  product   DigitalProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+  buyerId   String
+
+  amountPaid Decimal @db.Decimal(10, 2)
+  gateway    String  @default("credit") // credit | payfast | ozow
+
+  createdAt DateTime @default(now())
+
+  @@unique([productId, buyerId])
+  @@index([buyerId])
+}
+
+// ============ BIO FAQ (AI Concierge knowledge base) ============
+
+model BioFaqEntry {
+  id              String        @id @default(cuid())
+  sellerProfileId String
+  sellerProfile   SellerProfile @relation(fields: [sellerProfileId], references: [id], onDelete: Cascade)
+
+  question String
+  answer   String  @db.Text
+  keywords String[] // for keyword matching
+  order    Int      @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([sellerProfileId])
+}
+
+// ============ BIOLINK ANALYTICS EVENTS ============
+
+model BioLinkEvent {
+  id              String        @id @default(cuid())
+  sellerProfileId String
+  sellerProfile   SellerProfile @relation(fields: [sellerProfileId], references: [id], onDelete: Cascade)
+
+  event    String   // page_view, cta_click, service_click, course_click, chat_open, product_click
+  metadata Json?    // { serviceId?, courseId?, productId?, referrer?, userAgent? }
+
+  createdAt DateTime @default(now())
+
+  @@index([sellerProfileId, event])
+  @@index([sellerProfileId, createdAt])
 }

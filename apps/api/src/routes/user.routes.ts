@@ -438,7 +438,6 @@ router.get('/seller/biolink', authenticate, requireSeller, async (req, res, next
       where: { userId: req.user!.id },
       select: {
         bioHeadline: true,
-        bioCoverImage: true,
         bioThemeColor: true,
         bioBackgroundColor: true,
         bioTextColor: true,
@@ -450,6 +449,12 @@ router.get('/seller/biolink', authenticate, requireSeller, async (req, res, next
         bioEnabled: true,
         bioTemplate: true,
         bioQuickReplies: true,
+        bioShowTestimonials: true,
+        bioTestimonialCount: true,
+        maxActiveOrders: true,
+        isAvailable: true,
+        vacationMode: true,
+        vacationUntil: true,
         displayName: true,
         professionalTitle: true,
         subscription: { select: { status: true } },
@@ -474,7 +479,6 @@ router.put('/seller/biolink', authenticate, requireSeller, async (req, res, next
   try {
     const {
       bioHeadline,
-      bioCoverImage,
       bioThemeColor,
       bioBackgroundColor,
       bioTextColor,
@@ -486,13 +490,18 @@ router.put('/seller/biolink', authenticate, requireSeller, async (req, res, next
       bioEnabled,
       bioTemplate,
       bioQuickReplies,
+      bioShowTestimonials,
+      bioTestimonialCount,
+      maxActiveOrders,
+      isAvailable,
+      vacationMode,
+      vacationUntil,
     } = req.body;
 
     const profile = await prisma.sellerProfile.update({
       where: { userId: req.user!.id },
       data: {
         ...(bioHeadline !== undefined && { bioHeadline }),
-        ...(bioCoverImage !== undefined && { bioCoverImage }),
         ...(bioThemeColor !== undefined && { bioThemeColor }),
         ...(bioBackgroundColor !== undefined && { bioBackgroundColor }),
         ...(bioTextColor !== undefined && { bioTextColor }),
@@ -504,10 +513,15 @@ router.put('/seller/biolink', authenticate, requireSeller, async (req, res, next
         ...(bioEnabled !== undefined && { bioEnabled }),
         ...(bioTemplate !== undefined && { bioTemplate }),
         ...(bioQuickReplies !== undefined && { bioQuickReplies }),
+        ...(bioShowTestimonials !== undefined && { bioShowTestimonials }),
+        ...(bioTestimonialCount !== undefined && { bioTestimonialCount: Number(bioTestimonialCount) }),
+        ...(maxActiveOrders !== undefined && { maxActiveOrders: Number(maxActiveOrders) }),
+        ...(isAvailable !== undefined && { isAvailable }),
+        ...(vacationMode !== undefined && { vacationMode }),
+        ...(vacationUntil !== undefined && { vacationUntil: vacationUntil ? new Date(vacationUntil) : null }),
       },
       select: {
         bioHeadline: true,
-        bioCoverImage: true,
         bioThemeColor: true,
         bioBackgroundColor: true,
         bioTextColor: true,
@@ -519,6 +533,12 @@ router.put('/seller/biolink', authenticate, requireSeller, async (req, res, next
         bioEnabled: true,
         bioTemplate: true,
         bioQuickReplies: true,
+        bioShowTestimonials: true,
+        bioTestimonialCount: true,
+        maxActiveOrders: true,
+        isAvailable: true,
+        vacationMode: true,
+        vacationUntil: true,
       },
     });
 
@@ -584,9 +604,14 @@ router.get('/:username', optionalAuth, async (req, res, next) => {
             level: true,
             isVerified: true,
             isAvailable: true,
+            vacationMode: true,
+            vacationUntil: true,
+            responseTimeMinutes: true,
+            maxActiveOrders: true,
+            bioShowTestimonials: true,
+            bioTestimonialCount: true,
             // BioLink fields
             bioHeadline: true,
-            bioCoverImage: true,
             bioThemeColor: true,
             bioBackgroundColor: true,
             bioTextColor: true,
@@ -618,6 +643,30 @@ router.get('/:username', optionalAuth, async (req, res, next) => {
             subscription: {
               select: { status: true },
             },
+            // Digital products (active only)
+            digitalProducts: {
+              where: { isActive: true },
+              select: {
+                id: true,
+                title: true,
+                description: true,
+                price: true,
+                thumbnail: true,
+                fileName: true,
+                fileSize: true,
+              },
+              orderBy: { order: 'asc' },
+            },
+            // FAQ entries
+            faqEntries: {
+              select: {
+                id: true,
+                question: true,
+                answer: true,
+                keywords: true,
+              },
+              orderBy: { order: 'asc' },
+            },
           },
         },
         services: {
@@ -642,6 +691,9 @@ router.get('/:username', optionalAuth, async (req, res, next) => {
             id: true,
             rating: true,
             comment: true,
+            communicationRating: true,
+            qualityRating: true,
+            valueRating: true,
             createdAt: true,
             author: {
               select: {
@@ -650,8 +702,11 @@ router.get('/:username', optionalAuth, async (req, res, next) => {
                 avatar: true,
               },
             },
+            service: {
+              select: { title: true },
+            },
           },
-          take: 5,
+          take: 20,
           orderBy: { createdAt: 'desc' },
         },
       },
@@ -662,6 +717,17 @@ router.get('/:username', optionalAuth, async (req, res, next) => {
         success: false,
         error: { code: 'NOT_FOUND', message: 'User not found' },
       });
+    }
+
+    // Compute active order count for availability
+    if (user?.sellerProfile) {
+      const activeOrderCount = await prisma.order.count({
+        where: {
+          sellerId: user.id,
+          status: { in: ['PENDING', 'IN_PROGRESS'] },
+        },
+      });
+      (user as any).sellerProfile.activeOrderCount = activeOrderCount;
     }
 
     res.json({ success: true, data: { user } });
@@ -777,5 +843,233 @@ router.post(
     }
   }
 );
+
+// ============ FAQ CRUD (seller manages FAQ entries for AI concierge) ============
+
+router.get('/seller/faq', authenticate, requireSeller, async (req, res, next) => {
+  try {
+    const profile = await prisma.sellerProfile.findUnique({ where: { userId: req.user!.id }, select: { id: true } });
+    if (!profile) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Profile not found' } });
+
+    const entries = await prisma.bioFaqEntry.findMany({
+      where: { sellerProfileId: profile.id },
+      orderBy: { order: 'asc' },
+    });
+    res.json({ success: true, data: { faq: entries } });
+  } catch (error) { next(error); }
+});
+
+router.post('/seller/faq', authenticate, requireSeller, async (req, res, next) => {
+  try {
+    const { question, answer, keywords } = req.body;
+    if (!question?.trim() || !answer?.trim()) {
+      return res.status(400).json({ success: false, error: { code: 'VALIDATION', message: 'Question and answer are required' } });
+    }
+    const profile = await prisma.sellerProfile.findUnique({ where: { userId: req.user!.id }, select: { id: true } });
+    if (!profile) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Profile not found' } });
+
+    const count = await prisma.bioFaqEntry.count({ where: { sellerProfileId: profile.id } });
+    const entry = await prisma.bioFaqEntry.create({
+      data: {
+        sellerProfileId: profile.id,
+        question: question.trim(),
+        answer: answer.trim(),
+        keywords: Array.isArray(keywords) ? keywords.map((k: string) => k.toLowerCase().trim()) : [],
+        order: count,
+      },
+    });
+    res.status(201).json({ success: true, data: { faq: entry } });
+  } catch (error) { next(error); }
+});
+
+router.put('/seller/faq/:id', authenticate, requireSeller, async (req, res, next) => {
+  try {
+    const { question, answer, keywords } = req.body;
+    const profile = await prisma.sellerProfile.findUnique({ where: { userId: req.user!.id }, select: { id: true } });
+    if (!profile) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Profile not found' } });
+
+    const entry = await prisma.bioFaqEntry.findFirst({ where: { id: req.params.id, sellerProfileId: profile.id } });
+    if (!entry) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'FAQ entry not found' } });
+
+    const updated = await prisma.bioFaqEntry.update({
+      where: { id: entry.id },
+      data: {
+        ...(question !== undefined && { question: question.trim() }),
+        ...(answer !== undefined && { answer: answer.trim() }),
+        ...(keywords !== undefined && { keywords: Array.isArray(keywords) ? keywords.map((k: string) => k.toLowerCase().trim()) : [] }),
+      },
+    });
+    res.json({ success: true, data: { faq: updated } });
+  } catch (error) { next(error); }
+});
+
+router.delete('/seller/faq/:id', authenticate, requireSeller, async (req, res, next) => {
+  try {
+    const profile = await prisma.sellerProfile.findUnique({ where: { userId: req.user!.id }, select: { id: true } });
+    if (!profile) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Profile not found' } });
+
+    const entry = await prisma.bioFaqEntry.findFirst({ where: { id: req.params.id, sellerProfileId: profile.id } });
+    if (!entry) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'FAQ entry not found' } });
+
+    await prisma.bioFaqEntry.delete({ where: { id: entry.id } });
+    res.json({ success: true, data: null });
+  } catch (error) { next(error); }
+});
+
+// ============ DIGITAL PRODUCTS CRUD ============
+
+router.get('/seller/products', authenticate, requireSeller, async (req, res, next) => {
+  try {
+    const profile = await prisma.sellerProfile.findUnique({ where: { userId: req.user!.id }, select: { id: true } });
+    if (!profile) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Profile not found' } });
+
+    const products = await prisma.digitalProduct.findMany({
+      where: { sellerProfileId: profile.id },
+      include: { _count: { select: { purchases: true } } },
+      orderBy: { order: 'asc' },
+    });
+    res.json({ success: true, data: { products } });
+  } catch (error) { next(error); }
+});
+
+router.post('/seller/products', authenticate, requireSeller, async (req, res, next) => {
+  try {
+    const { title, description, price, fileUrl, fileName, fileSize, thumbnail } = req.body;
+    if (!title?.trim() || !description?.trim() || price == null || !fileUrl || !fileName) {
+      return res.status(400).json({ success: false, error: { code: 'VALIDATION', message: 'Title, description, price, and file are required' } });
+    }
+    const profile = await prisma.sellerProfile.findUnique({ where: { userId: req.user!.id }, select: { id: true } });
+    if (!profile) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Profile not found' } });
+
+    const count = await prisma.digitalProduct.count({ where: { sellerProfileId: profile.id } });
+    const product = await prisma.digitalProduct.create({
+      data: {
+        sellerProfileId: profile.id,
+        title: title.trim(),
+        description: description.trim(),
+        price: Number(price),
+        fileUrl,
+        fileName,
+        fileSize: Number(fileSize) || 0,
+        thumbnail: thumbnail || null,
+        order: count,
+      },
+    });
+    res.status(201).json({ success: true, data: { product } });
+  } catch (error) { next(error); }
+});
+
+router.put('/seller/products/:id', authenticate, requireSeller, async (req, res, next) => {
+  try {
+    const { title, description, price, fileUrl, fileName, fileSize, thumbnail, isActive } = req.body;
+    const profile = await prisma.sellerProfile.findUnique({ where: { userId: req.user!.id }, select: { id: true } });
+    if (!profile) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Profile not found' } });
+
+    const product = await prisma.digitalProduct.findFirst({ where: { id: req.params.id, sellerProfileId: profile.id } });
+    if (!product) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Product not found' } });
+
+    const updated = await prisma.digitalProduct.update({
+      where: { id: product.id },
+      data: {
+        ...(title !== undefined && { title: title.trim() }),
+        ...(description !== undefined && { description: description.trim() }),
+        ...(price !== undefined && { price: Number(price) }),
+        ...(fileUrl !== undefined && { fileUrl }),
+        ...(fileName !== undefined && { fileName }),
+        ...(fileSize !== undefined && { fileSize: Number(fileSize) }),
+        ...(thumbnail !== undefined && { thumbnail: thumbnail || null }),
+        ...(isActive !== undefined && { isActive }),
+      },
+    });
+    res.json({ success: true, data: { product: updated } });
+  } catch (error) { next(error); }
+});
+
+router.delete('/seller/products/:id', authenticate, requireSeller, async (req, res, next) => {
+  try {
+    const profile = await prisma.sellerProfile.findUnique({ where: { userId: req.user!.id }, select: { id: true } });
+    if (!profile) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Profile not found' } });
+
+    const product = await prisma.digitalProduct.findFirst({ where: { id: req.params.id, sellerProfileId: profile.id } });
+    if (!product) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Product not found' } });
+
+    await prisma.digitalProduct.delete({ where: { id: product.id } });
+    res.json({ success: true, data: null });
+  } catch (error) { next(error); }
+});
+
+// ============ BIOLINK ANALYTICS ============
+
+// Track event (public — no auth required)
+router.post('/biolink/track', async (req, res, next) => {
+  try {
+    const { username, event, metadata } = req.body;
+    if (!username || !event) {
+      return res.status(400).json({ success: false, error: { code: 'VALIDATION', message: 'username and event are required' } });
+    }
+
+    const allowedEvents = ['page_view', 'cta_click', 'service_click', 'course_click', 'chat_open', 'product_click'];
+    if (!allowedEvents.includes(event)) {
+      return res.status(400).json({ success: false, error: { code: 'VALIDATION', message: 'Invalid event type' } });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { username: username.toLowerCase() },
+      select: { sellerProfile: { select: { id: true } } },
+    });
+    if (!user?.sellerProfile) {
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Seller not found' } });
+    }
+
+    await prisma.bioLinkEvent.create({
+      data: {
+        sellerProfileId: user.sellerProfile.id,
+        event,
+        metadata: metadata || {},
+      },
+    });
+
+    res.json({ success: true, data: null });
+  } catch (error) { next(error); }
+});
+
+// Get biolink analytics (seller only)
+router.get('/seller/biolink/analytics', authenticate, requireSeller, async (req, res, next) => {
+  try {
+    const profile = await prisma.sellerProfile.findUnique({ where: { userId: req.user!.id }, select: { id: true } });
+    if (!profile) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Profile not found' } });
+
+    const days = Number(req.query.days) || 30;
+    const since = new Date();
+    since.setDate(since.getDate() - days);
+
+    const events = await prisma.bioLinkEvent.findMany({
+      where: { sellerProfileId: profile.id, createdAt: { gte: since } },
+      select: { event: true, createdAt: true, metadata: true },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // Aggregate
+    const eventCounts: Record<string, number> = {};
+    const dailyCounts: Record<string, Record<string, number>> = {};
+
+    for (const e of events) {
+      eventCounts[e.event] = (eventCounts[e.event] || 0) + 1;
+      const day = e.createdAt.toISOString().slice(0, 10);
+      if (!dailyCounts[day]) dailyCounts[day] = {};
+      dailyCounts[day][e.event] = (dailyCounts[day][e.event] || 0) + 1;
+    }
+
+    res.json({
+      success: true,
+      data: {
+        totalEvents: events.length,
+        eventCounts,
+        daily: Object.entries(dailyCounts).map(([date, counts]) => ({ date, ...counts })),
+        recentEvents: events.slice(0, 50),
+      },
+    });
+  } catch (error) { next(error); }
+});
 
 export default router;

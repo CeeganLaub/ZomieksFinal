@@ -4,7 +4,6 @@ import { usersApi, sellerSubscriptionApi, api, coursesApi } from '../lib/api';
 import { useAuthStore } from '../stores/auth.store';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import { ImageUploader } from '../components/ui/ImageUploader';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   EyeIcon,
@@ -16,10 +15,11 @@ import {
   ExclamationTriangleIcon,
   CubeIcon,
   AcademicCapIcon,
-  PhotoIcon,
   ClipboardDocumentIcon,
   ChatBubbleLeftRightIcon,
   Squares2X2Icon,
+  ShoppingBagIcon,
+  QuestionMarkCircleIcon,
 } from '@heroicons/react/24/outline';
 import { ShieldCheckIcon, CheckIcon } from '@heroicons/react/24/solid';
 import { toast } from 'sonner';
@@ -57,7 +57,7 @@ interface FeaturedItem {
   order: number;
 }
 
-type TabKey = 'template' | 'design' | 'cover' | 'featured' | 'chat' | 'preview';
+type TabKey = 'template' | 'design' | 'featured' | 'chat' | 'products' | 'preview';
 
 export default function BioLinkBuilderPage() {
   const { user } = useAuthStore();
@@ -92,6 +92,18 @@ export default function BioLinkBuilderPage() {
     queryFn: () => coursesApi.sellerCourses(),
   });
 
+  // Get FAQ entries
+  const { data: faqData } = useQuery({
+    queryKey: ['seller-faq'],
+    queryFn: () => usersApi.getFaq(),
+  });
+
+  // Get digital products
+  const { data: productsData } = useQuery({
+    queryKey: ['seller-products'],
+    queryFn: () => usersApi.getProducts(),
+  });
+
   const subscription = subData?.data?.subscription;
   const isSubscribed = subscription?.status === 'ACTIVE';
 
@@ -100,7 +112,6 @@ export default function BioLinkBuilderPage() {
 
   // Form state
   const [bioHeadline, setBioHeadline] = useState('');
-  const [bioCoverImage, setBioCoverImage] = useState('');
   const [bioThemeColor, setBioThemeColor] = useState('#10B981');
   const [bioBackgroundColor, setBioBackgroundColor] = useState('#0a0a0a');
   const [bioTextColor, setBioTextColor] = useState('#ffffff');
@@ -114,12 +125,30 @@ export default function BioLinkBuilderPage() {
   const [newChip, setNewChip] = useState('');
   const [linkCopied, setLinkCopied] = useState(false);
 
+  // Availability state
+  const [isAvailable, setIsAvailable] = useState(true);
+  const [vacationMode, setVacationMode] = useState(false);
+  const [maxActiveOrders, setMaxActiveOrders] = useState(5);
+
+  // Testimonials state
+  const [bioShowTestimonials, setBioShowTestimonials] = useState(true);
+  const [bioTestimonialCount, setBioTestimonialCount] = useState(6);
+
+  // FAQ state
+  const [faqEntries, setFaqEntries] = useState<{ id?: string; question: string; answer: string; keywords: string[] }[]>([]);
+  const [newFaq, setNewFaq] = useState({ question: '', answer: '', keywords: '' });
+  const [editingFaqIdx, setEditingFaqIdx] = useState<number | null>(null);
+
+  // Product state
+  const [products, setProducts] = useState<any[]>([]);
+  const [newProduct, setNewProduct] = useState({ title: '', description: '', price: '', fileUrl: '', fileName: '', fileSize: 0 });
+  const [editingProductIdx, setEditingProductIdx] = useState<number | null>(null);
+
   // Load data into form
   useEffect(() => {
     if (biolinkData?.data?.biolink) {
       const b = biolinkData.data.biolink;
       setBioHeadline(b.bioHeadline || '');
-      setBioCoverImage(b.bioCoverImage || '');
       setBioThemeColor(b.bioThemeColor || '#10B981');
       setBioBackgroundColor(b.bioBackgroundColor || '#0a0a0a');
       setBioTextColor(b.bioTextColor || '#ffffff');
@@ -130,15 +159,31 @@ export default function BioLinkBuilderPage() {
       setBioTemplate(b.bioTemplate || DEFAULT_TEMPLATE);
       setBioQuickReplies(b.bioQuickReplies || []);
       setFeaturedItems(b.bioFeaturedItems || []);
+      setIsAvailable(b.isAvailable ?? true);
+      setVacationMode(b.vacationMode ?? false);
+      setMaxActiveOrders(b.maxActiveOrders ?? 5);
+      setBioShowTestimonials(b.bioShowTestimonials ?? true);
+      setBioTestimonialCount(b.bioTestimonialCount ?? 6);
     }
   }, [biolinkData]);
+
+  // Load FAQ entries
+  useEffect(() => {
+    const faq = faqData?.data?.faq ?? faqData?.data;
+    if (Array.isArray(faq)) setFaqEntries(faq);
+  }, [faqData]);
+
+  // Load products
+  useEffect(() => {
+    const prods = productsData?.data?.products ?? productsData?.data;
+    if (Array.isArray(prods)) setProducts(prods);
+  }, [productsData]);
 
   // Save mutation
   const saveMutation = useMutation({
     mutationFn: () =>
       usersApi.updateBiolink({
         bioHeadline,
-        bioCoverImage: bioCoverImage || undefined,
         bioThemeColor,
         bioBackgroundColor,
         bioTextColor,
@@ -149,6 +194,11 @@ export default function BioLinkBuilderPage() {
         bioTemplate,
         bioQuickReplies,
         bioFeaturedItems: featuredItems,
+        bioShowTestimonials,
+        bioTestimonialCount,
+        maxActiveOrders,
+        isAvailable,
+        vacationMode,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['biolink-settings'] });
@@ -175,6 +225,34 @@ export default function BioLinkBuilderPage() {
         window.location.href = res.data.paymentUrl;
       }
     },
+  });
+
+  // FAQ mutations
+  const faqCreateMutation = useMutation({
+    mutationFn: (data: { question: string; answer: string; keywords: string[] }) => usersApi.createFaq(data),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['seller-faq'] }); toast.success('FAQ added'); },
+  });
+  const faqUpdateMutation = useMutation({
+    mutationFn: ({ id, ...data }: { id: string; question: string; answer: string; keywords: string[] }) => usersApi.updateFaq(id, data),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['seller-faq'] }); toast.success('FAQ updated'); },
+  });
+  const faqDeleteMutation = useMutation({
+    mutationFn: (id: string) => usersApi.deleteFaq(id),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['seller-faq'] }); toast.success('FAQ deleted'); },
+  });
+
+  // Product mutations
+  const productCreateMutation = useMutation({
+    mutationFn: (data: any) => usersApi.createProduct(data),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['seller-products'] }); toast.success('Product added'); },
+  });
+  const productUpdateMutation = useMutation({
+    mutationFn: ({ id, ...data }: any) => usersApi.updateProduct(id, data),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['seller-products'] }); toast.success('Product updated'); },
+  });
+  const productDeleteMutation = useMutation({
+    mutationFn: (id: string) => usersApi.deleteProduct(id),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['seller-products'] }); toast.success('Product deleted'); },
   });
 
   const addQuickReply = () => {
@@ -284,9 +362,9 @@ export default function BioLinkBuilderPage() {
   const tabs: { key: TabKey; icon: typeof PaintBrushIcon; label: string }[] = [
     { key: 'template', icon: Squares2X2Icon, label: 'Template' },
     { key: 'design', icon: PaintBrushIcon, label: 'Design' },
-    { key: 'cover', icon: PhotoIcon, label: 'Cover' },
     { key: 'featured', icon: CubeIcon, label: 'Featured' },
     { key: 'chat', icon: ChatBubbleLeftRightIcon, label: 'Chat' },
+    { key: 'products', icon: ShoppingBagIcon, label: 'Products' },
     { key: 'preview', icon: EyeIcon, label: 'Preview' },
   ];
 
@@ -545,45 +623,6 @@ export default function BioLinkBuilderPage() {
           </motion.div>
         )}
 
-        {/* Cover & Media Section */}
-        {activeSection === 'cover' && (
-          <motion.div key="cover" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
-            <div className="max-w-2xl space-y-6">
-              <div className="bg-card border rounded-xl p-6 space-y-4">
-                <h3 className="font-semibold flex items-center gap-2">
-                  <PhotoIcon className="w-4 h-4 text-primary" /> Cover Image
-                </h3>
-                <p className="text-sm text-muted-foreground">This image appears at the top of your BioLink page. Recommended: 1200×400px.</p>
-                <ImageUploader
-                  value={bioCoverImage}
-                  onChange={(url) => setBioCoverImage(url)}
-                  variant="thumbnail"
-                  label=""
-                />
-              </div>
-
-              <div className="bg-card border rounded-xl p-6 space-y-4">
-                <h3 className="font-semibold flex items-center gap-2">
-                  <PhotoIcon className="w-4 h-4 text-primary" /> Profile Avatar
-                </h3>
-                <p className="text-sm text-muted-foreground">Your profile avatar is managed from your account settings.</p>
-                <div className="flex items-center gap-4">
-                  <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center overflow-hidden border-2" style={{ borderColor: bioThemeColor }}>
-                    {user?.avatar ? (
-                      <img src={user.avatar} alt="" className="w-full h-full object-cover" />
-                    ) : (
-                      <span className="text-xl font-bold text-muted-foreground">{user?.firstName?.[0]}{user?.lastName?.[0]}</span>
-                    )}
-                  </div>
-                  <Button variant="outline" size="sm" onClick={() => window.location.href = '/settings'}>
-                    Change Avatar
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        )}
-
         {/* Featured Items Section */}
         {activeSection === 'featured' && (
           <motion.div key="featured" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
@@ -684,6 +723,43 @@ export default function BioLinkBuilderPage() {
                   {featuredItems.length} item{featuredItems.length !== 1 ? 's' : ''} featured
                 </p>
               </div>
+
+              {/* Testimonial Settings */}
+              <div className="bg-card border rounded-xl p-6">
+                <h3 className="font-semibold flex items-center gap-2 mb-1">
+                  ⭐ Testimonials
+                </h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Control whether reviews are shown on your BioLink and how many.
+                </p>
+                <div className="space-y-4">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={bioShowTestimonials}
+                      onChange={(e) => setBioShowTestimonials(e.target.checked)}
+                      className="w-4 h-4 rounded border-gray-300 text-emerald-500 focus:ring-emerald-500"
+                    />
+                    <span className="text-sm">Show testimonials</span>
+                  </label>
+                  {bioShowTestimonials && (
+                    <div>
+                      <label className="text-xs font-medium mb-1.5 block">Max reviews shown</label>
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="range"
+                          min={2}
+                          max={20}
+                          value={bioTestimonialCount}
+                          onChange={(e) => setBioTestimonialCount(Number(e.target.value))}
+                          className="flex-1"
+                        />
+                        <span className="text-sm font-medium w-8 text-center">{bioTestimonialCount}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           </motion.div>
         )}
@@ -753,6 +829,307 @@ export default function BioLinkBuilderPage() {
                   maxLength={30}
                 />
               </div>
+
+              {/* Availability Settings */}
+              <div className="bg-card border rounded-xl p-6">
+                <h3 className="font-semibold flex items-center gap-2 mb-1">
+                  🟢 Availability
+                </h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Control your availability status and order capacity shown on your BioLink.
+                </p>
+                <div className="space-y-4">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={isAvailable}
+                      onChange={(e) => setIsAvailable(e.target.checked)}
+                      className="w-4 h-4 rounded border-gray-300 text-emerald-500 focus:ring-emerald-500"
+                    />
+                    <span className="text-sm">Available for work</span>
+                  </label>
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={vacationMode}
+                      onChange={(e) => setVacationMode(e.target.checked)}
+                      className="w-4 h-4 rounded border-gray-300 text-amber-500 focus:ring-amber-500"
+                    />
+                    <span className="text-sm">Vacation mode</span>
+                  </label>
+                  <div>
+                    <label className="text-xs font-medium mb-1.5 block">Max active orders</label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="range"
+                        min={1}
+                        max={20}
+                        value={maxActiveOrders}
+                        onChange={(e) => setMaxActiveOrders(Number(e.target.value))}
+                        className="flex-1"
+                      />
+                      <span className="text-sm font-medium w-8 text-center">{maxActiveOrders}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* FAQ Concierge */}
+              <div className="bg-card border rounded-xl p-6">
+                <h3 className="font-semibold flex items-center gap-2 mb-1">
+                  <QuestionMarkCircleIcon className="w-4 h-4 text-primary" /> FAQ Auto-Replies
+                </h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Add FAQ entries that auto-reply when visitors type matching keywords in your chat bubble.
+                </p>
+
+                {/* Existing entries */}
+                <div className="space-y-2 mb-4">
+                  {faqEntries.map((faq, idx) => (
+                    <div key={faq.id || idx} className="p-3 rounded-lg border bg-muted/20">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium">{faq.question}</p>
+                          <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{faq.answer}</p>
+                          <div className="flex flex-wrap gap-1 mt-1.5">
+                            {faq.keywords.map((kw, ki) => (
+                              <span key={ki} className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-500">{kw}</span>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="flex gap-1 flex-shrink-0">
+                          <button
+                            onClick={() => {
+                              setEditingFaqIdx(idx);
+                              setNewFaq({ question: faq.question, answer: faq.answer, keywords: faq.keywords.join(', ') });
+                            }}
+                            className="text-xs text-muted-foreground hover:text-foreground"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => { if (faq.id) faqDeleteMutation.mutate(faq.id); }}
+                            className="text-xs text-red-400 hover:text-red-500"
+                          >
+                            <TrashIcon className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  {faqEntries.length === 0 && (
+                    <p className="text-sm text-muted-foreground py-3 text-center bg-muted/30 rounded-lg">
+                      No FAQ entries yet. Add one below.
+                    </p>
+                  )}
+                </div>
+
+                {/* Add/Edit form */}
+                <div className="space-y-2 p-3 rounded-lg border border-dashed">
+                  <Input
+                    value={newFaq.question}
+                    onChange={(e) => setNewFaq({ ...newFaq, question: e.target.value })}
+                    placeholder="Question (e.g., What are your rates?)"
+                    maxLength={200}
+                  />
+                  <textarea
+                    value={newFaq.answer}
+                    onChange={(e) => setNewFaq({ ...newFaq, answer: e.target.value })}
+                    placeholder="Answer shown to visitors..."
+                    maxLength={500}
+                    rows={2}
+                    className="w-full rounded-md border bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                  <Input
+                    value={newFaq.keywords}
+                    onChange={(e) => setNewFaq({ ...newFaq, keywords: e.target.value })}
+                    placeholder="Keywords (comma-separated, e.g., rates, pricing, cost)"
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      className="bg-emerald-500 hover:bg-emerald-600 text-white"
+                      onClick={() => {
+                        const data = {
+                          question: newFaq.question.trim(),
+                          answer: newFaq.answer.trim(),
+                          keywords: newFaq.keywords.split(',').map((k) => k.trim()).filter(Boolean),
+                        };
+                        if (!data.question || !data.answer || data.keywords.length === 0) {
+                          toast.error('Fill in question, answer, and at least one keyword');
+                          return;
+                        }
+                        if (editingFaqIdx !== null && faqEntries[editingFaqIdx]?.id) {
+                          faqUpdateMutation.mutate({ id: faqEntries[editingFaqIdx].id!, ...data });
+                        } else {
+                          faqCreateMutation.mutate(data);
+                        }
+                        setNewFaq({ question: '', answer: '', keywords: '' });
+                        setEditingFaqIdx(null);
+                      }}
+                      disabled={faqCreateMutation.isPending || faqUpdateMutation.isPending}
+                    >
+                      <PlusIcon className="w-4 h-4 mr-1" />
+                      {editingFaqIdx !== null ? 'Update FAQ' : 'Add FAQ'}
+                    </Button>
+                    {editingFaqIdx !== null && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => { setEditingFaqIdx(null); setNewFaq({ question: '', answer: '', keywords: '' }); }}
+                      >
+                        Cancel
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Products Section */}
+        {activeSection === 'products' && (
+          <motion.div key="products" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
+            <div className="max-w-2xl space-y-6">
+              <div className="bg-card border rounded-xl p-6">
+                <h3 className="font-semibold flex items-center gap-2 mb-1">
+                  <ShoppingBagIcon className="w-4 h-4 text-primary" /> Digital Products
+                </h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Sell digital files (PDFs, templates, presets, etc.) directly from your BioLink.
+                </p>
+
+                {/* Existing products */}
+                <div className="space-y-2 mb-4">
+                  {products.map((prod, idx) => (
+                    <div key={prod.id || idx} className="flex items-center gap-3 p-3 rounded-xl border">
+                      {prod.thumbnail && (
+                        <img src={prod.thumbnail} alt="" className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{prod.title}</p>
+                        <p className="text-xs text-muted-foreground">R{Number(prod.price).toFixed(0)} · {prod.fileName}</p>
+                      </div>
+                      <div className="flex gap-1 flex-shrink-0">
+                        <button
+                          onClick={() => {
+                            setEditingProductIdx(idx);
+                            setNewProduct({
+                              title: prod.title,
+                              description: prod.description || '',
+                              price: String(prod.price),
+                              fileUrl: prod.fileUrl,
+                              fileName: prod.fileName,
+                              fileSize: prod.fileSize,
+                            });
+                          }}
+                          className="text-xs text-muted-foreground hover:text-foreground px-2 py-1"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => { if (prod.id) productDeleteMutation.mutate(prod.id); }}
+                          className="text-xs text-red-400 hover:text-red-500 px-2 py-1"
+                        >
+                          <TrashIcon className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  {products.length === 0 && (
+                    <p className="text-sm text-muted-foreground py-4 text-center bg-muted/30 rounded-lg">
+                      No products yet. Add your first digital product below.
+                    </p>
+                  )}
+                </div>
+
+                {/* Add/Edit form */}
+                <div className="space-y-2 p-3 rounded-lg border border-dashed">
+                  <Input
+                    value={newProduct.title}
+                    onChange={(e) => setNewProduct({ ...newProduct, title: e.target.value })}
+                    placeholder="Product title"
+                    maxLength={100}
+                  />
+                  <textarea
+                    value={newProduct.description}
+                    onChange={(e) => setNewProduct({ ...newProduct, description: e.target.value })}
+                    placeholder="Short description (optional)"
+                    maxLength={500}
+                    rows={2}
+                    className="w-full rounded-md border bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input
+                      value={newProduct.price}
+                      onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}
+                      placeholder="Price (e.g., 99)"
+                      type="number"
+                      min="0"
+                      step="1"
+                    />
+                    <Input
+                      value={newProduct.fileUrl}
+                      onChange={(e) => setNewProduct({ ...newProduct, fileUrl: e.target.value })}
+                      placeholder="File URL (uploaded)"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input
+                      value={newProduct.fileName}
+                      onChange={(e) => setNewProduct({ ...newProduct, fileName: e.target.value })}
+                      placeholder="File name (e.g., guide.pdf)"
+                    />
+                    <Input
+                      value={String(newProduct.fileSize || '')}
+                      onChange={(e) => setNewProduct({ ...newProduct, fileSize: Number(e.target.value) || 0 })}
+                      placeholder="File size (bytes)"
+                      type="number"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      className="bg-emerald-500 hover:bg-emerald-600 text-white"
+                      onClick={() => {
+                        const data = {
+                          title: newProduct.title.trim(),
+                          description: newProduct.description.trim() || undefined,
+                          price: Number(newProduct.price),
+                          fileUrl: newProduct.fileUrl.trim(),
+                          fileName: newProduct.fileName.trim(),
+                          fileSize: newProduct.fileSize,
+                        };
+                        if (!data.title || !data.price || !data.fileUrl || !data.fileName) {
+                          toast.error('Title, price, file URL, and file name are required');
+                          return;
+                        }
+                        if (editingProductIdx !== null && products[editingProductIdx]?.id) {
+                          productUpdateMutation.mutate({ id: products[editingProductIdx].id, ...data });
+                        } else {
+                          productCreateMutation.mutate(data);
+                        }
+                        setNewProduct({ title: '', description: '', price: '', fileUrl: '', fileName: '', fileSize: 0 });
+                        setEditingProductIdx(null);
+                      }}
+                      disabled={productCreateMutation.isPending || productUpdateMutation.isPending}
+                    >
+                      <PlusIcon className="w-4 h-4 mr-1" />
+                      {editingProductIdx !== null ? 'Update Product' : 'Add Product'}
+                    </Button>
+                    {editingProductIdx !== null && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => { setEditingProductIdx(null); setNewProduct({ title: '', description: '', price: '', fileUrl: '', fileName: '', fileSize: 0 }); }}
+                      >
+                        Cancel
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
           </motion.div>
         )}
@@ -771,18 +1148,12 @@ export default function BioLinkBuilderPage() {
                 </div>
 
                 <div className="border rounded-2xl overflow-hidden shadow-2xl">
-                  {/* Cover image */}
-                  {bioCoverImage && (
-                    <div className="h-32 overflow-hidden">
-                      <img src={bioCoverImage} alt="" className="w-full h-full object-cover" />
-                    </div>
-                  )}
-                  <div
+                    <div
                     className={`p-6 text-center min-h-[500px]`}
                     style={{ backgroundColor: bioBackgroundColor, color: bioTextColor, fontFamily: bioFont }}
                   >
                     <div
-                      className={`w-20 h-20 rounded-full mx-auto border-4 flex items-center justify-center text-xl font-bold overflow-hidden ${bioCoverImage ? '-mt-14' : ''}`}
+                      className="w-20 h-20 rounded-full mx-auto border-4 flex items-center justify-center text-xl font-bold overflow-hidden"
                       style={{ borderColor: bioThemeColor, backgroundColor: bioBackgroundColor }}
                     >
                       {user?.avatar ? (

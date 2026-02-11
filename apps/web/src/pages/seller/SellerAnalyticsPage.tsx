@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { api } from '@/lib/api';
+import { api, usersApi } from '@/lib/api';
 import {
   ChartBarIcon,
   CurrencyDollarIcon,
@@ -418,6 +418,12 @@ export default function SellerAnalyticsPage() {
     },
   });
 
+  const { data: biolinkAnalytics } = useQuery({
+    queryKey: ['biolink-analytics'],
+    queryFn: () => usersApi.getBiolinkAnalytics(30),
+    select: (res) => res.data,
+  });
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -594,6 +600,64 @@ export default function SellerAnalyticsPage() {
           </Link>
         </div>
       </div>
+
+      {/* BioLink Analytics */}
+      {biolinkAnalytics && (
+        <div className="mb-8">
+          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <LinkIcon className="h-5 w-5" /> BioLink Analytics
+            <span className="text-xs text-muted-foreground font-normal">(Last 30 days)</span>
+          </h2>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
+            {(biolinkAnalytics.eventCounts || []).map((ec: { event: string; count: number }) => {
+              const labels: Record<string, { label: string; icon: string }> = {
+                page_view: { label: 'Page Views', icon: '👁️' },
+                cta_click: { label: 'CTA Clicks', icon: '🖱️' },
+                service_click: { label: 'Service Clicks', icon: '🛍️' },
+                course_click: { label: 'Course Clicks', icon: '🎓' },
+                chat_open: { label: 'Chat Opens', icon: '💬' },
+                product_click: { label: 'Product Clicks', icon: '📦' },
+              };
+              const config = labels[ec.event] || { label: ec.event, icon: '📊' };
+              return (
+                <div key={ec.event} className="bg-card rounded-lg border p-4 text-center">
+                  <span className="text-xl">{config.icon}</span>
+                  <p className="text-2xl font-bold mt-1">{ec.count}</p>
+                  <p className="text-xs text-muted-foreground">{config.label}</p>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Daily sparkline chart */}
+          {biolinkAnalytics.daily && biolinkAnalytics.daily.length > 0 && (
+            <div className="bg-card rounded-lg border p-6">
+              <h3 className="font-semibold mb-3 text-sm">Daily Page Views</h3>
+              <div className="flex items-end gap-1 h-24">
+                {(() => {
+                  const daily = biolinkAnalytics.daily as { date: string; count: number }[];
+                  const maxCount = Math.max(...daily.map((d: any) => d.count), 1);
+                  return daily.slice(-30).map((d: any) => (
+                    <div key={d.date} className="flex-1 flex flex-col items-center group relative">
+                      <div
+                        className="w-full rounded-t bg-primary/60 hover:bg-primary/80 transition-colors min-h-[2px]"
+                        style={{ height: `${Math.max((d.count / maxCount) * 100, 2)}%` }}
+                      />
+                      <div className="hidden group-hover:block absolute -top-8 left-1/2 -translate-x-1/2 bg-popover border rounded px-2 py-1 text-[10px] whitespace-nowrap shadow-lg z-10">
+                        {new Date(d.date).toLocaleDateString('en-ZA', { month: 'short', day: 'numeric' })}: {d.count}
+                      </div>
+                    </div>
+                  ));
+                })()}
+              </div>
+              <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
+                <span>30 days ago</span>
+                <span>Today</span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Detailed Tables */}
       <div className="space-y-6">

@@ -66,6 +66,7 @@ const AdminCoursesPage = lazy(() => import('./pages/admin/AdminCoursesPage'));
 const AdminAnalyticsPage = lazy(() => import('./pages/admin/AdminAnalyticsPage'));
 const AdminInboxPage = lazy(() => import('./pages/admin/AdminInboxPage'));
 const AdminSellerManagementPage = lazy(() => import('./pages/admin/AdminSellerManagementPage'));
+const AdminPayoutsPage = lazy(() => import('./pages/admin/AdminPayoutsPage'));
 const FeesPage = lazy(() => import('./pages/admin/FeesPage'));
 const ConfigurationPage = lazy(() => import('./pages/admin/ConfigurationPage'));
 
@@ -167,6 +168,7 @@ function App() {
           <Route path="/admin/courses" element={<AdminCoursesPage />} />
           <Route path="/admin/analytics" element={<AdminAnalyticsPage />} />
           <Route path="/admin/inbox" element={<AdminInboxPage />} />
+          <Route path="/admin/payouts" element={<AdminPayoutsPage />} />
           <Route path="/admin/fees" element={<FeesPage />} />
           <Route path="/admin/configuration" element={<ConfigurationPage />} />
         </Route>

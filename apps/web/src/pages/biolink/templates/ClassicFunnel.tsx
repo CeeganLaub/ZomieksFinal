@@ -10,6 +10,9 @@ import {
   ReviewCard,
   PriceBadge,
   PoweredByFooter,
+  AvailabilityBadge,
+  TestimonialWall,
+  DigitalProductStore,
 } from './shared';
 
 export default function ClassicFunnel({ seller, theme, onChat, onServiceClick, onCourseClick: _onCourseClick }: BioLinkTemplateProps) {
@@ -38,9 +41,7 @@ export default function ClassicFunnel({ seller, theme, onChat, onServiceClick, o
       <section
         className="relative py-16 md:py-24 px-4"
         style={{
-          background: sp.bioCoverImage
-            ? `linear-gradient(to bottom, ${theme.backgroundColor}88, ${theme.backgroundColor}), url(${sp.bioCoverImage}) center/cover`
-            : `linear-gradient(135deg, ${theme.backgroundColor}, ${theme.themeColor}22)`,
+          background: `linear-gradient(135deg, ${theme.backgroundColor}, ${theme.themeColor}22)`,
         }}
       >
         <div className="max-w-2xl mx-auto text-center">
@@ -61,6 +62,19 @@ export default function ClassicFunnel({ seller, theme, onChat, onServiceClick, o
             <ThemedButton theme={theme} onClick={() => onChat()} size="lg">
               {sp.bioCtaText}
             </ThemedButton>
+            <div className="mt-4">
+              <AvailabilityBadge
+                availability={{
+                  isAvailable: sp.isAvailable,
+                  vacationMode: sp.vacationMode,
+                  vacationUntil: sp.vacationUntil,
+                  responseTimeMinutes: sp.responseTimeMinutes,
+                  activeOrderCount: sp.activeOrderCount,
+                  maxActiveOrders: sp.maxActiveOrders,
+                }}
+                theme={theme}
+              />
+            </div>
           </motion.div>
         </div>
       </section>
@@ -116,28 +130,21 @@ export default function ClassicFunnel({ seller, theme, onChat, onServiceClick, o
         </section>
       )}
 
-      {/* ═══ TESTIMONIALS CAROUSEL ═══ */}
-      {reviews.length > 0 && (
+      {/* ═══ DIGITAL PRODUCTS ═══ */}
+      {sp.digitalProducts && sp.digitalProducts.length > 0 && (
+        <section className="py-12 px-4">
+          <div className="max-w-2xl mx-auto">
+            <DigitalProductStore products={sp.digitalProducts} theme={theme} onBuy={(p) => onChat(`I'd like to buy "${p.title}"`)} />
+          </div>
+        </section>
+      )}
+
+      {/* ═══ TESTIMONIAL WALL ═══ */}
+      {sp.bioShowTestimonials !== false && reviews.length > 0 && (
         <section className="py-12 px-4" style={{ background: `${theme.themeColor}05` }}>
-          <div className="max-w-2xl mx-auto text-center">
-            <h2 className="text-2xl font-bold mb-6">What Clients Say</h2>
-            <div className="relative min-h-[120px]">
-              <motion.div key={reviewIdx} initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -30 }}>
-                <ReviewCard review={reviews[reviewIdx]} theme={theme} />
-              </motion.div>
-            </div>
-            {reviews.length > 1 && (
-              <div className="flex justify-center gap-1.5 mt-4">
-                {reviews.map((_, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setReviewIdx(i)}
-                    className="w-2 h-2 rounded-full transition-colors"
-                    style={{ background: i === reviewIdx ? theme.themeColor : `${theme.themeColor}30` }}
-                  />
-                ))}
-              </div>
-            )}
+          <div className="max-w-2xl mx-auto">
+            <h2 className="text-2xl font-bold text-center mb-6">What Clients Say</h2>
+            <TestimonialWall reviews={reviews} theme={theme} maxVisible={sp.bioTestimonialCount || 6} />
           </div>
         </section>
       )}

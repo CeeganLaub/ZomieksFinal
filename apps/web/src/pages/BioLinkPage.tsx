@@ -34,6 +34,13 @@ export default function BioLinkPage() {
     return () => { document.title = 'Zomieks'; };
   }, [sp]);
 
+  // Track page view
+  useEffect(() => {
+    if (username && sp?.bioEnabled) {
+      usersApi.trackBiolinkEvent({ username, event: 'page_view', metadata: { referrer: document.referrer } }).catch(() => {});
+    }
+  }, [username, sp?.bioEnabled]);
+
   // If biolink not enabled or no active sub, redirect to /sellers/:username
   const hasBiolink = sp?.bioEnabled && sp?.subscription?.status === 'ACTIVE';
 

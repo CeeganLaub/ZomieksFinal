@@ -107,7 +107,7 @@ export default function SellerDashboardPage() {
     queryKey: ['seller-stats'],
     queryFn: async () => {
       const [earnings, orders] = await Promise.all([
-        api.get<{ success: boolean; data: { totalEarnings?: number; pendingEarnings?: number } }>('/payments/earnings'),
+        api.get<{ success: boolean; data: { totalEarned?: number; pendingEscrow?: number } }>('/payments/earnings'),
         api.get<{ success: boolean; data: { orders: OrderData[] } }>('/orders/selling'),
       ]);
       
@@ -115,8 +115,8 @@ export default function SellerDashboardPage() {
       const earningsData = earnings.data || {};
       
       return {
-        totalEarnings: earningsData.totalEarnings || 0,
-        pendingEarnings: earningsData.pendingEarnings || 0,
+        totalEarnings: earningsData.totalEarned || 0,
+        pendingEarnings: earningsData.pendingEscrow || 0,
         totalOrders: ordersData.length,
         activeOrders: ordersData.filter((o) => 
           ['IN_PROGRESS', 'DELIVERED', 'REVISION_REQUESTED'].includes(o.status)

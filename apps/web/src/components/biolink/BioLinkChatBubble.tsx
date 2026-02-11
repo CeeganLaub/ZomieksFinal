@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { conversationsApi } from '../../lib/api';
+import { conversationsApi, authApi } from '../../lib/api';
 import { useAuthStore } from '../../stores/auth.store';
-import type { BioLinkTheme, BioLinkSeller } from '../../pages/biolink/templates/index';
+import type { BioLinkTheme, BioLinkSeller, BioLinkFaqEntry } from '../../pages/biolink/templates/index';
 
 interface ChatBubbleProps {
   seller: BioLinkSeller;
@@ -15,9 +15,26 @@ type Phase = 'bubble' | 'gate' | 'chat';
 
 interface LocalMessage {
   id: string;
-  role: 'user' | 'system';
+  role: 'user' | 'system' | 'offer';
   text: string;
   time: string;
+  offer?: {
+    messageId: string;
+    description: string;
+    price: number;
+    deliveryDays: number;
+    revisions?: number;
+    buyerFee: number;
+    totalAmount: number;
+    status: 'PENDING' | 'ACCEPTED' | 'DECLINED';
+  };
+}
+
+// Guest upgrade modal state
+interface GuestUpgradeState {
+  visible: boolean;
+  pendingOfferId?: string;
+  pendingConversationId?: string;
 }
 
 export default function BioLinkChatBubble({ seller, theme, context, onClearContext }: ChatBubbleProps) {
@@ -34,8 +51,17 @@ export default function BioLinkChatBubble({ seller, theme, context, onClearConte
   const [guestToken, setGuestToken] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval>>();
+  const knownMessageIds = useRef<Set<string>>(new Set());
+
+  // Guest upgrade modal
+  const [guestUpgrade, setGuestUpgrade] = useState<GuestUpgradeState>({ visible: false });
+  const [upgradeForm, setUpgradeForm] = useState({ username: '', password: '', firstName: '', lastName: '', country: 'ZA' });
+  const [upgradeError, setUpgradeError] = useState('');
+  const [upgrading, setUpgrading] = useState(false);
 
   const sp = seller.sellerProfile;
+  const faqEntries: BioLinkFaqEntry[] = sp.faqEntries || [];
   const quickReplies = sp.bioQuickReplies?.length
     ? sp.bioQuickReplies
     : ['View services', 'Check pricing', 'Ask me anything'];
@@ -52,6 +78,49 @@ export default function BioLinkChatBubble({ seller, theme, context, onClearConte
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages]);
+
+  // Poll for new messages (including offers from seller) every 10s
+  useEffect(() => {
+    if (!conversationId || phase !== 'chat') return;
+    const poll = async () => {
+      try {
+        const token = guestToken;
+        // Use the guest token if we have one, otherwise use the auth token
+        const headers: Record<string, string> = {};
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+        const res = await conversationsApi.get(conversationId);
+        const msgs = res.data?.messages || [];
+        for (const msg of msgs) {
+          if (knownMessageIds.current.has(msg.id)) continue;
+          knownMessageIds.current.add(msg.id);
+          // Skip messages we sent ourselves
+          if (msg.senderId !== seller.id) continue;
+
+          if (msg.type === 'QUICK_OFFER' && msg.quickOffer) {
+            const offer = msg.quickOffer as any;
+            addOfferMessage({
+              messageId: msg.id,
+              description: offer.description,
+              price: offer.price,
+              deliveryDays: offer.deliveryDays,
+              revisions: offer.revisions,
+              buyerFee: offer.buyerFee,
+              totalAmount: offer.totalAmount,
+              status: offer.status || 'PENDING',
+            });
+          } else if (msg.type === 'TEXT') {
+            addSystemMessage(msg.content);
+          }
+        }
+      } catch {
+        // Silent fail on polling
+      }
+    };
+    poll(); // Initial poll
+    pollRef.current = setInterval(poll, 10000);
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationId, phase, guestToken, seller.id]);
 
   const handleOpen = () => {
     if (isAuthenticated) {
@@ -76,6 +145,110 @@ export default function BioLinkChatBubble({ seller, theme, context, onClearConte
       ...prev,
       { id: crypto.randomUUID(), role: 'user', text, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) },
     ]);
+  };
+
+  const addOfferMessage = (offer: LocalMessage['offer']) => {
+    if (!offer) return;
+    setMessages((prev) => {
+      // Avoid duplicates
+      if (prev.some((m) => m.offer?.messageId === offer.messageId)) return prev;
+      return [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          role: 'offer' as const,
+          text: offer.description,
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          offer,
+        },
+      ];
+    });
+  };
+
+  // Accept offer
+  const handleAcceptOffer = async (offer: NonNullable<LocalMessage['offer']>) => {
+    if (!conversationId) return;
+    // If guest (not authenticated fully), show upgrade modal
+    if (guestToken && !isAuthenticated) {
+      setGuestUpgrade({ visible: true, pendingOfferId: offer.messageId, pendingConversationId: conversationId });
+      return;
+    }
+    // Authenticated user — accept directly
+    try {
+      setSending(true);
+      const res = await conversationsApi.acceptOffer(conversationId, offer.messageId);
+      setMessages((prev) => prev.map((m) => m.offer?.messageId === offer.messageId ? { ...m, offer: { ...m.offer!, status: 'ACCEPTED' } } : m));
+      addSystemMessage('Offer accepted! Redirecting to payment...');
+      if (res.data?.paymentUrl) {
+        window.location.href = res.data.paymentUrl;
+      }
+    } catch {
+      addSystemMessage('Failed to accept offer. Please try again.');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  // Decline offer
+  const handleDeclineOffer = async (offer: NonNullable<LocalMessage['offer']>) => {
+    if (!conversationId) return;
+    try {
+      setSending(true);
+      await conversationsApi.declineOffer(conversationId, offer.messageId);
+      setMessages((prev) => prev.map((m) => m.offer?.messageId === offer.messageId ? { ...m, offer: { ...m.offer!, status: 'DECLINED' } } : m));
+    } catch {
+      addSystemMessage('Failed to decline offer. Please try again.');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  // Guest upgrade — create full account then accept offer
+  const handleGuestUpgrade = async () => {
+    const { username, password, firstName, lastName, country } = upgradeForm;
+    if (!username.trim() || !password.trim() || !firstName.trim() || !lastName.trim()) {
+      setUpgradeError('All fields are required');
+      return;
+    }
+    if (password.length < 8) {
+      setUpgradeError('Password must be at least 8 characters');
+      return;
+    }
+    if (!/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password)) {
+      setUpgradeError('Password needs uppercase, lowercase, and a number');
+      return;
+    }
+    setUpgradeError('');
+    setUpgrading(true);
+    try {
+      const res = await authApi.guestUpgrade({
+        username: username.trim().toLowerCase(),
+        password,
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        country: country.trim() || 'ZA',
+      });
+      // Store the new auth tokens
+      if (res.data?.accessToken) {
+        const { setAuthToken } = await import('../../lib/api');
+        setAuthToken(res.data.accessToken);
+        setGuestToken(null); // No longer guest
+      }
+      // Now accept the pending offer
+      setGuestUpgrade({ visible: false });
+      if (guestUpgrade.pendingConversationId && guestUpgrade.pendingOfferId) {
+        const acceptRes = await conversationsApi.acceptOffer(guestUpgrade.pendingConversationId, guestUpgrade.pendingOfferId);
+        setMessages((prev) => prev.map((m) => m.offer?.messageId === guestUpgrade.pendingOfferId ? { ...m, offer: { ...m.offer!, status: 'ACCEPTED' } } : m));
+        addSystemMessage('Account created & offer accepted! Redirecting to payment...');
+        if (acceptRes.data?.paymentUrl) {
+          window.location.href = acceptRes.data.paymentUrl;
+        }
+      }
+    } catch (e: any) {
+      setUpgradeError(e?.message || 'Failed to create account. Try a different username.');
+    } finally {
+      setUpgrading(false);
+    }
   };
 
   // Gate submit — email capture for guests
@@ -112,12 +285,31 @@ export default function BioLinkChatBubble({ seller, theme, context, onClearConte
     }
   };
 
+  // FAQ keyword matching — returns first matching entry or null
+  const matchFaq = (text: string): BioLinkFaqEntry | null => {
+    const lower = text.toLowerCase();
+    for (const entry of faqEntries) {
+      if (entry.keywords.some((kw) => lower.includes(kw.toLowerCase()))) {
+        return entry;
+      }
+    }
+    return null;
+  };
+
   // Send message
   const sendMsg = useCallback(
     async (text: string) => {
       if (!text.trim()) return;
       addUserMessage(text.trim());
       setInput('');
+
+      // Check FAQ before sending to API
+      const faqMatch = matchFaq(text.trim());
+      if (faqMatch) {
+        // Small delay to feel natural
+        setTimeout(() => addSystemMessage(faqMatch.answer), 400);
+      }
+
       setSending(true);
 
       try {
@@ -278,21 +470,85 @@ export default function BioLinkChatBubble({ seller, theme, context, onClearConte
             {phase === 'chat' && (
               <>
                 <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0">
-                  {messages.map((msg) => (
-                    <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                      <div
-                        className="max-w-[80%] px-3.5 py-2 text-sm leading-relaxed"
-                        style={{
-                          background: msg.role === 'user' ? theme.themeColor : `${theme.textColor}08`,
-                          color: msg.role === 'user' ? '#fff' : theme.textColor,
-                          borderRadius: msg.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
-                        }}
-                      >
-                        {msg.text}
-                        <span className="block text-[10px] mt-1 opacity-40">{msg.time}</span>
+                  {messages.map((msg) =>
+                    msg.role === 'offer' && msg.offer ? (
+                      /* ─── Offer Card ─── */
+                      <div key={msg.id} className="flex justify-start">
+                        <div
+                          className="w-full max-w-[90%] rounded-xl overflow-hidden text-sm"
+                          style={{ background: `${theme.textColor}06`, border: `1px solid ${theme.themeColor}25` }}
+                        >
+                          <div className="px-3.5 py-2.5" style={{ background: `${theme.themeColor}12` }}>
+                            <p className="font-semibold text-xs" style={{ color: theme.themeColor }}>💰 Custom Offer</p>
+                          </div>
+                          <div className="px-3.5 py-3 space-y-2">
+                            <p className="font-medium">{msg.offer.description}</p>
+                            <div className="flex items-baseline gap-1">
+                              <span className="text-lg font-bold" style={{ color: theme.themeColor }}>R{msg.offer.price.toLocaleString()}</span>
+                              <span className="text-xs opacity-50">+ R{msg.offer.buyerFee.toLocaleString()} fee</span>
+                            </div>
+                            <div className="flex gap-3 text-xs opacity-60">
+                              <span>📅 {msg.offer.deliveryDays} day{msg.offer.deliveryDays !== 1 ? 's' : ''}</span>
+                              {msg.offer.revisions != null && <span>🔄 {msg.offer.revisions} revision{msg.offer.revisions !== 1 ? 's' : ''}</span>}
+                            </div>
+                            <div className="text-xs font-semibold" style={{ color: theme.themeColor }}>
+                              Total: R{msg.offer.totalAmount.toLocaleString()}
+                            </div>
+                            {msg.offer.status === 'PENDING' ? (
+                              <div className="flex gap-2 pt-1">
+                                <button
+                                  onClick={() => handleAcceptOffer(msg.offer!)}
+                                  disabled={sending}
+                                  className="flex-1 py-2 rounded-lg text-xs font-semibold text-white transition-opacity disabled:opacity-50"
+                                  style={{ background: '#22c55e' }}
+                                >
+                                  ✓ Accept & Pay
+                                </button>
+                                <button
+                                  onClick={() => handleDeclineOffer(msg.offer!)}
+                                  disabled={sending}
+                                  className="flex-1 py-2 rounded-lg text-xs font-semibold transition-opacity disabled:opacity-50"
+                                  style={{ background: `${theme.textColor}10`, color: theme.textColor }}
+                                >
+                                  ✕ Decline
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="pt-1">
+                                <span
+                                  className="inline-block px-2.5 py-1 rounded-full text-xs font-semibold"
+                                  style={{
+                                    background: msg.offer.status === 'ACCEPTED' ? '#22c55e20' : '#ef444420',
+                                    color: msg.offer.status === 'ACCEPTED' ? '#22c55e' : '#ef4444',
+                                  }}
+                                >
+                                  {msg.offer.status === 'ACCEPTED' ? '✓ Accepted' : '✕ Declined'}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                          <div className="px-3.5 pb-2">
+                            <span className="block text-[10px] opacity-40">{msg.time}</span>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ) : (
+                      /* ─── Normal Message ─── */
+                      <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                        <div
+                          className="max-w-[80%] px-3.5 py-2 text-sm leading-relaxed"
+                          style={{
+                            background: msg.role === 'user' ? theme.themeColor : `${theme.textColor}08`,
+                            color: msg.role === 'user' ? '#fff' : theme.textColor,
+                            borderRadius: msg.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+                          }}
+                        >
+                          {msg.text}
+                          <span className="block text-[10px] mt-1 opacity-40">{msg.time}</span>
+                        </div>
+                      </div>
+                    ),
+                  )}
 
                   {/* Quick reply chips */}
                   {messages.length <= 1 && (
@@ -341,6 +597,52 @@ export default function BioLinkChatBubble({ seller, theme, context, onClearConte
                     </svg>
                   </button>
                 </div>
+
+                {/* ═══ GUEST UPGRADE MODAL ═══ */}
+                {guestUpgrade.visible && (
+                  <div className="absolute inset-0 z-10 flex items-center justify-center" style={{ background: `${theme.backgroundColor}ee` }}>
+                    <div className="w-full max-w-[300px] p-5 space-y-3">
+                      <div className="text-center">
+                        <p className="font-semibold text-sm">Create your account</p>
+                        <p className="text-xs opacity-50 mt-1">Finish signing up to accept this offer</p>
+                      </div>
+                      {(['firstName', 'lastName', 'username', 'password'] as const).map((field) => (
+                        <div key={field}>
+                          <label className="text-xs font-medium mb-1 block opacity-70 capitalize">
+                            {field === 'firstName' ? 'First name' : field === 'lastName' ? 'Last name' : field}
+                          </label>
+                          <input
+                            type={field === 'password' ? 'password' : 'text'}
+                            value={upgradeForm[field]}
+                            onChange={(e) => setUpgradeForm((f) => ({ ...f, [field]: e.target.value }))}
+                            placeholder={field === 'username' ? 'Choose a username' : field === 'password' ? 'Min 8 chars (Aa1)' : ''}
+                            className="w-full px-3 py-2 rounded-lg text-sm border focus:outline-none focus:ring-2"
+                            style={{
+                              background: `${theme.textColor}05`,
+                              borderColor: `${theme.textColor}15`,
+                              color: theme.textColor,
+                            }}
+                          />
+                        </div>
+                      ))}
+                      {upgradeError && <p className="text-xs text-red-400">{upgradeError}</p>}
+                      <button
+                        onClick={handleGuestUpgrade}
+                        disabled={upgrading}
+                        className="w-full py-2.5 rounded-lg font-medium text-sm text-white transition-opacity disabled:opacity-50"
+                        style={{ background: '#22c55e', borderRadius: theme.buttonStyle === 'pill' ? '9999px' : '8px' }}
+                      >
+                        {upgrading ? 'Creating account...' : 'Create Account & Pay'}
+                      </button>
+                      <button
+                        onClick={() => setGuestUpgrade({ visible: false })}
+                        className="w-full py-2 text-xs opacity-50 hover:opacity-80"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
               </>
             )}
           </motion.div>

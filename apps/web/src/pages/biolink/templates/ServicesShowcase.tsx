@@ -10,6 +10,9 @@ import {
   PriceBadge,
   ServiceImage,
   PoweredByFooter,
+  AvailabilityBadge,
+  TestimonialWall,
+  DigitalProductStore,
 } from './shared';
 
 export default function ServicesShowcase({ seller, theme, onChat, onServiceClick }: BioLinkTemplateProps) {
@@ -53,6 +56,21 @@ export default function ServicesShowcase({ seller, theme, onChat, onServiceClick
         <ThemedButton theme={theme} onClick={() => onChat()} size="lg">
           {sp.bioCtaText}
         </ThemedButton>
+
+        {/* Availability */}
+        <div className="mt-4">
+          <AvailabilityBadge
+            availability={{
+              isAvailable: sp.isAvailable,
+              vacationMode: sp.vacationMode,
+              vacationUntil: sp.vacationUntil,
+              responseTimeMinutes: sp.responseTimeMinutes,
+              activeOrderCount: sp.activeOrderCount,
+              maxActiveOrders: sp.maxActiveOrders,
+            }}
+            theme={theme}
+          />
+        </div>
       </div>
 
       {/* Trust Stats */}
@@ -113,6 +131,19 @@ export default function ServicesShowcase({ seller, theme, onChat, onServiceClick
               </motion.button>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Digital Products */}
+      {sp.digitalProducts && sp.digitalProducts.length > 0 && (
+        <DigitalProductStore products={sp.digitalProducts} theme={theme} onBuy={(p) => onChat(`I'd like to buy "${p.title}"`)} />
+      )}
+
+      {/* Testimonial Wall */}
+      {sp.bioShowTestimonials !== false && seller.receivedReviews.length > 0 && (
+        <div className="mb-8">
+          <h2 className="text-lg font-bold mb-4" style={{ color: theme.textColor }}>Reviews</h2>
+          <TestimonialWall reviews={seller.receivedReviews} theme={theme} maxVisible={sp.bioTestimonialCount || 6} />
         </div>
       )}
 

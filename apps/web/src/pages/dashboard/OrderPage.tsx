@@ -40,8 +40,15 @@ export default function OrderPage() {
   const queryClient = useQueryClient();
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'payfast' | 'ozow'>('payfast');
   const [rating, setRating] = useState(5);
+  const [communicationRating, setCommunicationRating] = useState(5);
+  const [qualityRating, setQualityRating] = useState(5);
+  const [valueRating, setValueRating] = useState(5);
   const [review, setReview] = useState('');
   const [showReviewModal, setShowReviewModal] = useState(false);
+  const [showRevisionModal, setShowRevisionModal] = useState(false);
+  const [revisionMessage, setRevisionMessage] = useState('');
+  const [showDisputeModal, setShowDisputeModal] = useState(false);
+  const [disputeReason, setDisputeReason] = useState('');
 
   // Handle payment redirect query params
   const paymentStatus = searchParams.get('payment');
@@ -123,6 +130,9 @@ export default function OrderPage() {
       await api.post(`/orders/${id}/review`, {
         rating,
         comment: review,
+        communicationRating,
+        qualityRating,
+        valueRating,
       });
     },
     onSuccess: () => {
@@ -345,10 +355,7 @@ export default function OrderPage() {
                   <Button
                     variant="outline"
                     className="flex-1"
-                    onClick={() => {
-                      const msg = prompt('What changes do you need?');
-                      if (msg) requestRevisionMutation.mutate(msg);
-                    }}
+                    onClick={() => setShowRevisionModal(true)}
                   >
                     Request Revision
                   </Button>
@@ -456,37 +463,24 @@ export default function OrderPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                <div className="flex gap-3">
-                  <div className="w-2 h-2 mt-2 rounded-full bg-primary" />
-                  <div>
-                    <p className="font-medium">Order Placed</p>
-                    <p className="text-sm text-muted-foreground">
-                      {format(new Date(order.createdAt), 'PPp')}
-                    </p>
-                  </div>
-                </div>
-                {order.paidAt && (
-                  <div className="flex gap-3">
-                    <div className="w-2 h-2 mt-2 rounded-full bg-green-500" />
+                {[
+                  { label: 'Order Placed', date: order.createdAt, color: 'bg-primary' },
+                  { label: 'Payment Received', date: order.paidAt, color: 'bg-green-500' },
+                  { label: 'Work Started', date: order.startedAt, color: 'bg-purple-500' },
+                  { label: 'Expected Delivery', date: !order.completedAt ? order.deliveryDueAt : null, color: 'bg-gray-300' },
+                  { label: 'Delivered', date: order.deliveredAt, color: 'bg-indigo-500' },
+                  { label: 'Completed', date: order.completedAt, color: 'bg-green-600' },
+                ].filter(e => e.date).map((event, i) => (
+                  <div key={i} className="flex gap-3">
+                    <div className={`w-2 h-2 mt-2 rounded-full ${event.color}`} />
                     <div>
-                      <p className="font-medium">Payment Received</p>
+                      <p className="font-medium">{event.label}</p>
                       <p className="text-sm text-muted-foreground">
-                        {format(new Date(order.paidAt), 'PPp')}
+                        {format(new Date(event.date!), 'PPp')}
                       </p>
                     </div>
                   </div>
-                )}
-                {order.deliveryDueAt && (
-                  <div className="flex gap-3">
-                    <div className="w-2 h-2 mt-2 rounded-full bg-gray-300" />
-                    <div>
-                      <p className="font-medium">Expected Delivery</p>
-                      <p className="text-sm text-muted-foreground">
-                        {format(new Date(order.deliveryDueAt), 'PPP')}
-                      </p>
-                    </div>
-                  </div>
-                )}
+                ))}
               </div>
             </CardContent>
           </Card>
@@ -516,10 +510,7 @@ export default function OrderPage() {
             <Button
               variant="outline"
               className="w-full text-red-600 border-red-200 hover:bg-red-50"
-              onClick={() => {
-                const reason = prompt('Please describe your issue:');
-                if (reason) disputeMutation.mutate(reason);
-              }}
+              onClick={() => setShowDisputeModal(true)}
             >
               <ExclamationTriangleIcon className="h-4 w-4 mr-2" />
               Open Dispute
@@ -535,7 +526,7 @@ export default function OrderPage() {
             <h2 className="text-xl font-bold mb-4">Leave a Review</h2>
             
             <div className="mb-4">
-              <label className="block text-sm font-medium mb-2">Rating</label>
+              <label className="block text-sm font-medium mb-2">Overall Rating</label>
               <div className="flex gap-2">
                 {[1, 2, 3, 4, 5].map((star) => (
                   <button
@@ -553,7 +544,33 @@ export default function OrderPage() {
               </div>
             </div>
 
-            <div className="mb-4">
+            {/* Sub-ratings */}
+            {[
+              { label: 'Communication', value: communicationRating, setter: setCommunicationRating },
+              { label: 'Quality', value: qualityRating, setter: setQualityRating },
+              { label: 'Value for Money', value: valueRating, setter: setValueRating },
+            ].map(({ label, value, setter }) => (
+              <div key={label} className="mb-3">
+                <label className="block text-xs font-medium text-muted-foreground mb-1">{label}</label>
+                <div className="flex gap-1.5">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      onClick={() => setter(star)}
+                      className="focus:outline-none"
+                    >
+                      <StarIcon
+                        className={`h-5 w-5 ${
+                          star <= value ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'
+                        }`}
+                      />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+
+            <div className="mb-4 mt-4">
               <label className="block text-sm font-medium mb-2">Your Review</label>
               <textarea
                 value={review}
@@ -578,6 +595,85 @@ export default function OrderPage() {
                 disabled={submitReviewMutation.isPending}
               >
                 {submitReviewMutation.isPending ? 'Submitting...' : 'Submit Review'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Revision Request Modal */}
+      {showRevisionModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-background rounded-lg p-6 w-full max-w-md mx-4">
+            <h2 className="text-xl font-bold mb-2">Request Revision</h2>
+            <p className="text-sm text-muted-foreground mb-4">
+              Describe what changes you need the seller to make.
+            </p>
+            <textarea
+              value={revisionMessage}
+              onChange={(e) => setRevisionMessage(e.target.value)}
+              rows={4}
+              className="w-full px-3 py-2 border rounded-lg text-sm mb-4"
+              placeholder="Please describe the changes you need (min 20 characters)..."
+              minLength={20}
+            />
+            <div className="flex gap-3">
+              <Button variant="outline" className="flex-1" onClick={() => { setShowRevisionModal(false); setRevisionMessage(''); }}>
+                Cancel
+              </Button>
+              <Button
+                className="flex-1"
+                onClick={() => {
+                  if (revisionMessage.length >= 20) {
+                    requestRevisionMutation.mutate(revisionMessage);
+                    setShowRevisionModal(false);
+                    setRevisionMessage('');
+                  } else {
+                    toast.error('Please provide at least 20 characters');
+                  }
+                }}
+                disabled={requestRevisionMutation.isPending || revisionMessage.length < 20}
+              >
+                {requestRevisionMutation.isPending ? 'Submitting...' : 'Request Revision'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Dispute Modal */}
+      {showDisputeModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-background rounded-lg p-6 w-full max-w-md mx-4">
+            <h2 className="text-xl font-bold mb-2 text-red-600">Open Dispute</h2>
+            <p className="text-sm text-muted-foreground mb-4">
+              Please describe the issue you're experiencing. Our team will review and mediate.
+            </p>
+            <textarea
+              value={disputeReason}
+              onChange={(e) => setDisputeReason(e.target.value)}
+              rows={4}
+              className="w-full px-3 py-2 border rounded-lg text-sm mb-4"
+              placeholder="Describe your issue in detail..."
+            />
+            <div className="flex gap-3">
+              <Button variant="outline" className="flex-1" onClick={() => { setShowDisputeModal(false); setDisputeReason(''); }}>
+                Cancel
+              </Button>
+              <Button
+                className="flex-1 bg-red-600 hover:bg-red-700"
+                onClick={() => {
+                  if (disputeReason.trim()) {
+                    disputeMutation.mutate(disputeReason);
+                    setShowDisputeModal(false);
+                    setDisputeReason('');
+                  } else {
+                    toast.error('Please describe your issue');
+                  }
+                }}
+                disabled={disputeMutation.isPending || !disputeReason.trim()}
+              >
+                {disputeMutation.isPending ? 'Opening...' : 'Open Dispute'}
               </Button>
             </div>
           </div>

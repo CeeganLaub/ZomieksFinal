@@ -260,6 +260,51 @@ router.post(
   }
 );
 
+// Start order (seller transitions PAID → IN_PROGRESS)
+router.patch('/:id/start', authenticate, async (req, res, next) => {
+  try {
+    const order = await prisma.order.findFirst({
+      where: {
+        id: req.params.id as string,
+        sellerId: req.user!.id,
+        status: 'PAID',
+      },
+    });
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Order not found or cannot be started' },
+      });
+    }
+
+    const now = new Date();
+    const deliveryDueAt = new Date(now);
+    deliveryDueAt.setDate(deliveryDueAt.getDate() + order.deliveryDays);
+
+    const updated = await prisma.order.update({
+      where: { id: order.id },
+      data: {
+        status: 'IN_PROGRESS',
+        startedAt: now,
+        deliveryDueAt,
+      },
+    });
+
+    await notificationQueue.add('notification', {
+      userId: order.buyerId,
+      type: 'ORDER_STARTED',
+      title: 'Order Started',
+      message: `Your order #${order.orderNumber} is now in progress!`,
+      data: { orderId: order.id },
+    });
+
+    res.json({ success: true, data: { order: updated } });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Deliver order (seller)
 router.post(
   '/:id/deliver',
@@ -416,6 +461,84 @@ router.post('/:id/accept', authenticate, async (req, res, next) => {
     });
 
     res.json({ success: true, data: { order: updated } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Submit review (buyer reviews completed order)
+router.post('/:id/review', authenticate, async (req, res, next) => {
+  try {
+    const { rating, comment, communicationRating, qualityRating, valueRating } = req.body;
+
+    if (!rating || rating < 1 || rating > 5) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: 'Rating must be between 1 and 5' },
+      });
+    }
+
+    const order = await prisma.order.findFirst({
+      where: {
+        id: req.params.id as string,
+        buyerId: req.user!.id,
+        status: 'COMPLETED',
+      },
+      include: { review: true },
+    });
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Order not found or not completed' },
+      });
+    }
+
+    if (order.review) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'ALREADY_REVIEWED', message: 'You have already reviewed this order' },
+      });
+    }
+
+    const review = await prisma.review.create({
+      data: {
+        orderId: order.id,
+        serviceId: order.serviceId,
+        authorId: req.user!.id,
+        recipientId: order.sellerId,
+        rating: Math.round(rating),
+        comment: comment || '',
+        communicationRating: communicationRating ? Math.round(communicationRating) : null,
+        qualityRating: qualityRating ? Math.round(qualityRating) : null,
+        valueRating: valueRating ? Math.round(valueRating) : null,
+      },
+    });
+
+    // Update seller profile stats
+    const allReviews = await prisma.review.findMany({
+      where: { recipientId: order.sellerId },
+      select: { rating: true },
+    });
+    const avgRating = allReviews.reduce((sum, r) => sum + r.rating, 0) / allReviews.length;
+
+    await prisma.sellerProfile.updateMany({
+      where: { userId: order.sellerId },
+      data: {
+        rating: Math.round(avgRating * 100) / 100,
+        reviewCount: allReviews.length,
+      },
+    });
+
+    await notificationQueue.add('notification', {
+      userId: order.sellerId,
+      type: 'NEW_REVIEW',
+      title: 'New Review',
+      message: `You received a ${rating}-star review for order #${order.orderNumber}`,
+      data: { orderId: order.id, reviewId: review.id },
+    });
+
+    res.status(201).json({ success: true, data: { review } });
   } catch (error) {
     next(error);
   }

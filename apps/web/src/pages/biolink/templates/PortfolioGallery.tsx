@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { BioLinkTemplateProps, BioLinkService } from './index';
-import { SellerAvatar, ThemedButton, Stars, VerifiedBadge, PoweredByFooter, PriceBadge } from './shared';
+import { SellerAvatar, ThemedButton, Stars, VerifiedBadge, PoweredByFooter, PriceBadge, AvailabilityBadge, TestimonialWall, DigitalProductStore } from './shared';
 
 export default function PortfolioGallery({ seller, theme, onChat, onServiceClick }: BioLinkTemplateProps) {
   const sp = seller.sellerProfile;
@@ -23,13 +23,6 @@ export default function PortfolioGallery({ seller, theme, onChat, onServiceClick
 
   return (
     <div className="w-full max-w-3xl mx-auto px-4 py-8">
-      {/* Cover Image */}
-      {sp.bioCoverImage && (
-        <div className="w-full aspect-[3/1] rounded-2xl overflow-hidden mb-6">
-          <img src={sp.bioCoverImage} alt="" className="w-full h-full object-cover" />
-        </div>
-      )}
-
       {/* Profile Header */}
       <div className="text-center mb-8">
         <div className="flex justify-center mb-3">
@@ -48,6 +41,19 @@ export default function PortfolioGallery({ seller, theme, onChat, onServiceClick
         <ThemedButton theme={theme} onClick={() => onChat()}>
           {sp.bioCtaText}
         </ThemedButton>
+        <div className="mt-3">
+          <AvailabilityBadge
+            availability={{
+              isAvailable: sp.isAvailable,
+              vacationMode: sp.vacationMode,
+              vacationUntil: sp.vacationUntil,
+              responseTimeMinutes: sp.responseTimeMinutes,
+              activeOrderCount: sp.activeOrderCount,
+              maxActiveOrders: sp.maxActiveOrders,
+            }}
+            theme={theme}
+          />
+        </div>
       </div>
 
       {/* Filter Chips */}
@@ -99,6 +105,18 @@ export default function PortfolioGallery({ seller, theme, onChat, onServiceClick
               {skill}
             </span>
           ))}
+        </div>
+      )}
+
+      {/* Digital Products */}
+      {sp.digitalProducts && sp.digitalProducts.length > 0 && (
+        <DigitalProductStore products={sp.digitalProducts} theme={theme} onBuy={(p) => onChat(`I'd like to buy "${p.title}"`)} />
+      )}
+
+      {/* Testimonial Wall */}
+      {sp.bioShowTestimonials !== false && seller.receivedReviews.length > 0 && (
+        <div className="mt-8">
+          <TestimonialWall reviews={seller.receivedReviews} theme={theme} maxVisible={sp.bioTestimonialCount || 6} />
         </div>
       )}
 
