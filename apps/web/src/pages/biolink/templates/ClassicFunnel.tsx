@@ -7,7 +7,6 @@ import {
   Stars,
   VerifiedBadge,
   TrustStats,
-  ReviewCard,
   PriceBadge,
   PoweredByFooter,
   AvailabilityBadge,
@@ -24,7 +23,7 @@ export default function ClassicFunnel({ seller, theme, onChat, onServiceClick, o
 
   // Testimonials carousel
   const reviews = seller.receivedReviews;
-  const [reviewIdx, setReviewIdx] = useState(0);
+  const [_reviewIdx, setReviewIdx] = useState(0);
   const intervalRef = useRef<ReturnType<typeof setInterval>>();
 
   useEffect(() => {
@@ -134,7 +133,7 @@ export default function ClassicFunnel({ seller, theme, onChat, onServiceClick, o
       {sp.digitalProducts && sp.digitalProducts.length > 0 && (
         <section className="py-12 px-4">
           <div className="max-w-2xl mx-auto">
-            <DigitalProductStore products={sp.digitalProducts} theme={theme} onBuy={(p) => onChat(`I'd like to buy "${p.title}"`)} />
+            <DigitalProductStore products={sp.digitalProducts} theme={theme} onBuy={() => onChat()} />
           </div>
         </section>
       )}

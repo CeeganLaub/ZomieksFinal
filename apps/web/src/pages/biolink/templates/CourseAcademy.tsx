@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import type { BioLinkTemplateProps } from './index';
-import { SellerAvatar, ThemedButton, Stars, VerifiedBadge, ReviewCard, PoweredByFooter, AvailabilityBadge, TestimonialWall, DigitalProductStore } from './shared';
+import { SellerAvatar, ThemedButton, Stars, VerifiedBadge, PoweredByFooter, AvailabilityBadge, TestimonialWall, DigitalProductStore } from './shared';
 
 export default function CourseAcademy({ seller, theme, onChat, onCourseClick: _onCourseClick }: BioLinkTemplateProps) {
   const sp = seller.sellerProfile;
@@ -162,7 +162,7 @@ export default function CourseAcademy({ seller, theme, onChat, onCourseClick: _o
 
       {/* Digital Products */}
       {sp.digitalProducts && sp.digitalProducts.length > 0 && (
-        <DigitalProductStore products={sp.digitalProducts} theme={theme} onBuy={(p) => onChat(`I'd like to buy "${p.title}"`)} />
+        <DigitalProductStore products={sp.digitalProducts} theme={theme} onBuy={() => onChat()} />
       )}
 
       {/* Testimonial Wall */}

@@ -116,7 +116,7 @@ export default function CreateCoursePage() {
     queryKey: ['categories'],
     queryFn: () => servicesApi.categories(),
   });
-  const categories = categoriesData?.data?.categories || [];
+  const categories = (categoriesData as any)?.data?.categories || (categoriesData as any)?.data || [];
 
   const createMutation = useMutation({
     mutationFn: (data: CourseForm) => coursesApi.createCourse({

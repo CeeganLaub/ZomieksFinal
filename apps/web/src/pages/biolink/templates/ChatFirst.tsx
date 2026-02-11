@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { BioLinkTemplateProps, BioLinkService, BioLinkCourse } from './index';
-import { SellerAvatar, Stars, PriceBadge, PoweredByFooter, ChatServiceCard, ChatCourseCard, AvailabilityBadge, DigitalProductStore } from './shared';
+import { SellerAvatar, PoweredByFooter, ChatServiceCard, ChatCourseCard, AvailabilityBadge, DigitalProductStore } from './shared';
 
 interface ChatBubble {
   id: string;
@@ -199,7 +199,7 @@ export default function ChatFirst({ seller, theme, onChat, onServiceClick, onCou
       {/* Digital Products */}
       {sp.digitalProducts && sp.digitalProducts.length > 0 && (
         <div className="px-4 mt-4">
-          <DigitalProductStore products={sp.digitalProducts} theme={theme} onBuy={(p) => onChat(`I'd like to buy "${p.title}"`)} />
+          <DigitalProductStore products={sp.digitalProducts} theme={theme} onBuy={() => onChat()} />
         </div>
       )}
 

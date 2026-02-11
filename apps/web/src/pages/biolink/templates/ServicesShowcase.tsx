@@ -136,7 +136,7 @@ export default function ServicesShowcase({ seller, theme, onChat, onServiceClick
 
       {/* Digital Products */}
       {sp.digitalProducts && sp.digitalProducts.length > 0 && (
-        <DigitalProductStore products={sp.digitalProducts} theme={theme} onBuy={(p) => onChat(`I'd like to buy "${p.title}"`)} />
+        <DigitalProductStore products={sp.digitalProducts} theme={theme} onBuy={() => onChat()} />
       )}
 
       {/* Testimonial Wall */}
