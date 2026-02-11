@@ -258,6 +258,48 @@ Both gateways use webhook-based payment confirmation with signature/hash verific
 - All funds are held in escrow until order completion
 - Fee percentages are configurable via the admin Fee Configuration page
 
+## Deployment
+
+### Production Deployment to Cloudflare
+
+The platform is designed to run on Cloudflare's edge infrastructure:
+
+- **Backend**: Cloudflare Workers (Hono + D1 + Durable Objects)
+- **Frontend**: Cloudflare Pages (React/Vite)
+- **Storage**: R2 buckets for file uploads
+- **Cache**: KV namespaces for sessions and rate limiting
+
+**Quick Deploy:**
+```bash
+# 1. Set up all Cloudflare resources (D1, KV, R2, Queues)
+./scripts/cloudflare-setup.sh
+
+# 2. Configure secrets
+cd apps/api-worker
+wrangler secret put JWT_SECRET
+wrangler secret put PAYFAST_MERCHANT_ID
+# ... (see DEPLOYMENT.md for full list)
+
+# 3. Deploy
+./scripts/deploy.sh production
+```
+
+**Documentation:**
+- [Complete Deployment Guide](DEPLOYMENT.md) - Full step-by-step instructions
+- [Quick Start Guide](DEPLOY-QUICK.md) - Fast-track deployment for experienced developers
+
+### Local Development
+
+For local development, the platform uses PostgreSQL + Redis instead of Cloudflare services:
+
+```bash
+# Start PostgreSQL and Redis
+docker-compose up -d  # If using Docker
+
+# Start dev servers
+npm run dev
+```
+
 ## License
 
 Private – All rights reserved.
