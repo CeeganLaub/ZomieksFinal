@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useChatStore } from '../../stores/chat.store';
+import { useFloatingChatStore } from '../../stores/floatingChat.store';
 import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -91,11 +92,13 @@ export default function InboxDropdown() {
                     const hasUnread = (conversation.unreadBuyerCount || 0) + (conversation.unreadSellerCount || 0) > 0;
 
                     return (
-                      <Link
+                      <button
                         key={conversation.id}
-                        to={`/messages/${conversation.id}`}
-                        onClick={() => setIsOpen(false)}
-                        className={`flex items-start gap-3 p-3 rounded-xl hover:bg-muted transition-colors ${
+                        onClick={() => {
+                          useFloatingChatStore.getState().openChat(conversation.id);
+                          setIsOpen(false);
+                        }}
+                        className={`flex items-start gap-3 p-3 rounded-xl hover:bg-muted transition-colors w-full text-left ${
                           hasUnread ? 'bg-primary/5' : ''
                         }`}
                       >
@@ -128,7 +131,7 @@ export default function InboxDropdown() {
                         {hasUnread && (
                           <span className="w-2 h-2 rounded-full bg-primary shrink-0 mt-2" />
                         )}
-                      </Link>
+                      </button>
                     );
                   })}
                 </div>

@@ -12,16 +12,43 @@ import {
   EnvelopeIcon,
 } from '@heroicons/react/24/outline';
 import { formatCurrency } from '../../lib/utils';
+import { motion } from 'framer-motion';
+
+const stagger = { hidden: {}, show: { transition: { staggerChildren: 0.07 } } };
+const fadeUp = { hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: 'easeOut' } } };
+
+function getGreeting() {
+  const h = new Date().getHours();
+  if (h < 12) return 'Good morning';
+  if (h < 17) return 'Good afternoon';
+  return 'Good evening';
+}
+
+function StatSkeleton() {
+  return (
+    <Card>
+      <CardContent className="pt-6">
+        <div className="flex items-center space-x-4">
+          <div className="h-12 w-12 rounded-full bg-muted animate-pulse" />
+          <div className="space-y-2 flex-1">
+            <div className="h-3 w-24 bg-muted animate-pulse rounded" />
+            <div className="h-6 w-10 bg-muted animate-pulse rounded" />
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function DashboardPage() {
   const { user } = useAuthStore();
 
-  const { data: orders } = useQuery({
+  const { data: orders, isLoading: ordersLoading } = useQuery({
     queryKey: ['orders', 'recent'],
     queryFn: () => api.get<any>('/orders/buying', { params: { limit: 5 } }),
   });
 
-  const { data: conversationsData } = useQuery({
+  const { data: conversationsData, isLoading: convsLoading } = useQuery({
     queryKey: ['conversations', 'dashboard'],
     queryFn: () => conversationsApi.list({ limit: 10 }),
   });
@@ -31,15 +58,16 @@ export default function DashboardPage() {
   ) || [];
 
   return (
-    <div className="space-y-6">
+    <motion.div className="space-y-6" variants={stagger} initial="hidden" animate="show">
       {/* Welcome header */}
-      <div>
-        <h1 className="text-2xl font-bold">Welcome back, {user?.firstName || user?.username}!</h1>
+      <motion.div variants={fadeUp}>
+        <h1 className="text-2xl font-bold">{getGreeting()}, {user?.firstName || user?.username}!</h1>
         <p className="text-muted-foreground">Here's what's happening with your account</p>
-      </div>
+      </motion.div>
 
       {/* Become seller CTA */}
       {!user?.isSeller && (
+        <motion.div variants={fadeUp}>
         <Card className="bg-gradient-to-r from-primary/10 to-primary/5 border-primary/20">
           <CardContent className="py-6">
             <div className="flex items-center justify-between">
@@ -56,10 +84,14 @@ export default function DashboardPage() {
             </div>
           </CardContent>
         </Card>
+        </motion.div>
       )}
 
       {/* Stats cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <motion.div className="grid grid-cols-1 md:grid-cols-3 gap-4" variants={fadeUp}>
+        {ordersLoading || convsLoading ? (
+          <>{[1,2,3].map(i => <StatSkeleton key={i} />)}</>
+        ) : (<>
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center space-x-4">
@@ -101,9 +133,11 @@ export default function DashboardPage() {
             </div>
           </CardContent>
         </Card>
-      </div>
+        </>)}
+      </motion.div>
 
       {/* Inbox / Messages */}
+      <motion.div variants={fadeUp}>
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="flex items-center gap-2">
@@ -159,8 +193,10 @@ export default function DashboardPage() {
           )}
         </CardContent>
       </Card>
+      </motion.div>
 
       {/* Recent orders */}
+      <motion.div variants={fadeUp}>
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Recent Orders</CardTitle>
@@ -186,9 +222,10 @@ export default function DashboardPage() {
                 >
                   <div className="flex items-center space-x-4">
                     <img 
-                      src={order.service?.images?.[0] || `https://ui-avatars.com/api/?name=${encodeURIComponent(order.service?.title || 'S')}&background=10b981&color=fff`} 
+                      src={order.service?.images?.[0] || ''} 
                       alt="" 
                       className="h-12 w-12 rounded object-cover bg-muted"
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                     />
                     <div>
                       <p className="font-medium">{order.service?.title}</p>
@@ -214,6 +251,7 @@ export default function DashboardPage() {
           )}
         </CardContent>
       </Card>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }

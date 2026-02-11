@@ -76,6 +76,7 @@ import SellerRoute from './components/SellerRoute';
 import AdminRoute from './components/AdminRoute';
 import ErrorBoundary from './components/ErrorBoundary';
 const DevPanel = lazy(() => import('./components/DevPanel'));
+const FloatingChatManager = lazy(() => import('./components/chat/FloatingChatManager'));
 
 function App() {
   const { initialize, isLoading } = useAuthStore();
@@ -104,6 +105,7 @@ function App() {
     <ErrorBoundary>
       <Toaster position="top-right" richColors />
       {import.meta.env.DEV && <Suspense fallback={null}><DevPanel /></Suspense>}
+      <Suspense fallback={null}><FloatingChatManager /></Suspense>
       <Suspense fallback={<PageLoader />}>
         <Routes>
         {/* Public routes */}

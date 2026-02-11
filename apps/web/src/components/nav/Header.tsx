@@ -42,6 +42,12 @@ export default function Header({ showSearch = true, variant = 'default' }: Heade
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  // Lock body scroll when mobile menu is open
+  useEffect(() => {
+    document.body.style.overflow = mobileMenuOpen ? 'hidden' : '';
+    return () => { document.body.style.overflow = ''; };
+  }, [mobileMenuOpen]);
+
   const isActive = (path: string) => {
     if (path === '/explore') return location.pathname === '/explore';
     return location.pathname.startsWith(path);
@@ -148,7 +154,7 @@ export default function Header({ showSearch = true, variant = 'default' }: Heade
                 </Button>
               </Link>
               <Link to="/register">
-                <Button size="sm" className="rounded-full shadow-md hover:shadow-lg transition-shadow animate-pulse-glow">
+                <Button size="sm" className="rounded-full shadow-md hover:shadow-lg transition-shadow">
                   <SparklesIcon className="h-3.5 w-3.5 mr-1.5" />
                   Join Free
                 </Button>

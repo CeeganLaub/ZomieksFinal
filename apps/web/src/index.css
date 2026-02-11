@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -24,6 +26,10 @@
     --input: 214.3 31.8% 91.4%;
     --ring: 142.1 80% 38%;
     --radius: 0.5rem;
+    --success: 142.1 76.2% 36.3%;
+    --success-foreground: 355.7 100% 97.3%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 48 96% 5%;
   }
 
   .dark {
@@ -46,6 +52,10 @@
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
     --ring: 142.1 76.2% 36.3%;
+    --success: 142.1 70.6% 45.3%;
+    --success-foreground: 144.9 80.4% 10%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 48 96% 89%;
   }
 }
 
@@ -83,6 +93,11 @@
   .glow-sm {
     box-shadow: 0 0 12px hsl(var(--primary) / 0.25);
   }
+}
+
+::selection {
+  background: hsl(var(--primary) / 0.2);
+  color: inherit;
 }
 
 /* Scrollbar styles */
