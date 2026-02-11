@@ -182,7 +182,7 @@ router.post('/:id/messages', authenticate, async (req, res, next) => {
 
     const conversation = await prisma.conversation.findFirst({
       where: {
-        id: req.params.id,
+        id: req.params.id as string,
         OR: [
           { buyerId: req.user!.id },
           { sellerId: req.user!.id },

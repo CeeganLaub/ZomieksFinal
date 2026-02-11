@@ -5,7 +5,7 @@ import { prisma } from '@/lib/prisma.js';
 import { redis } from '@/lib/redis.js';
 import { logger } from '@/lib/logger.js';
 import type { JwtPayload, AuthUser } from '@/middleware/auth.js';
-import type { MessageType } from '@prisma/client';
+import type { MessageType, Role } from '@prisma/client';
 
 interface AuthenticatedSocket extends Socket {
   user?: AuthUser;
@@ -44,7 +44,7 @@ export function setupSocketHandlers(io: SocketServer) {
         lastName: user.lastName,
         isSeller: user.isSeller,
         isAdmin: user.isAdmin,
-        roles: user.roles.map(r => r.role),
+        roles: user.roles.map((r: { role: Role }) => r.role),
       };
       
       next();
@@ -74,7 +74,7 @@ export function setupSocketHandlers(io: SocketServer) {
       select: { id: true },
     });
     
-    conversations.forEach(conv => {
+    conversations.forEach((conv: { id: string }) => {
       socket.join(`conv:${conv.id}`);
     });
     

@@ -254,7 +254,7 @@ router.post(
           lastName,
           country,
           passwordHash,
-          emailVerified: true, // Trust the email from guest-start
+          isEmailVerified: true, // Trust the email from guest-start
         },
       });
 

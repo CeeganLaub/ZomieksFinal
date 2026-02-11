@@ -724,7 +724,7 @@ router.get('/:username', optionalAuth, async (req, res, next) => {
       const activeOrderCount = await prisma.order.count({
         where: {
           sellerId: user.id,
-          status: { in: ['PENDING', 'IN_PROGRESS'] },
+          status: { in: ['PENDING', 'IN_PROGRESS'] as any },
         },
       });
       (user as any).sellerProfile.activeOrderCount = activeOrderCount;
@@ -888,7 +888,7 @@ router.put('/seller/faq/:id', authenticate, requireSeller, async (req, res, next
     const profile = await prisma.sellerProfile.findUnique({ where: { userId: req.user!.id }, select: { id: true } });
     if (!profile) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Profile not found' } });
 
-    const entry = await prisma.bioFaqEntry.findFirst({ where: { id: req.params.id, sellerProfileId: profile.id } });
+    const entry = await prisma.bioFaqEntry.findFirst({ where: { id: req.params.id as string, sellerProfileId: profile.id } });
     if (!entry) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'FAQ entry not found' } });
 
     const updated = await prisma.bioFaqEntry.update({
@@ -908,7 +908,7 @@ router.delete('/seller/faq/:id', authenticate, requireSeller, async (req, res, n
     const profile = await prisma.sellerProfile.findUnique({ where: { userId: req.user!.id }, select: { id: true } });
     if (!profile) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Profile not found' } });
 
-    const entry = await prisma.bioFaqEntry.findFirst({ where: { id: req.params.id, sellerProfileId: profile.id } });
+    const entry = await prisma.bioFaqEntry.findFirst({ where: { id: req.params.id as string, sellerProfileId: profile.id } });
     if (!entry) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'FAQ entry not found' } });
 
     await prisma.bioFaqEntry.delete({ where: { id: entry.id } });
@@ -965,7 +965,7 @@ router.put('/seller/products/:id', authenticate, requireSeller, async (req, res,
     const profile = await prisma.sellerProfile.findUnique({ where: { userId: req.user!.id }, select: { id: true } });
     if (!profile) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Profile not found' } });
 
-    const product = await prisma.digitalProduct.findFirst({ where: { id: req.params.id, sellerProfileId: profile.id } });
+    const product = await prisma.digitalProduct.findFirst({ where: { id: req.params.id as string, sellerProfileId: profile.id } });
     if (!product) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Product not found' } });
 
     const updated = await prisma.digitalProduct.update({
@@ -990,7 +990,7 @@ router.delete('/seller/products/:id', authenticate, requireSeller, async (req, r
     const profile = await prisma.sellerProfile.findUnique({ where: { userId: req.user!.id }, select: { id: true } });
     if (!profile) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Profile not found' } });
 
-    const product = await prisma.digitalProduct.findFirst({ where: { id: req.params.id, sellerProfileId: profile.id } });
+    const product = await prisma.digitalProduct.findFirst({ where: { id: req.params.id as string, sellerProfileId: profile.id } });
     if (!product) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Product not found' } });
 
     await prisma.digitalProduct.delete({ where: { id: product.id } });
