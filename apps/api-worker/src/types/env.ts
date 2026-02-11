@@ -17,8 +17,9 @@ export interface Env {
   EMAIL_QUEUE: Queue;
   
   // Durable Objects
-  CHAT_ROOM: DurableObjectNamespace;
+  CHAT_ROOMS: DurableObjectNamespace;
   PRESENCE: DurableObjectNamespace;
+  CRM_NOTIFICATIONS: DurableObjectNamespace;
   
   // Secrets
   JWT_SECRET: string;
@@ -32,6 +33,7 @@ export interface Env {
   
   // Config
   FRONTEND_URL: string;
+  APP_URL: string;
   API_URL: string;
   NODE_ENV: string;
   

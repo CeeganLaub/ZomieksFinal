@@ -1,9 +1,9 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { eq, and, desc, gte, lte } from 'drizzle-orm';
+import { eq, and, desc, gte, lte, count } from 'drizzle-orm';
 import { 
   subscriptions, subscriptionTiers, subscriptionPayments,
-  transactions, users
+  transactions, users, services, orders
 } from '@zomieks/db';
 import { createId } from '@paralleldrive/cuid2';
 import type { Env } from '../types';
@@ -385,16 +385,27 @@ app.get('/usage', requireAuth, async (c) => {
     });
   }
   
-  // TODO: Calculate actual usage from orders and services
+  // Calculate actual usage from orders and services
   const limits = subscription.tier.limits as Record<string, number>;
+  
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  
+  const [activeServiceCount] = await db.select({ count: count() })
+    .from(services)
+    .where(and(eq(services.sellerId, user.id), eq(services.status, 'ACTIVE')));
+  
+  const [monthlyOrderCount] = await db.select({ count: count() })
+    .from(orders)
+    .where(and(eq(orders.sellerId, user.id), gte(orders.createdAt, monthStart)));
   
   return c.json({
     success: true,
     data: {
       tier: subscription.tier.name,
       limits: {
-        activeServices: { used: 0, limit: limits.activeServices || 999 },
-        monthlyOrders: { used: 0, limit: limits.monthlyOrders || 999 },
+        activeServices: { used: activeServiceCount?.count || 0, limit: limits.activeServices || 999 },
+        monthlyOrders: { used: monthlyOrderCount?.count || 0, limit: limits.monthlyOrders || 999 },
         responseTime: { value: limits.prioritySupport ? 'Priority' : 'Standard' },
       },
       features: subscription.tier.features,

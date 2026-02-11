@@ -34,6 +34,22 @@ import {
   activities,
   reviews,
   notifications,
+  conversationMetrics,
+  sellerMetrics,
+  siteConfig,
+  feePolicy,
+  sellerSubscriptions,
+  sellerSubscriptionPayments,
+  courses,
+  courseSections,
+  courseLessons,
+  courseEnrollments,
+  lessonProgress,
+  courseReviews,
+  digitalProducts,
+  digitalProductPurchases,
+  bioFaqEntries,
+  bioLinkEvents,
 } from './tables';
 
 // User relations
@@ -59,6 +75,9 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   payouts: many(sellerPayouts),
   authoredReviews: many(reviews, { relationName: 'reviewAuthor' }),
   receivedReviews: many(reviews, { relationName: 'reviewRecipient' }),
+  courseEnrollments: many(courseEnrollments),
+  courseReviews: many(courseReviews),
+  digitalProductPurchases: many(digitalProductPurchases),
 }));
 
 export const userRolesRelations = relations(userRoles, ({ one }) => ({
@@ -68,11 +87,16 @@ export const userRolesRelations = relations(userRoles, ({ one }) => ({
   }),
 }));
 
-export const sellerProfilesRelations = relations(sellerProfiles, ({ one }) => ({
+export const sellerProfilesRelations = relations(sellerProfiles, ({ one, many }) => ({
   user: one(users, {
     fields: [sellerProfiles.userId],
     references: [users.id],
   }),
+  subscription: one(sellerSubscriptions),
+  courses: many(courses),
+  digitalProducts: many(digitalProducts),
+  bioFaqEntries: many(bioFaqEntries),
+  bioLinkEvents: many(bioLinkEvents),
 }));
 
 export const bankDetailsRelations = relations(bankDetails, ({ one }) => ({
@@ -105,6 +129,7 @@ export const categoriesRelations = relations(categories, ({ one, many }) => ({
   }),
   children: many(categories, { relationName: 'categoryHierarchy' }),
   services: many(services),
+  courses: many(courses),
 }));
 
 // Service relations
@@ -248,6 +273,10 @@ export const escrowHoldsRelations = relations(escrowHolds, ({ one }) => ({
   order: one(orders, {
     fields: [escrowHolds.orderId],
     references: [orders.id],
+  }),
+  enrollment: one(courseEnrollments, {
+    fields: [escrowHolds.enrollmentId],
+    references: [courseEnrollments.id],
   }),
   milestone: one(orderMilestones, {
     fields: [escrowHolds.milestoneId],
@@ -408,5 +437,152 @@ export const notificationsRelations = relations(notifications, ({ one }) => ({
   user: one(users, {
     fields: [notifications.userId],
     references: [users.id],
+  }),
+}));
+
+// Analytics relations
+export const conversationMetricsRelations = relations(conversationMetrics, ({ one }) => ({
+  user: one(users, {
+    fields: [conversationMetrics.userId],
+    references: [users.id],
+  }),
+}));
+
+export const sellerMetricsRelations = relations(sellerMetrics, ({ one }) => ({
+  user: one(users, {
+    fields: [sellerMetrics.userId],
+    references: [users.id],
+  }),
+}));
+
+// Config relations
+export const siteConfigRelations = relations(siteConfig, ({ one }) => ({
+  updatedByUser: one(users, {
+    fields: [siteConfig.updatedBy],
+    references: [users.id],
+  }),
+}));
+
+export const feePolicyRelations = relations(feePolicy, ({ one }) => ({
+  createdByUser: one(users, {
+    fields: [feePolicy.createdBy],
+    references: [users.id],
+  }),
+}));
+
+// Seller Subscription relations
+export const sellerSubscriptionsRelations = relations(sellerSubscriptions, ({ one, many }) => ({
+  sellerProfile: one(sellerProfiles, {
+    fields: [sellerSubscriptions.sellerProfileId],
+    references: [sellerProfiles.id],
+  }),
+  payments: many(sellerSubscriptionPayments),
+}));
+
+export const sellerSubscriptionPaymentsRelations = relations(sellerSubscriptionPayments, ({ one }) => ({
+  sellerSubscription: one(sellerSubscriptions, {
+    fields: [sellerSubscriptionPayments.sellerSubscriptionId],
+    references: [sellerSubscriptions.id],
+  }),
+}));
+
+// Course relations
+export const coursesRelations = relations(courses, ({ one, many }) => ({
+  seller: one(sellerProfiles, {
+    fields: [courses.sellerId],
+    references: [sellerProfiles.id],
+  }),
+  category: one(categories, {
+    fields: [courses.categoryId],
+    references: [categories.id],
+  }),
+  sections: many(courseSections),
+  enrollments: many(courseEnrollments),
+  reviews: many(courseReviews),
+}));
+
+export const courseSectionsRelations = relations(courseSections, ({ one, many }) => ({
+  course: one(courses, {
+    fields: [courseSections.courseId],
+    references: [courses.id],
+  }),
+  lessons: many(courseLessons),
+}));
+
+export const courseLessonsRelations = relations(courseLessons, ({ one, many }) => ({
+  section: one(courseSections, {
+    fields: [courseLessons.sectionId],
+    references: [courseSections.id],
+  }),
+  progress: many(lessonProgress),
+}));
+
+export const courseEnrollmentsRelations = relations(courseEnrollments, ({ one, many }) => ({
+  user: one(users, {
+    fields: [courseEnrollments.userId],
+    references: [users.id],
+  }),
+  course: one(courses, {
+    fields: [courseEnrollments.courseId],
+    references: [courses.id],
+  }),
+  lessonsCompleted: many(lessonProgress),
+  escrowHold: one(escrowHolds),
+}));
+
+export const lessonProgressRelations = relations(lessonProgress, ({ one }) => ({
+  enrollment: one(courseEnrollments, {
+    fields: [lessonProgress.enrollmentId],
+    references: [courseEnrollments.id],
+  }),
+  lesson: one(courseLessons, {
+    fields: [lessonProgress.lessonId],
+    references: [courseLessons.id],
+  }),
+}));
+
+export const courseReviewsRelations = relations(courseReviews, ({ one }) => ({
+  course: one(courses, {
+    fields: [courseReviews.courseId],
+    references: [courses.id],
+  }),
+  user: one(users, {
+    fields: [courseReviews.userId],
+    references: [users.id],
+  }),
+}));
+
+// Digital Product relations
+export const digitalProductsRelations = relations(digitalProducts, ({ one, many }) => ({
+  sellerProfile: one(sellerProfiles, {
+    fields: [digitalProducts.sellerProfileId],
+    references: [sellerProfiles.id],
+  }),
+  purchases: many(digitalProductPurchases),
+}));
+
+export const digitalProductPurchasesRelations = relations(digitalProductPurchases, ({ one }) => ({
+  product: one(digitalProducts, {
+    fields: [digitalProductPurchases.productId],
+    references: [digitalProducts.id],
+  }),
+  buyer: one(users, {
+    fields: [digitalProductPurchases.buyerId],
+    references: [users.id],
+  }),
+}));
+
+// BioLink relations
+export const bioFaqEntriesRelations = relations(bioFaqEntries, ({ one }) => ({
+  sellerProfile: one(sellerProfiles, {
+    fields: [bioFaqEntries.sellerProfileId],
+    references: [sellerProfiles.id],
+  }),
+}));
+
+export const bioLinkEventsRelations = relations(bioLinkEvents, ({ one }) => ({
+  sellerProfile: one(sellerProfiles, {
+    fields: [bioLinkEvents.sellerProfileId],
+    references: [sellerProfiles.id],
   }),
 }));

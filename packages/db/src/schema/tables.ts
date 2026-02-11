@@ -79,6 +79,18 @@ export type TriggerType = typeof triggerTypes[number];
 export const actionTypes = ['SEND_MESSAGE', 'CHANGE_STAGE', 'ADD_LABEL', 'NOTIFY'] as const;
 export type ActionType = typeof actionTypes[number];
 
+export const sellerSubscriptionStatuses = ['PENDING', 'ACTIVE', 'PAST_DUE', 'CANCELLED', 'EXPIRED'] as const;
+export type SellerSubscriptionStatus = typeof sellerSubscriptionStatuses[number];
+
+export const courseLevels = ['BEGINNER', 'INTERMEDIATE', 'ADVANCED', 'ALL_LEVELS'] as const;
+export type CourseLevel = typeof courseLevels[number];
+
+export const courseStatuses = ['DRAFT', 'PUBLISHED', 'ARCHIVED'] as const;
+export type CourseStatus = typeof courseStatuses[number];
+
+export const kycStatuses = ['PENDING', 'SUBMITTED', 'VERIFIED', 'REJECTED'] as const;
+export type KycStatus = typeof kycStatuses[number];
+
 // ============ USER MODELS ============
 
 export const users = sqliteTable('users', {
@@ -94,11 +106,15 @@ export const users = sqliteTable('users', {
   timezone: text('timezone').default('Africa/Johannesburg'),
   phone: text('phone'),
 
+  // Balance (in cents)
+  creditBalance: integer('credit_balance').default(0).notNull(),
+
   // Status
   isEmailVerified: integer('is_email_verified', { mode: 'boolean' }).default(false).notNull(),
   isPhoneVerified: integer('is_phone_verified', { mode: 'boolean' }).default(false).notNull(),
   isSeller: integer('is_seller', { mode: 'boolean' }).default(false).notNull(),
   isAdmin: integer('is_admin', { mode: 'boolean' }).default(false).notNull(),
+  isAdminCreated: integer('is_admin_created', { mode: 'boolean' }).default(false).notNull(),
   isSuspended: integer('is_suspended', { mode: 'boolean' }).default(false).notNull(),
   suspendedReason: text('suspended_reason'),
 
@@ -143,6 +159,18 @@ export const sellerProfiles = sqliteTable('seller_profiles', {
   level: integer('level').default(1).notNull(),
   isVerified: integer('is_verified', { mode: 'boolean' }).default(false).notNull(),
   verifiedAt: text('verified_at'),
+
+  // KYC
+  idNumber: text('id_number'),
+  kycStatus: text('kyc_status').$type<KycStatus>().default('PENDING').notNull(),
+
+  // Seller Fee
+  sellerFeePaid: integer('seller_fee_paid', { mode: 'boolean' }).default(false).notNull(),
+  sellerFeeTransactionId: text('seller_fee_transaction_id'),
+  sellerFeePaidAt: text('seller_fee_paid_at'),
+
+  // Limits
+  maxActiveOrders: integer('max_active_orders').default(5).notNull(),
   
   // Balance (in cents) - calculated from escrow/payouts
   balance: integer('balance').default(0).notNull(), // Available to withdraw
@@ -153,6 +181,22 @@ export const sellerProfiles = sqliteTable('seller_profiles', {
   isAvailable: integer('is_available', { mode: 'boolean' }).default(true).notNull(),
   vacationMode: integer('vacation_mode', { mode: 'boolean' }).default(false).notNull(),
   vacationUntil: text('vacation_until'),
+
+  // Bio/Link Page
+  bioHeadline: text('bio_headline'),
+  bioThemeColor: text('bio_theme_color').default('#10B981').notNull(),
+  bioBackgroundColor: text('bio_background_color').default('#0a0a0a').notNull(),
+  bioTextColor: text('bio_text_color').default('#ffffff').notNull(),
+  bioButtonStyle: text('bio_button_style').default('rounded').notNull(),
+  bioFont: text('bio_font').default('Inter').notNull(),
+  bioSocialLinks: text('bio_social_links', { mode: 'json' }).$type<Record<string, string>>(),
+  bioFeaturedItems: text('bio_featured_items', { mode: 'json' }).$type<string[]>(),
+  bioCtaText: text('bio_cta_text').default('Get in Touch').notNull(),
+  bioEnabled: integer('bio_enabled', { mode: 'boolean' }).default(false).notNull(),
+  bioTemplate: text('bio_template').default('services-showcase').notNull(),
+  bioQuickReplies: text('bio_quick_replies', { mode: 'json' }).$type<string[]>(),
+  bioShowTestimonials: integer('bio_show_testimonials', { mode: 'boolean' }).default(true).notNull(),
+  bioTestimonialCount: integer('bio_testimonial_count').default(6).notNull(),
 
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
   updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
@@ -547,6 +591,7 @@ export const escrowHolds = sqliteTable('escrow_holds', {
   orderId: text('order_id').unique().references(() => orders.id),
   milestoneId: text('milestone_id').unique().references(() => orderMilestones.id),
   subscriptionPaymentId: text('subscription_payment_id').unique().references(() => subscriptionPayments.id),
+  enrollmentId: text('enrollment_id').unique(),
 
   // Amounts from gateway (all in cents)
   grossAmount: integer('gross_amount').notNull(),
@@ -626,10 +671,15 @@ export const sellerPayouts = sqliteTable('seller_payouts', {
 
 export const refunds = sqliteTable('refunds', {
   id: text('id').primaryKey().$defaultFn(cuid),
-  transactionId: text('transaction_id').notNull().references(() => transactions.id),
+  transactionId: text('transaction_id').references(() => transactions.id),
+
+  orderId: text('order_id'),
+  enrollmentId: text('enrollment_id'),
 
   amount: integer('amount').notNull(), // cents
+  processingFee: integer('processing_fee').default(0).notNull(), // cents
   reason: text('reason').notNull(),
+  refundType: text('refund_type').default('GATEWAY').notNull(), // GATEWAY or CREDIT
 
   status: text('status').$type<RefundStatus>().default('PENDING').notNull(),
 
@@ -641,6 +691,8 @@ export const refunds = sqliteTable('refunds', {
   updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => ({
   transactionIdIdx: index('refunds_transaction_id_idx').on(table.transactionId),
+  orderIdIdx: index('refunds_order_id_idx').on(table.orderId),
+  enrollmentIdIdx: index('refunds_enrollment_id_idx').on(table.enrollmentId),
 }));
 
 export const disputes = sqliteTable('disputes', {
@@ -967,4 +1019,247 @@ export const feePolicy = sqliteTable('fee_policy', {
   updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => ({
   isActiveIdx: index('fee_policy_is_active_idx').on(table.isActive),
+}));
+
+// ============ SELLER SUBSCRIPTION MODELS ============
+
+export const sellerSubscriptions = sqliteTable('seller_subscriptions', {
+  id: text('id').primaryKey().$defaultFn(cuid),
+  sellerProfileId: text('seller_profile_id').notNull().unique().references(() => sellerProfiles.id, { onDelete: 'cascade' }),
+
+  status: text('status').$type<SellerSubscriptionStatus>().default('PENDING').notNull(),
+
+  currentPeriodStart: text('current_period_start').notNull(),
+  currentPeriodEnd: text('current_period_end').notNull(),
+  nextBillingDate: text('next_billing_date'),
+
+  payFastToken: text('payfast_token').unique(),
+  payFastSubscriptionId: text('payfast_subscription_id'),
+
+  cancelAtPeriodEnd: integer('cancel_at_period_end', { mode: 'boolean' }).default(false).notNull(),
+  cancelledAt: text('cancelled_at'),
+  cancelReason: text('cancel_reason'),
+
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  statusIdx: index('seller_subscriptions_status_idx').on(table.status),
+}));
+
+export const sellerSubscriptionPayments = sqliteTable('seller_subscription_payments', {
+  id: text('id').primaryKey().$defaultFn(cuid),
+  sellerSubscriptionId: text('seller_subscription_id').notNull().references(() => sellerSubscriptions.id, { onDelete: 'cascade' }),
+
+  amount: integer('amount').notNull(), // cents
+  gateway: text('gateway').$type<PaymentGateway>().notNull(),
+  gatewayPaymentId: text('gateway_payment_id').notNull().unique(),
+
+  periodStart: text('period_start').notNull(),
+  periodEnd: text('period_end').notNull(),
+  paidAt: text('paid_at').notNull(),
+
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  subscriptionIdIdx: index('seller_sub_payments_subscription_id_idx').on(table.sellerSubscriptionId),
+}));
+
+// ============ COURSE MODELS ============
+
+export const courses = sqliteTable('courses', {
+  id: text('id').primaryKey().$defaultFn(cuid),
+  sellerId: text('seller_id').notNull().references(() => sellerProfiles.id, { onDelete: 'cascade' }),
+
+  title: text('title').notNull(),
+  slug: text('slug').notNull().unique(),
+  subtitle: text('subtitle'),
+  description: text('description').notNull(),
+  thumbnail: text('thumbnail'),
+  promoVideo: text('promo_video'),
+
+  categoryId: text('category_id').references(() => categories.id),
+  tags: text('tags', { mode: 'json' }).$type<string[]>().default([]),
+  level: text('level').$type<CourseLevel>().default('ALL_LEVELS').notNull(),
+  language: text('language').default('English').notNull(),
+
+  price: integer('price').notNull(), // cents
+  currency: text('currency').default('ZAR').notNull(),
+
+  rating: integer('rating').default(0).notNull(), // *100
+  reviewCount: integer('review_count').default(0).notNull(),
+  enrollCount: integer('enroll_count').default(0).notNull(),
+  totalDuration: integer('total_duration').default(0).notNull(), // seconds
+
+  status: text('status').$type<CourseStatus>().default('DRAFT').notNull(),
+  isFeatured: integer('is_featured', { mode: 'boolean' }).default(false).notNull(),
+  publishedAt: text('published_at'),
+
+  requirements: text('requirements', { mode: 'json' }).$type<string[]>().default([]),
+  learnings: text('learnings', { mode: 'json' }).$type<string[]>().default([]),
+
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  sellerIdIdx: index('courses_seller_id_idx').on(table.sellerId),
+  categoryIdIdx: index('courses_category_id_idx').on(table.categoryId),
+  statusIdx: index('courses_status_idx').on(table.status),
+  ratingIdx: index('courses_rating_idx').on(table.rating),
+  sellerStatusIdx: index('courses_seller_status_idx').on(table.sellerId, table.status),
+  slugIdx: index('courses_slug_idx').on(table.slug),
+}));
+
+export const courseSections = sqliteTable('course_sections', {
+  id: text('id').primaryKey().$defaultFn(cuid),
+  courseId: text('course_id').notNull().references(() => courses.id, { onDelete: 'cascade' }),
+
+  title: text('title').notNull(),
+  order: integer('order').notNull(),
+
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  courseOrderUnique: uniqueIndex('course_sections_course_order_unique').on(table.courseId, table.order),
+  courseIdIdx: index('course_sections_course_id_idx').on(table.courseId),
+}));
+
+export const courseLessons = sqliteTable('course_lessons', {
+  id: text('id').primaryKey().$defaultFn(cuid),
+  sectionId: text('section_id').notNull().references(() => courseSections.id, { onDelete: 'cascade' }),
+
+  title: text('title').notNull(),
+  description: text('description'),
+  order: integer('order').notNull(),
+
+  videoUrl: text('video_url'),
+  duration: integer('duration').default(0).notNull(), // seconds
+  isFreePreview: integer('is_free_preview', { mode: 'boolean' }).default(false).notNull(),
+
+  resources: text('resources', { mode: 'json' }),
+
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  sectionOrderUnique: uniqueIndex('course_lessons_section_order_unique').on(table.sectionId, table.order),
+  sectionIdIdx: index('course_lessons_section_id_idx').on(table.sectionId),
+}));
+
+export const courseEnrollments = sqliteTable('course_enrollments', {
+  id: text('id').primaryKey().$defaultFn(cuid),
+  userId: text('user_id').notNull().references(() => users.id),
+  courseId: text('course_id').notNull().references(() => courses.id, { onDelete: 'cascade' }),
+
+  amountPaid: integer('amount_paid').notNull(), // cents
+  gateway: text('gateway').default('CREDIT').notNull(),
+  transactionId: text('transaction_id'),
+  paidAt: text('paid_at'),
+
+  progressPercent: integer('progress_percent').default(0).notNull(),
+  completedAt: text('completed_at'),
+
+  refundedAt: text('refunded_at'),
+  refundedAmount: integer('refunded_amount'), // cents
+  refundReason: text('refund_reason'),
+
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  userCourseUnique: uniqueIndex('course_enrollments_user_course_unique').on(table.userId, table.courseId),
+  userIdIdx: index('course_enrollments_user_id_idx').on(table.userId),
+  courseIdIdx: index('course_enrollments_course_id_idx').on(table.courseId),
+}));
+
+export const lessonProgress = sqliteTable('lesson_progress', {
+  id: text('id').primaryKey().$defaultFn(cuid),
+  enrollmentId: text('enrollment_id').notNull().references(() => courseEnrollments.id, { onDelete: 'cascade' }),
+  lessonId: text('lesson_id').notNull().references(() => courseLessons.id, { onDelete: 'cascade' }),
+
+  completed: integer('completed', { mode: 'boolean' }).default(false).notNull(),
+  watchedSecs: integer('watched_secs').default(0).notNull(),
+
+  completedAt: text('completed_at'),
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  enrollmentLessonUnique: uniqueIndex('lesson_progress_enrollment_lesson_unique').on(table.enrollmentId, table.lessonId),
+  enrollmentIdIdx: index('lesson_progress_enrollment_id_idx').on(table.enrollmentId),
+}));
+
+export const courseReviews = sqliteTable('course_reviews', {
+  id: text('id').primaryKey().$defaultFn(cuid),
+  courseId: text('course_id').notNull().references(() => courses.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => users.id),
+
+  rating: integer('rating').notNull(), // 1-5
+  comment: text('comment').notNull(),
+
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  courseUserUnique: uniqueIndex('course_reviews_course_user_unique').on(table.courseId, table.userId),
+  courseIdIdx: index('course_reviews_course_id_idx').on(table.courseId),
+}));
+
+// ============ DIGITAL PRODUCT MODELS ============
+
+export const digitalProducts = sqliteTable('digital_products', {
+  id: text('id').primaryKey().$defaultFn(cuid),
+  sellerProfileId: text('seller_profile_id').notNull().references(() => sellerProfiles.id, { onDelete: 'cascade' }),
+
+  title: text('title').notNull(),
+  description: text('description').notNull(),
+  price: integer('price').notNull(), // cents
+  fileUrl: text('file_url').notNull(),
+  fileName: text('file_name').notNull(),
+  fileSize: integer('file_size').notNull(),
+  thumbnail: text('thumbnail'),
+  isActive: integer('is_active', { mode: 'boolean' }).default(true).notNull(),
+  order: integer('order').default(0).notNull(),
+
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  sellerActiveIdx: index('digital_products_seller_active_idx').on(table.sellerProfileId, table.isActive),
+}));
+
+export const digitalProductPurchases = sqliteTable('digital_product_purchases', {
+  id: text('id').primaryKey().$defaultFn(cuid),
+  productId: text('product_id').notNull().references(() => digitalProducts.id, { onDelete: 'cascade' }),
+  buyerId: text('buyer_id').notNull().references(() => users.id),
+
+  amountPaid: integer('amount_paid').notNull(), // cents
+  gateway: text('gateway').default('credit').notNull(),
+
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  productBuyerUnique: uniqueIndex('digital_product_purchases_product_buyer_unique').on(table.productId, table.buyerId),
+  buyerIdIdx: index('digital_product_purchases_buyer_id_idx').on(table.buyerId),
+}));
+
+// ============ BIOLINK MODELS ============
+
+export const bioFaqEntries = sqliteTable('bio_faq_entries', {
+  id: text('id').primaryKey().$defaultFn(cuid),
+  sellerProfileId: text('seller_profile_id').notNull().references(() => sellerProfiles.id, { onDelete: 'cascade' }),
+
+  question: text('question').notNull(),
+  answer: text('answer').notNull(),
+  keywords: text('keywords', { mode: 'json' }).$type<string[]>().default([]),
+  order: integer('order').default(0).notNull(),
+
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  sellerProfileIdIdx: index('bio_faq_entries_seller_profile_id_idx').on(table.sellerProfileId),
+}));
+
+export const bioLinkEvents = sqliteTable('bio_link_events', {
+  id: text('id').primaryKey().$defaultFn(cuid),
+  sellerProfileId: text('seller_profile_id').notNull().references(() => sellerProfiles.id, { onDelete: 'cascade' }),
+
+  event: text('event').notNull(),
+  metadata: text('metadata', { mode: 'json' }),
+
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  sellerEventIdx: index('bio_link_events_seller_event_idx').on(table.sellerProfileId, table.event),
+  sellerCreatedIdx: index('bio_link_events_seller_created_idx').on(table.sellerProfileId, table.createdAt),
 }));

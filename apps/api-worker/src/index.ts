@@ -18,6 +18,8 @@ import webhookRoutes from './routes/webhooks';
 import adminRoutes from './routes/admin';
 import configRoutes from './routes/config';
 import debugRoutes from './routes/debug';
+import courseRoutes from './routes/courses';
+import sellerSubscriptionRoutes from './routes/seller-subscriptions';
 
 // Middleware
 import { devLogger } from './middleware/dev-logger';
@@ -89,6 +91,8 @@ v1.route('/uploads', uploadRoutes);
 v1.route('/webhooks', webhookRoutes);
 v1.route('/admin', adminRoutes);
 v1.route('/admin/settings', configRoutes);
+v1.route('/courses', courseRoutes);
+v1.route('/seller-subscription', sellerSubscriptionRoutes);
 v1.route('/debug', debugRoutes);
 
 app.route('/api/v1', v1);

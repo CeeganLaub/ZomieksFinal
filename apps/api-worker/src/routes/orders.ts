@@ -500,7 +500,12 @@ app.post('/:id/accept', requireAuth, async (c) => {
     })
     .where(eq(orders.id, id));
   
-  // TODO: Queue escrow release
+  // Queue escrow release
+  await c.env.ESCROW_QUEUE.send({
+    type: 'RELEASE_ESCROW',
+    orderId: id,
+    timestamp: new Date().toISOString(),
+  });
   
   return c.json({
     success: true,
@@ -620,7 +625,14 @@ app.post('/:id/cancel', requireAuth, async (c) => {
     })
     .where(eq(orders.id, id));
   
-  // TODO: Queue refund if already paid
+  // Queue refund if already paid
+  if (['PAID', 'IN_PROGRESS'].includes(order.status)) {
+    await c.env.ESCROW_QUEUE.send({
+      type: 'PROCESS_REFUND',
+      orderId: id,
+      timestamp: new Date().toISOString(),
+    });
+  }
   
   return c.json({
     success: true,

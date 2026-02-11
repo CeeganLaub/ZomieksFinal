@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm';
 import { SignJWT, jwtVerify } from 'jose';
 import { users, refreshTokens, sellerProfiles, userRoles } from '@zomieks/db';
 import { createId } from '@paralleldrive/cuid2';
+import bcrypt from 'bcryptjs';
 import type { Env } from '../types';
 import { authMiddleware, requireAuth } from '../middleware/auth';
 import { authRateLimit } from '../middleware/rate-limit';
@@ -61,6 +62,12 @@ async function hashPassword(password: string): Promise<string> {
 }
 
 async function verifyPassword(password: string, storedHash: string): Promise<boolean> {
+  // Detect bcrypt hashes (migrated from Express/Prisma)
+  if (storedHash.startsWith('$2a$') || storedHash.startsWith('$2b$')) {
+    return bcrypt.compare(password, storedHash);
+  }
+
+  // PBKDF2 format: saltHex:hashHex
   const [saltHex, hashHex] = storedHash.split(':');
   if (!saltHex || !hashHex) return false;
   
@@ -85,6 +92,11 @@ async function verifyPassword(password: string, storedHash: string): Promise<boo
   );
   const computedHashHex = Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
   return computedHashHex === hashHex;
+}
+
+// Helper: Check if hash needs migration from bcrypt to PBKDF2
+function needsRehash(storedHash: string): boolean {
+  return storedHash.startsWith('$2a$') || storedHash.startsWith('$2b$');
 }
 
 // Helper: Generate tokens
@@ -230,9 +242,17 @@ app.post('/login', authRateLimit, validate(loginSchema), async (c) => {
     }, 401);
   }
   
-  // Update last login
+  // Migrate bcrypt hash to PBKDF2 on successful login
+  const newHash = needsRehash(user.passwordHash)
+    ? await hashPassword(body.password)
+    : null;
+
+  // Update last login (and password hash if migrating)
   await db.update(users)
-    .set({ lastLoginAt: new Date().toISOString() })
+    .set({
+      lastLoginAt: new Date().toISOString(),
+      ...(newHash ? { passwordHash: newHash } : {}),
+    })
     .where(eq(users.id, user.id));
   
   // Generate tokens

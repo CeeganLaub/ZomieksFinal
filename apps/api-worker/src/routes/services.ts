@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { eq, and, like, desc, asc, gte, lte, or, sql, isNull, count } from 'drizzle-orm';
-import { services, servicePackages, categories, users, sellerProfiles, reviews, favorites } from '@zomieks/db';
+import { services, servicePackages, categories, users, sellerProfiles, reviews, favorites, orders } from '@zomieks/db';
 import { createId } from '@paralleldrive/cuid2';
 import type { Env } from '../types';
 import { authMiddleware, requireAuth, requireSeller } from '../middleware/auth';
@@ -135,6 +135,7 @@ app.get('/meta/stats', async (c) => {
   // Get counts (in production, cache these in KV)
   const [userCount] = await db.select({ count: count() }).from(users);
   const [serviceCount] = await db.select({ count: count() }).from(services).where(eq(services.status, 'ACTIVE'));
+  const [orderCount] = await db.select({ count: count() }).from(orders).where(eq(orders.status, 'COMPLETED'));
   
   // Get average rating from reviews
   const avgRatingResult = await db.select({
@@ -147,7 +148,7 @@ app.get('/meta/stats', async (c) => {
       totalUsers: userCount?.count || 0,
       totalServices: serviceCount?.count || 0,
       averageRating: Number((avgRatingResult[0]?.avg || 0).toFixed(1)),
-      completedOrders: 0, // TODO: Add orders count
+      completedOrders: orderCount?.count || 0,
     },
   });
 });
