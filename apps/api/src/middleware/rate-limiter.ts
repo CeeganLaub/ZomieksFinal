@@ -1,5 +1,6 @@
 import rateLimit from 'express-rate-limit';
 import { redis } from '@/lib/redis.js';
+import { env } from '@/config/env.js';
 
 // Custom Redis store for rate limiting
 class RedisStore {
@@ -58,7 +59,7 @@ export const rateLimiter = rateLimit({
 // Strict rate limiter for auth endpoints
 export const authRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // 10 attempts per 15 minutes
+  max: env.NODE_ENV === 'production' ? 10 : 100, // lenient in dev/test
   message: {
     success: false,
     error: {

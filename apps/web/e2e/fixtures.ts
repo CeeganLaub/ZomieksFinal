@@ -3,7 +3,7 @@ import { test as base, expect } from '@playwright/test';
 // Test users from database seed
 export const TEST_USERS = {
   admin: {
-    email: 'admin@kiekz.co.za',
+    email: 'admin@zomieks.co.za',
     password: 'Password123',
   },
   seller: {
@@ -31,8 +31,8 @@ export async function login(page: any, email: string, password: string) {
   await page.fill('input[type="email"]', email);
   await page.fill('input[type="password"]', password);
   await page.click('button[type="submit"]');
-  // Wait for redirect to dashboard with increased timeout
-  await page.waitForURL(/\/(dashboard|seller)/, { timeout: 30000 });
+  // Wait for redirect away from login (goes to /explore or /admin)
+  await page.waitForURL(/\/(explore|admin|dashboard|seller)/, { timeout: 30000 });
   // Wait for page to be fully loaded
   await page.waitForLoadState('networkidle');
 }
