@@ -308,7 +308,7 @@ app.post('/:id/messages', validate(sendMessageSchema), async (c) => {
     .where(eq(conversations.id, id));
   
   // Queue notification
-  await c.env.NOTIFICATION_QUEUE?.send({
+  await c.env.NOTIFICATION_QUEUE.send({
     type: 'new_message',
     recipientId: recipientIsOne 
       ? conversation.participantOneId 

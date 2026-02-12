@@ -433,4 +433,39 @@ app.post('/reset-password', authRateLimit, validate(resetPasswordSchema), async 
   });
 });
 
+// Change password (authenticated)
+const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1),
+  newPassword: z.string().min(8).max(100),
+});
+
+app.post('/change-password', authMiddleware, requireAuth, validate(changePasswordSchema), async (c) => {
+  const body = getValidatedBody<z.infer<typeof changePasswordSchema>>(c);
+  const db = c.get('db');
+  const currentUser = c.get('user')!;
+
+  // Get user with password hash
+  const user = await db.select().from(users).where(eq(users.id, currentUser.id)).get();
+  if (!user) {
+    return c.json({ success: false, error: { message: 'User not found' } }, 404);
+  }
+
+  // Verify current password
+  const isValid = await verifyPassword(body.currentPassword, user.passwordHash);
+  if (!isValid) {
+    return c.json({ success: false, error: { message: 'Current password is incorrect' } }, 400);
+  }
+
+  // Hash and update new password
+  const newHash = await hashPassword(body.newPassword);
+  await db.update(users)
+    .set({ passwordHash: newHash, updatedAt: new Date().toISOString() })
+    .where(eq(users.id, currentUser.id));
+
+  // Invalidate all refresh tokens (force re-login on other devices)
+  await db.delete(refreshTokens).where(eq(refreshTokens.userId, currentUser.id));
+
+  return c.json({ success: true, message: 'Password changed successfully' });
+});
+
 export default app;

@@ -44,38 +44,39 @@ id = "590bdb3acba74ba98610217652a03715"
 binding = "RATE_LIMIT"
 id = "94732323e8d64e3da23b8392c879012b"
 
-# R2 Storage (enable R2 in dashboard first, then uncomment)
-# [[r2_buckets]]
-# binding = "UPLOADS"
-# bucket_name = "zomieks-uploads"
+# R2 Storage
+[[r2_buckets]]
+binding = "UPLOADS"
+bucket_name = "zomieks-uploads"
 
-# Queues (enable Queues in dashboard first, then uncomment)
-# [[queues.producers]]
-# queue = "escrow-queue"
-# binding = "ESCROW_QUEUE"
+# Queues - Producers
+[[queues.producers]]
+queue = "zomieks-escrow-queue"
+binding = "ESCROW_QUEUE"
 
-# [[queues.producers]]
-# queue = "notification-queue"
-# binding = "NOTIFICATION_QUEUE"
+[[queues.producers]]
+queue = "zomieks-notification-queue"
+binding = "NOTIFICATION_QUEUE"
 
-# [[queues.producers]]
-# queue = "email-queue"
-# binding = "EMAIL_QUEUE"
+[[queues.producers]]
+queue = "zomieks-email-queue"
+binding = "EMAIL_QUEUE"
 
-# [[queues.consumers]]
-# queue = "escrow-queue"
-# max_batch_size = 10
-# max_batch_timeout = 30
+# Queues - Consumers
+[[queues.consumers]]
+queue = "zomieks-escrow-queue"
+max_batch_size = 10
+max_batch_timeout = 30
 
-# [[queues.consumers]]
-# queue = "notification-queue"
-# max_batch_size = 50
-# max_batch_timeout = 10
+[[queues.consumers]]
+queue = "zomieks-notification-queue"
+max_batch_size = 50
+max_batch_timeout = 10
 
-# [[queues.consumers]]
-# queue = "email-queue"
-# max_batch_size = 20
-# max_batch_timeout = 30
+[[queues.consumers]]
+queue = "zomieks-email-queue"
+max_batch_size = 20
+max_batch_timeout = 30
 
 # Durable Objects
 [[durable_objects.bindings]]

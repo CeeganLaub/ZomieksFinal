@@ -250,7 +250,7 @@ app.delete('/:key{.+}', async (c) => {
     }, 403);
   }
   
-  await c.env.UPLOADS?.delete(key);
+  await c.env.UPLOADS.delete(key);
   
   return c.json({
     success: true,
