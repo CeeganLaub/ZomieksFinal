@@ -24,10 +24,12 @@ interface AdminUser {
   isEmailVerified: boolean;
   isSuspended: boolean;
   createdAt: string;
-  _count: {
-    buyerOrders: number;
-    sellerOrders: number;
-  };
+  sellerProfile: {
+    displayName: string;
+    level: number;
+    rating: number;
+    isVerified: boolean;
+  } | null;
 }
 
 export default function AdminUsersPage() {
@@ -52,10 +54,10 @@ export default function AdminUsersPage() {
       if (sellerFilter) params.isSeller = sellerFilter;
 
       const queryStr = new URLSearchParams(params).toString();
-      const res = await api.get<{ success: boolean; data: { users: AdminUser[] }; meta: { total: number } }>(
+      const res = await api.get<{ success: boolean; data: AdminUser[]; meta: { total: number } }>(
         `/admin/users?${queryStr}`
       );
-      setUsers(res.data.users);
+      setUsers(res.data as unknown as AdminUser[]);
       setTotal(res.meta?.total || 0);
     } catch {
       setUsers([]);
@@ -70,26 +72,33 @@ export default function AdminUsersPage() {
     loadUsers();
   }
 
-  async function suspendUser(userId: string) {
-    const reason = window.prompt('Enter suspension reason:');
-    if (!reason) return;
+  async function userAction(userId: string, action: string, reason?: string) {
     try {
-      await api.post(`/admin/users/${userId}/suspend`, { reason });
-      toast.success('User suspended');
+      await api.post(`/admin/users/${userId}/action`, { action, reason });
+      toast.success(`User ${action} successful`);
       loadUsers();
     } catch {
-      toast.error('Failed to suspend user');
+      toast.error(`Failed to ${action} user`);
     }
   }
 
+  async function suspendUser(userId: string) {
+    const reason = window.prompt('Enter suspension reason:');
+    if (!reason) return;
+    await userAction(userId, 'suspend', reason);
+  }
+
   async function unsuspendUser(userId: string) {
-    try {
-      await api.post(`/admin/users/${userId}/unsuspend`);
-      toast.success('User unsuspended');
-      loadUsers();
-    } catch {
-      toast.error('Failed to unsuspend user');
-    }
+    await userAction(userId, 'unsuspend');
+  }
+
+  async function toggleAdmin(userId: string, isCurrentlyAdmin: boolean) {
+    const action = isCurrentlyAdmin ? 'remove-admin' : 'make-admin';
+    const confirmMsg = isCurrentlyAdmin
+      ? 'Remove admin access from this user?'
+      : 'Grant admin access to this user? They will have full platform control.';
+    if (!window.confirm(confirmMsg)) return;
+    await userAction(userId, action);
   }
 
   return (
@@ -158,7 +167,7 @@ export default function AdminUsersPage() {
                   <th className="text-left px-4 py-3 font-medium">User</th>
                   <th className="text-left px-4 py-3 font-medium">Email</th>
                   <th className="text-left px-4 py-3 font-medium">Role</th>
-                  <th className="text-left px-4 py-3 font-medium">Orders</th>
+                  <th className="text-left px-4 py-3 font-medium">Seller Level</th>
                   <th className="text-left px-4 py-3 font-medium">Status</th>
                   <th className="text-left px-4 py-3 font-medium">Joined</th>
                   <th className="text-left px-4 py-3 font-medium">Actions</th>
@@ -205,7 +214,7 @@ export default function AdminUsersPage() {
                       </td>
                       <td className="px-4 py-3">
                         <span className="text-muted-foreground">
-                          {u._count.buyerOrders + u._count.sellerOrders}
+                          {u.sellerProfile ? `Level ${u.sellerProfile.level}` : '—'}
                         </span>
                       </td>
                       <td className="px-4 py-3">
@@ -227,8 +236,8 @@ export default function AdminUsersPage() {
                         {new Date(u.createdAt).toLocaleDateString()}
                       </td>
                       <td className="px-4 py-3">
-                        {!u.isAdmin && (
-                          u.isSuspended ? (
+                        <div className="flex flex-wrap gap-1.5">
+                          {u.isSuspended ? (
                             <button
                               onClick={() => unsuspendUser(u.id)}
                               className="flex items-center gap-1 px-2 py-1 text-xs rounded bg-green-50 text-green-600 hover:bg-green-100"
@@ -242,8 +251,19 @@ export default function AdminUsersPage() {
                             >
                               <NoSymbolIcon className="h-3.5 w-3.5" /> Suspend
                             </button>
-                          )
-                        )}
+                          )}
+                          <button
+                            onClick={() => toggleAdmin(u.id, u.isAdmin)}
+                            className={`flex items-center gap-1 px-2 py-1 text-xs rounded ${
+                              u.isAdmin
+                                ? 'bg-orange-50 text-orange-600 hover:bg-orange-100'
+                                : 'bg-purple-50 text-purple-600 hover:bg-purple-100'
+                            }`}
+                          >
+                            <ShieldCheckIcon className="h-3.5 w-3.5" />
+                            {u.isAdmin ? 'Remove Admin' : 'Make Admin'}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))

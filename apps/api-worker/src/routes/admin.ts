@@ -25,7 +25,7 @@ app.use('*', requireAdmin);
 
 // Schemas
 const userActionSchema = z.object({
-  action: z.enum(['suspend', 'unsuspend', 'verify', 'unverify', 'delete']),
+  action: z.enum(['suspend', 'unsuspend', 'verify', 'unverify', 'delete', 'make-admin', 'remove-admin']),
   reason: z.string().max(500).optional(),
 });
 
@@ -201,6 +201,7 @@ app.get('/users', async (c) => {
       lastName: u.lastName,
       avatar: u.avatar,
       isSeller: u.isSeller,
+      isAdmin: u.isAdmin,
       isEmailVerified: u.isEmailVerified,
       isSuspended: u.isSuspended,
       createdAt: u.createdAt,
@@ -300,6 +301,27 @@ app.post('/users/:id/action', validate(userActionSchema), async (c) => {
         })
         .where(eq(users.id, id));
       break;
+    
+    case 'make-admin':
+      await db.update(users)
+        .set({ isAdmin: true, updatedAt: now })
+        .where(eq(users.id, id));
+      break;
+    
+    case 'remove-admin': {
+      // Prevent removing own admin access
+      const currentUser = c.get('user')!;
+      if (currentUser.id === id) {
+        return c.json({
+          success: false,
+          error: { message: 'You cannot remove your own admin access' },
+        }, 400);
+      }
+      await db.update(users)
+        .set({ isAdmin: false, updatedAt: now })
+        .where(eq(users.id, id));
+      break;
+    }
   }
   
   return c.json({
