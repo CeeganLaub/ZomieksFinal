@@ -1,7 +1,10 @@
 /**
  * Email Service
- * Handles sending emails via Mailchannels (free for Workers) or other providers
+ * Sends emails via Cloudflare Email Workers (send_email binding)
+ * Requires Email Routing to be enabled on the domain in Cloudflare Dashboard
  */
+import { EmailMessage } from 'cloudflare:email';
+import { createMimeMessage } from 'mimetext';
 
 interface EmailOptions {
   to: string;
@@ -32,7 +35,7 @@ const templates = {
           <li>Create your own gigs and start earning</li>
           <li>Connect with clients and grow your business</li>
         </ul>
-        <a href="https://zomieks.com/explore" style="display: inline-block; background: #00b22d; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin-top: 16px;">Explore Services</a>
+        <a href="https://www.zomieks.com/explore" style="display: inline-block; background: #00b22d; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin-top: 16px;">Explore Services</a>
         <p style="margin-top: 24px; color: #666;">Need help? Contact our support team anytime.</p>
         <p style="color: #666;">— The Zomieks Team</p>
       </div>
@@ -78,7 +81,7 @@ const templates = {
           ${data.buyerName ? `<p style="margin: 8px 0 0;"><strong>Buyer:</strong> ${data.buyerName}</p>` : ''}
           <p style="margin: 8px 0 0;"><strong>Amount:</strong> R${data.amount.toFixed(2)}</p>
         </div>
-        <a href="https://zomieks.com/seller/orders/${data.orderNumber}" style="display: inline-block; background: #00b22d; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px;">View Order</a>
+        <a href="https://www.zomieks.com/seller/orders/${data.orderNumber}" style="display: inline-block; background: #00b22d; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px;">View Order</a>
       </div>
     `,
   }),
@@ -90,7 +93,7 @@ const templates = {
         <h1 style="color: #00b22d;">Your Order Has Been Delivered!</h1>
         <p>The seller has submitted their delivery for order #${data.orderNumber}.</p>
         <p>Please review the delivery and accept it if you're satisfied, or request a revision if needed.</p>
-        <a href="https://zomieks.com/orders/${data.orderNumber}" style="display: inline-block; background: #00b22d; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 16px 0;">Review Delivery</a>
+        <a href="https://www.zomieks.com/orders/${data.orderNumber}" style="display: inline-block; background: #00b22d; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 16px 0;">Review Delivery</a>
         <p style="color: #666; font-size: 14px;">Note: The delivery will be auto-accepted after 3 days if no action is taken.</p>
       </div>
     `,
@@ -103,7 +106,21 @@ const templates = {
         <h1 style="color: #00b22d;">Order Completed!</h1>
         <p>Order #${data.orderNumber} has been marked as complete.</p>
         <p>R${data.amount.toFixed(2)} has been added to your available balance.</p>
-        <a href="https://zomieks.com/seller/earnings" style="display: inline-block; background: #00b22d; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 16px 0;">View Earnings</a>
+        <a href="https://www.zomieks.com/seller/earnings" style="display: inline-block; background: #00b22d; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 16px 0;">View Earnings</a>
+      </div>
+    `,
+  }),
+
+  new_message: (data: { senderName: string; preview: string; conversationId: string }) => ({
+    subject: `New message from ${data.senderName}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h1 style="color: #00b22d;">New Message</h1>
+        <p>You have a new message from <strong>${data.senderName}</strong>:</p>
+        <div style="background: #f5f5f5; padding: 16px; border-radius: 8px; margin: 16px 0;">
+          <p style="margin: 0; color: #333;">${data.preview}</p>
+        </div>
+        <a href="https://www.zomieks.com/inbox/${data.conversationId}" style="display: inline-block; background: #00b22d; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px;">View Message</a>
       </div>
     `,
   }),
@@ -115,7 +132,7 @@ const templates = {
         <h1 style="color: #00b22d;">Subscription Activated!</h1>
         <p>Hi ${data.name},</p>
         <p>Your subscription has been activated successfully. Enjoy all the premium features!</p>
-        <a href="https://zomieks.com/seller/dashboard" style="display: inline-block; background: #00b22d; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 16px 0;">Go to Dashboard</a>
+        <a href="https://www.zomieks.com/seller/dashboard" style="display: inline-block; background: #00b22d; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 16px 0;">Go to Dashboard</a>
       </div>
     `,
   }),
@@ -128,7 +145,7 @@ const templates = {
         <p>Hi ${data.name},</p>
         <p>Your subscription has been cancelled. You'll continue to have access until ${new Date(data.endDate).toLocaleDateString()}.</p>
         <p>We're sorry to see you go! If you change your mind, you can reactivate anytime.</p>
-        <a href="https://zomieks.com/subscription" style="display: inline-block; background: #00b22d; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 16px 0;">Reactivate Subscription</a>
+        <a href="https://www.zomieks.com/subscription" style="display: inline-block; background: #00b22d; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 16px 0;">Reactivate Subscription</a>
       </div>
     `,
   }),
@@ -140,7 +157,7 @@ const templates = {
         <h1 style="color: #e74c3c;">Payment Failed</h1>
         <p>Hi ${data.name},</p>
         <p>We were unable to process your payment. Please update your payment method to continue enjoying Zomieks.</p>
-        <a href="https://zomieks.com/settings/billing" style="display: inline-block; background: #00b22d; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 16px 0;">Update Payment Method</a>
+        <a href="https://www.zomieks.com/settings/billing" style="display: inline-block; background: #00b22d; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 16px 0;">Update Payment Method</a>
       </div>
     `,
   }),
@@ -158,63 +175,63 @@ const templates = {
   }),
 };
 
-// Send email via Resend API (https://resend.com)
-// Falls back to console logging if RESEND_API_KEY is not configured
-export async function sendEmail(options: EmailOptions, fromEmail: string, fromName: string): Promise<boolean> {
+/**
+ * Send email via Cloudflare Email Workers send_email binding
+ * Falls back to console logging if binding is not available
+ */
+export async function sendEmail(
+  options: EmailOptions,
+  fromEmail: string,
+  fromName: string,
+  env?: { SEND_EMAIL?: any }
+): Promise<boolean> {
   try {
-    // Try Resend API first
-    const response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${(globalThis as any).__RESEND_API_KEY || 'not-configured'}`,
-      },
-      body: JSON.stringify({
-        from: `${fromName} <${fromEmail}>`,
-        to: [options.to],
-        reply_to: options.replyTo || undefined,
-        subject: options.subject,
-        html: options.html,
-        text: options.text || undefined,
-      }),
-    });
-
-    if (!response.ok) {
-      const error = await response.text();
-      console.error('Email send error:', response.status, error);
-      // Log the email for debugging but don't fail silently
-      console.log('Email would have been sent to:', options.to, 'Subject:', options.subject);
-      return false;
+    const msg = createMimeMessage();
+    msg.setSender({ name: fromName, addr: fromEmail });
+    msg.setRecipient(options.to);
+    msg.setSubject(options.subject);
+    msg.addMessage({ contentType: 'text/html', data: options.html });
+    if (options.text) {
+      msg.addMessage({ contentType: 'text/plain', data: options.text });
+    }
+    if (options.replyTo) {
+      msg.setHeader('Reply-To', options.replyTo);
     }
 
+    if (env?.SEND_EMAIL) {
+      const message = new EmailMessage(fromEmail, options.to, msg.asRaw());
+      await env.SEND_EMAIL.send(message);
+      console.log('Email sent to:', options.to, 'Subject:', options.subject);
+      return true;
+    }
+
+    // Fallback: log email if binding not configured
+    console.log('[EMAIL FALLBACK] Would send to:', options.to, 'Subject:', options.subject);
     return true;
   } catch (error) {
     console.error('Email send error:', error);
-    console.log('Email would have been sent to:', options.to, 'Subject:', options.subject);
+    console.log('Failed email to:', options.to, 'Subject:', options.subject);
     return false;
   }
 }
 
-// Process email queue
+// Process email queue message
 export async function processEmailQueue(
   message: EmailQueueMessage,
   fromEmail: string = 'noreply@zomieks.com',
-  fromName: string = 'Zomieks'
+  fromName: string = 'Zomieks',
+  env?: { SEND_EMAIL?: any }
 ): Promise<boolean> {
   const template = templates[message.type as keyof typeof templates];
-  
+
   if (!template) {
     console.error('Unknown email template:', message.type);
     return false;
   }
-  
+
   const { subject, html } = template(message.data as any);
-  
-  return sendEmail({
-    to: message.to,
-    subject,
-    html,
-  }, fromEmail, fromName);
+
+  return sendEmail({ to: message.to, subject, html }, fromEmail, fromName, env);
 }
 
 export { templates };

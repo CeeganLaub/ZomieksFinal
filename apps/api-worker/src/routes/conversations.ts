@@ -308,15 +308,37 @@ app.post('/:id/messages', validate(sendMessageSchema), async (c) => {
     .where(eq(conversations.id, id));
   
   // Queue notification
+  const recipientId = recipientIsOne 
+    ? conversation.participantOneId 
+    : conversation.participantTwoId;
   await c.env.NOTIFICATION_QUEUE.send({
     type: 'new_message',
-    recipientId: recipientIsOne 
-      ? conversation.participantOneId 
-      : conversation.participantTwoId,
+    recipientId,
     senderId: user.id,
     conversationId: id,
     preview: body.content.substring(0, 100),
   });
+  
+  // Queue email notification to recipient
+  try {
+    const recipient = await db.query.users.findFirst({
+      where: eq(users.id, recipientId),
+      columns: { email: true },
+    });
+    if (recipient) {
+      await c.env.EMAIL_QUEUE.send({
+        type: 'new_message',
+        to: recipient.email,
+        data: {
+          senderName: user.firstName || user.username,
+          preview: body.content.substring(0, 100),
+          conversationId: id,
+        },
+      });
+    }
+  } catch (e) {
+    console.error('Failed to queue message email:', e);
+  }
   
   return c.json({
     success: true,

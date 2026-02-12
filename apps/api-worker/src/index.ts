@@ -203,14 +203,12 @@ async function handleQueue(batch: MessageBatch<QueueMessage>, env: Env) {
       
       // Handle email queue separately
       if (queueName === 'email-queue') {
-        // Set Resend API key for email service
-        (globalThis as any).__RESEND_API_KEY = env.RESEND_API_KEY || '';
-        
-        const success = await processEmailQueue({
-          type: data.type,
-          to: data.to,
-          data: data.data || data,
-        });
+        const success = await processEmailQueue(
+          { type: data.type, to: data.to, data: data.data || data },
+          'noreply@zomieks.com',
+          'Zomieks',
+          env
+        );
         
         if (success) {
           message.ack();

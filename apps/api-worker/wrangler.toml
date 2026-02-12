@@ -96,6 +96,11 @@ class_name = "CrmNotifications"
 tag = "v1"
 new_sqlite_classes = ["ChatRoom", "Presence", "CrmNotifications"]
 
+# Cloudflare Email Workers (send_email binding)
+# Requires Email Routing to be enabled on the domain in Cloudflare Dashboard
+[[send_email]]
+name = "SEND_EMAIL"
+
 # Secrets (set via: wrangler secret put SECRET_NAME)
 # Required secrets:
 # - JWT_SECRET
@@ -104,4 +109,3 @@ new_sqlite_classes = ["ChatRoom", "Presence", "CrmNotifications"]
 # - PAYFAST_PASSPHRASE
 # - OZOW_SITE_CODE
 # - OZOW_PRIVATE_KEY
-# - MAILCHANNELS_API_KEY (optional, for email)

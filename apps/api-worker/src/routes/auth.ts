@@ -197,6 +197,17 @@ app.post('/register', authRateLimit, validate(registerSchema), async (c) => {
   
   // TODO: Queue email verification email
   
+  // Send welcome email
+  try {
+    await c.env.EMAIL_QUEUE.send({
+      type: 'welcome',
+      to: body.email.toLowerCase(),
+      data: { name: body.firstName || body.username },
+    });
+  } catch (e) {
+    console.error('Failed to queue welcome email:', e);
+  }
+  
   return c.json({
     success: true,
     data: {
@@ -391,7 +402,19 @@ app.post('/forgot-password', authRateLimit, validate(forgotPasswordSchema), asyn
       expirationTtl: 3600, // 1 hour
     });
     
-    // TODO: Queue email with reset link
+    // Send password reset email
+    try {
+      await c.env.EMAIL_QUEUE.send({
+        type: 'password_reset',
+        to: user.email,
+        data: {
+          name: user.firstName || user.username,
+          resetUrl: `${c.env.FRONTEND_URL || 'https://www.zomieks.com'}/reset-password?token=${resetToken}`,
+        },
+      });
+    } catch (e) {
+      console.error('Failed to queue reset email:', e);
+    }
   }
   
   return c.json({

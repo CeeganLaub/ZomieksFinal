@@ -18,6 +18,9 @@ export default function SettingsPage() {
   const [lastName, setLastName] = useState(user?.lastName || '');
   const [username, setUsername] = useState(user?.username || '');
   const [email] = useState(user?.email || '');
+  const [country, setCountry] = useState(user?.country || '');
+  const [phone, setPhone] = useState((user as any)?.phone || '');
+  const [bio, setBio] = useState((user as any)?.bio || '');
 
   // Password form state
   const [currentPassword, setCurrentPassword] = useState('');
@@ -25,7 +28,7 @@ export default function SettingsPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
 
   const updateProfileMutation = useMutation({
-    mutationFn: (data: { firstName?: string; lastName?: string; username?: string }) =>
+    mutationFn: (data: { firstName?: string; lastName?: string; username?: string; country?: string; phone?: string; bio?: string }) =>
       usersApi.updateProfile(data),
     onSuccess: () => {
       toast.success('Profile updated successfully');
@@ -52,7 +55,7 @@ export default function SettingsPage() {
 
   const handleProfileSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    updateProfileMutation.mutate({ firstName, lastName, username });
+    updateProfileMutation.mutate({ firstName, lastName, username, country, phone, bio });
   };
 
   const handlePasswordSubmit = (e: React.FormEvent) => {
@@ -130,6 +133,69 @@ export default function SettingsPage() {
                 onChange={(e) => setUsername(e.target.value)}
                 className="w-full h-10 px-3 rounded-lg border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
               />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1">Country</label>
+              <select
+                value={country}
+                onChange={(e) => setCountry(e.target.value)}
+                className="w-full h-10 px-3 rounded-lg border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+              >
+                <option value="">Select country</option>
+                <option value="ZA">South Africa</option>
+                <option value="BW">Botswana</option>
+                <option value="LS">Lesotho</option>
+                <option value="MZ">Mozambique</option>
+                <option value="NA">Namibia</option>
+                <option value="SZ">Eswatini</option>
+                <option value="ZW">Zimbabwe</option>
+                <option value="KE">Kenya</option>
+                <option value="NG">Nigeria</option>
+                <option value="GH">Ghana</option>
+                <option value="TZ">Tanzania</option>
+                <option value="UG">Uganda</option>
+                <option value="EG">Egypt</option>
+                <option value="MA">Morocco</option>
+                <option value="ET">Ethiopia</option>
+                <option value="CM">Cameroon</option>
+                <option value="CI">Ivory Coast</option>
+                <option value="SN">Senegal</option>
+                <option value="US">United States</option>
+                <option value="GB">United Kingdom</option>
+                <option value="CA">Canada</option>
+                <option value="AU">Australia</option>
+                <option value="DE">Germany</option>
+                <option value="FR">France</option>
+                <option value="NL">Netherlands</option>
+                <option value="AE">UAE</option>
+                <option value="IN">India</option>
+              </select>
+              <p className="text-xs text-muted-foreground mt-1">Required to become a seller (South Africa only for now)</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1">Phone</label>
+              <input
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="+27 XX XXX XXXX"
+                className="w-full h-10 px-3 rounded-lg border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1">Bio</label>
+              <textarea
+                value={bio}
+                onChange={(e) => setBio(e.target.value)}
+                rows={3}
+                maxLength={1000}
+                placeholder="Tell us about yourself..."
+                className="w-full px-3 py-2 rounded-lg border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary resize-none"
+              />
+              <p className="text-xs text-muted-foreground mt-1">{bio.length}/1000 characters</p>
             </div>
 
             <div>

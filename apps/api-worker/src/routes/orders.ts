@@ -402,6 +402,23 @@ app.post('/:id/deliver', requireAuth, validate(deliverySchema), async (c) => {
     })
     .where(eq(orders.id, id));
   
+  // Send delivery notification email to buyer
+  try {
+    const buyer = await db.query.users.findFirst({
+      where: eq(users.id, order.buyerId),
+      columns: { email: true },
+    });
+    if (buyer) {
+      await c.env.EMAIL_QUEUE.send({
+        type: 'order_delivered',
+        to: buyer.email,
+        data: { orderNumber: order.orderNumber || id },
+      });
+    }
+  } catch (e) {
+    console.error('Failed to queue delivery email:', e);
+  }
+  
   return c.json({
     success: true,
     message: 'Order delivered successfully',
@@ -506,6 +523,26 @@ app.post('/:id/accept', requireAuth, async (c) => {
     orderId: id,
     timestamp: new Date().toISOString(),
   });
+  
+  // Send completion notification email to seller
+  try {
+    const seller = await db.query.users.findFirst({
+      where: eq(users.id, order.sellerId),
+      columns: { email: true },
+    });
+    if (seller) {
+      await c.env.EMAIL_QUEUE.send({
+        type: 'order_completed',
+        to: seller.email,
+        data: {
+          orderNumber: order.orderNumber || id,
+          amount: order.totalAmount || 0,
+        },
+      });
+    }
+  } catch (e) {
+    console.error('Failed to queue completion email:', e);
+  }
   
   return c.json({
     success: true,
