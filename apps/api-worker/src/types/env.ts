@@ -40,6 +40,9 @@ export interface Env {
   // Optional payment config
   PAYFAST_SANDBOX?: string;
   OZOW_TEST_MODE?: string;
+  
+  // Email
+  RESEND_API_KEY?: string;
 }
 
 // Extend Hono context

@@ -49,10 +49,10 @@ export default function AdminCoursesPage() {
       if (statusFilter) params.status = statusFilter;
 
       const queryStr = new URLSearchParams(params).toString();
-      const res = await api.get<{ success: boolean; data: { courses: AdminCourse[] }; meta?: { total: number } }>(
+      const res = await api.get<{ success: boolean; data: AdminCourse[]; meta?: { total: number } }>(
         `/admin/courses?${queryStr}`
       );
-      setCourses(res.data?.courses || []);
+      setCourses(Array.isArray(res.data) ? res.data : []);
       setTotal(res.meta?.total || 0);
     } catch {
       setCourses([]);

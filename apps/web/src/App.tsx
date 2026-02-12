@@ -80,6 +80,8 @@ const AdminSellerManagementPage = lazy(() => import('./pages/admin/AdminSellerMa
 const AdminPayoutsPage = lazy(() => import('./pages/admin/AdminPayoutsPage'));
 const FeesPage = lazy(() => import('./pages/admin/FeesPage'));
 const ConfigurationPage = lazy(() => import('./pages/admin/ConfigurationPage'));
+const AdminOrdersPage = lazy(() => import('./pages/admin/AdminOrdersPage'));
+const AdminDisputesPage = lazy(() => import('./pages/admin/AdminDisputesPage'));
 
 // Components
 import ProtectedRoute from './components/ProtectedRoute';
@@ -193,6 +195,9 @@ function App() {
           <Route path="/admin/payouts" element={<AdminPayoutsPage />} />
           <Route path="/admin/fees" element={<FeesPage />} />
           <Route path="/admin/configuration" element={<ConfigurationPage />} />
+          <Route path="/admin/settings" element={<ConfigurationPage />} />
+          <Route path="/admin/orders" element={<AdminOrdersPage />} />
+          <Route path="/admin/disputes" element={<AdminDisputesPage />} />
         </Route>
 
         {/* BioLink standalone page — must be LAST (catch-all for vanity URLs) */}

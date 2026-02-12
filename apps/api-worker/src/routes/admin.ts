@@ -3,7 +3,8 @@ import { z } from 'zod';
 import { eq, and, desc, sql, count, gte, lte, like, or } from 'drizzle-orm';
 import { 
   users, orders, services, sellerProfiles, transactions,
-  disputes, refunds, sellerPayouts, subscriptions, categories, bankDetails
+  disputes, refunds, sellerPayouts, subscriptions, categories, bankDetails,
+  courses,
 } from '@zomieks/db';
 import { createId } from '@paralleldrive/cuid2';
 import type { Env } from '../types';
@@ -81,14 +82,14 @@ app.get('/dashboard', async (c) => {
       completed: sql<number>`SUM(CASE WHEN ${orders.status} = 'COMPLETED' THEN 1 ELSE 0 END)`,
       inProgress: sql<number>`SUM(CASE WHEN ${orders.status} = 'IN_PROGRESS' THEN 1 ELSE 0 END)`,
       disputed: sql<number>`SUM(CASE WHEN ${orders.status} = 'DISPUTED' THEN 1 ELSE 0 END)`,
-      revenue: sql<number>`COALESCE(SUM(CASE WHEN ${orders.status} = 'COMPLETED' THEN ${orders.platformFee} ELSE 0 END), 0)`,
+      revenue: sql<number>`COALESCE(SUM(CASE WHEN ${orders.status} = 'COMPLETED' THEN ${orders.platformRevenue} ELSE 0 END), 0)`,
     })
     .from(orders);
   
   // Monthly revenue
   const [monthlyRevenue] = await db
     .select({
-      total: sql<number>`COALESCE(SUM(${orders.platformFee}), 0)`,
+      total: sql<number>`COALESCE(SUM(${orders.platformRevenue}), 0)`,
     })
     .from(orders)
     .where(and(
@@ -264,13 +265,13 @@ app.post('/users/:id/action', validate(userActionSchema), async (c) => {
   switch (action) {
     case 'suspend':
       await db.update(users)
-        .set({ isSuspended: true, suspendedAt: now, updatedAt: now })
+        .set({ isSuspended: true, suspendedReason: reason || 'Suspended by admin', updatedAt: now })
         .where(eq(users.id, id));
       break;
     
     case 'unsuspend':
       await db.update(users)
-        .set({ isSuspended: false, suspendedAt: null, updatedAt: now })
+        .set({ isSuspended: false, suspendedReason: null, updatedAt: now })
         .where(eq(users.id, id));
       break;
     
@@ -291,12 +292,11 @@ app.post('/users/:id/action', validate(userActionSchema), async (c) => {
       break;
     
     case 'delete':
-      // Soft delete - just mark as suspended with deleted reason
+      // Soft delete - mark as suspended with deleted reason
       await db.update(users)
         .set({ 
           isSuspended: true, 
-          suspendedAt: now,
-          deletedAt: now,
+          suspendedReason: 'Account deleted by admin',
           updatedAt: now,
         })
         .where(eq(users.id, id));
@@ -445,7 +445,6 @@ app.get('/disputes', async (c) => {
           seller: { columns: { username: true, email: true } },
         },
       },
-      openedBy: { columns: { username: true } },
     },
     orderBy: desc(disputes.createdAt),
     limit,
@@ -475,7 +474,6 @@ app.get('/disputes/:id', async (c) => {
           revisions: true,
         },
       },
-      openedBy: true,
     },
   });
   
@@ -524,7 +522,7 @@ app.post('/disputes/:id/resolve', validate(disputeResolutionSchema), async (c) =
     .set({
       status: 'RESOLVED',
       resolution: body.resolution,
-      resolvedById: admin.id,
+      resolvedBy: admin.id,
       resolvedAt: now,
       adminNotes: body.notes || null,
       updatedAt: now,
@@ -911,6 +909,133 @@ app.delete('/categories/:id', async (c) => {
   return c.json({
     success: true,
     message: 'Category deleted',
+  });
+});
+
+// Order Management
+app.get('/orders', async (c) => {
+  const db = c.get('db');
+  const page = parseInt(c.req.query('page') || '1');
+  const limit = parseInt(c.req.query('limit') || '20');
+  const status = c.req.query('status');
+  const search = c.req.query('search');
+  const offset = (page - 1) * limit;
+  
+  let whereConditions: any[] = [];
+  
+  if (status) {
+    whereConditions.push(eq(orders.status, status));
+  }
+  
+  if (search) {
+    whereConditions.push(like(orders.orderNumber, `%${search}%`));
+  }
+  
+  const orderList = await db.query.orders.findMany({
+    where: whereConditions.length > 0 ? and(...whereConditions) : undefined,
+    with: {
+      buyer: { columns: { username: true, email: true, firstName: true, lastName: true } },
+      seller: { columns: { username: true, email: true, firstName: true, lastName: true } },
+      service: { columns: { title: true, slug: true } },
+    },
+    orderBy: desc(orders.createdAt),
+    limit,
+    offset,
+  });
+  
+  const [{ total }] = await db
+    .select({ total: count() })
+    .from(orders)
+    .where(whereConditions.length > 0 ? and(...whereConditions) : undefined);
+  
+  return c.json({
+    success: true,
+    data: orderList.map(o => ({
+      id: o.id,
+      orderNumber: o.orderNumber,
+      status: o.status,
+      baseAmount: o.baseAmount / 100,
+      grossAmount: (o.grossAmount || 0) / 100,
+      platformRevenue: (o.platformRevenue || 0) / 100,
+      buyer: o.buyer,
+      seller: o.seller,
+      service: o.service,
+      createdAt: o.createdAt,
+      completedAt: o.completedAt,
+    })),
+    meta: { page, limit, total: Number(total) },
+  });
+});
+
+// Course Management (Admin)
+app.get('/courses', async (c) => {
+  const db = c.get('db');
+  const page = parseInt(c.req.query('page') || '1');
+  const limit = parseInt(c.req.query('limit') || '20');
+  const status = c.req.query('status');
+  const search = c.req.query('search');
+  const offset = (page - 1) * limit;
+  
+  let whereConditions: any[] = [];
+  
+  if (status) {
+    whereConditions.push(eq(courses.status, status));
+  }
+  
+  if (search) {
+    whereConditions.push(like(courses.title, `%${search}%`));
+  }
+  
+  const courseList = await db.query.courses.findMany({
+    where: whereConditions.length > 0 ? and(...whereConditions) : undefined,
+    orderBy: desc(courses.createdAt),
+    limit,
+    offset,
+  });
+  
+  const [{ total }] = await db
+    .select({ total: count() })
+    .from(courses)
+    .where(whereConditions.length > 0 ? and(...whereConditions) : undefined);
+  
+  return c.json({
+    success: true,
+    data: courseList,
+    meta: { page, limit, total: Number(total) },
+  });
+});
+
+app.patch('/courses/:id', async (c) => {
+  const { id } = c.req.param();
+  const db = c.get('db');
+  const updates = await c.req.json();
+  const now = new Date().toISOString();
+  
+  const allowedFields: Record<string, any> = {};
+  if ('status' in updates) allowedFields.status = updates.status;
+  if ('isFeatured' in updates) allowedFields.isFeatured = updates.isFeatured;
+  
+  await db.update(courses)
+    .set({ ...allowedFields, updatedAt: now })
+    .where(eq(courses.id, id));
+  
+  return c.json({ success: true, message: 'Course updated' });
+});
+
+// Pending KYC
+app.get('/sellers/pending-kyc', async (c) => {
+  const db = c.get('db');
+  
+  const sellers = await db.query.sellerProfiles.findMany({
+    where: eq(sellerProfiles.kycStatus, 'SUBMITTED'),
+    with: {
+      user: { columns: { username: true, email: true, firstName: true, lastName: true } },
+    },
+  });
+  
+  return c.json({
+    success: true,
+    data: { sellers },
   });
 });
 

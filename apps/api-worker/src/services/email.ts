@@ -158,48 +158,39 @@ const templates = {
   }),
 };
 
-// Send email via Mailchannels (free for Cloudflare Workers)
+// Send email via Resend API (https://resend.com)
+// Falls back to console logging if RESEND_API_KEY is not configured
 export async function sendEmail(options: EmailOptions, fromEmail: string, fromName: string): Promise<boolean> {
   try {
-    const response = await fetch('https://api.mailchannels.net/tx/v1/send', {
+    // Try Resend API first
+    const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${(globalThis as any).__RESEND_API_KEY || 'not-configured'}`,
       },
       body: JSON.stringify({
-        personalizations: [
-          {
-            to: [{ email: options.to }],
-          },
-        ],
-        from: {
-          email: fromEmail,
-          name: fromName,
-        },
-        reply_to: options.replyTo ? { email: options.replyTo } : undefined,
+        from: `${fromName} <${fromEmail}>`,
+        to: [options.to],
+        reply_to: options.replyTo || undefined,
         subject: options.subject,
-        content: [
-          {
-            type: 'text/html',
-            value: options.html,
-          },
-          ...(options.text ? [{
-            type: 'text/plain',
-            value: options.text,
-          }] : []),
-        ],
+        html: options.html,
+        text: options.text || undefined,
       }),
     });
 
     if (!response.ok) {
       const error = await response.text();
-      console.error('Email send error:', error);
+      console.error('Email send error:', response.status, error);
+      // Log the email for debugging but don't fail silently
+      console.log('Email would have been sent to:', options.to, 'Subject:', options.subject);
       return false;
     }
 
     return true;
   } catch (error) {
     console.error('Email send error:', error);
+    console.log('Email would have been sent to:', options.to, 'Subject:', options.subject);
     return false;
   }
 }

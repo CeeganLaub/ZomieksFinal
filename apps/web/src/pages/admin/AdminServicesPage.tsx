@@ -50,10 +50,10 @@ export default function AdminServicesPage() {
       if (statusFilter) params.status = statusFilter;
 
       const queryStr = new URLSearchParams(params).toString();
-      const res = await api.get<{ success: boolean; data: { services: AdminService[] }; meta?: { total: number } }>(
+      const res = await api.get<{ success: boolean; data: AdminService[]; meta?: { total: number } }>(
         `/admin/services?${queryStr}`
       );
-      setServices(res.data?.services || []);
+      setServices(Array.isArray(res.data) ? res.data : []);
       setTotal(res.meta?.total || 0);
     } catch {
       setServices([]);
@@ -70,7 +70,7 @@ export default function AdminServicesPage() {
 
   async function toggleServiceActive(serviceId: string, currentActive: boolean) {
     try {
-      await api.patch(`/admin/services/${serviceId}`, { isActive: !currentActive });
+      await api.post(`/admin/services/${serviceId}/action`, { action: currentActive ? 'suspend' : 'approve' });
       toast.success(currentActive ? 'Service deactivated' : 'Service activated');
       loadServices();
     } catch {

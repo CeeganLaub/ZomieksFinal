@@ -37,21 +37,21 @@ export default function AdminDashboardPage() {
     try {
       setLoading(true);
       const [statsRes, kycRes] = await Promise.all([
-        api.get<{ success: boolean; data: Record<string, any> }>('/admin/stats'),
+        api.get<{ success: boolean; data: Record<string, any> }>('/admin/dashboard'),
         api.get<{ success: boolean; data: { sellers: unknown[] } }>('/admin/sellers/pending-kyc').catch(() => ({ data: { sellers: [] } })),
       ]);
       const d = statsRes.data;
       setStats({
         totalUsers: d?.users?.total || 0,
         totalSellers: d?.users?.sellers || 0,
-        totalServices: d?.services || 0,
+        totalServices: d?.services?.pendingApproval || 0,
         totalOrders: d?.orders?.total || 0,
-        pendingDisputes: d?.pending?.disputes || 0,
-        pendingPayouts: d?.pending?.payouts || 0,
+        pendingDisputes: d?.disputes?.open || 0,
+        pendingPayouts: d?.payouts?.pending || 0,
         pendingKYC: kycRes.data?.sellers?.length || 0,
-        revenueToday: Number(d?.revenue?.today) || 0,
-        revenueTotal: Number(d?.revenue?.total) || 0,
-        revenueMonth: Number(d?.revenue?.monthly) || 0,
+        revenueToday: 0,
+        revenueTotal: Number(d?.orders?.totalRevenue) || 0,
+        revenueMonth: Number(d?.orders?.monthlyRevenue) || 0,
       });
     } catch {
       setStats({
