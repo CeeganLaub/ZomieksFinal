@@ -612,7 +612,7 @@ export const adminApi = {
     api.post<ApiResponse<{ user: unknown }>>(`/admin/users/${userId}/unsuspend`),
 
   // Create user (buyer) for admin
-  createUser: (data: { email: string; username: string; password: string; firstName: string; lastName: string; country?: string; avatar?: string }) =>
+  createUser: (data: { email: string; username: string; password: string; firstName: string; lastName: string; role?: string; country?: string }) =>
     api.post<ApiResponse<{ user: unknown }>>('/admin/users/create', data),
   managedUsers: (params?: { search?: string; page?: number; limit?: number }) =>
     api.get<ApiResponse<{ users: unknown[] }>>('/admin/users/managed', { params }),

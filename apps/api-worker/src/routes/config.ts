@@ -54,7 +54,7 @@ app.get('/config', async (c) => {
   // Mask secret values
   const maskedConfigs = configs.map(cfg => ({
     ...cfg,
-    value: cfg.isSecret ? (cfg.value ? '••••••••' : null) : cfg.value,
+    value: cfg.isSecret ? ((cfg.value || cfg.encryptedValue) ? '••••••••' : null) : cfg.value,
     encryptedValue: undefined, // Never expose
   }));
   

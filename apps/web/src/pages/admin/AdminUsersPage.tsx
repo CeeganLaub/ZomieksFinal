@@ -10,6 +10,8 @@ import {
   ClockIcon,
   NoSymbolIcon,
   ShieldCheckIcon,
+  PlusIcon,
+  XMarkIcon,
 } from '@heroicons/react/24/outline';
 
 interface AdminUser {
@@ -40,6 +42,12 @@ export default function AdminUsersPage() {
   const [search, setSearch] = useState(searchParams.get('search') || '');
   const [sellerFilter, setSellerFilter] = useState(searchParams.get('isSeller') || '');
   const [page, setPage] = useState(1);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [newUser, setNewUser] = useState({
+    email: '', username: '', password: '', firstName: '', lastName: '',
+    role: 'BUYER' as string, country: 'ZA',
+  });
 
   useEffect(() => {
     loadUsers();
@@ -101,6 +109,26 @@ export default function AdminUsersPage() {
     await userAction(userId, action);
   }
 
+  async function handleCreateUser(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newUser.email || !newUser.username || !newUser.password || !newUser.firstName || !newUser.lastName) {
+      toast.error('All fields are required');
+      return;
+    }
+    try {
+      setCreating(true);
+      await api.post('/admin/users/create', newUser);
+      toast.success(`User ${newUser.username} created successfully`);
+      setShowCreateModal(false);
+      setNewUser({ email: '', username: '', password: '', firstName: '', lastName: '', role: 'BUYER', country: 'ZA' });
+      loadUsers();
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to create user');
+    } finally {
+      setCreating(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -108,6 +136,13 @@ export default function AdminUsersPage() {
           <h1 className="text-2xl font-bold">Users</h1>
           <p className="text-muted-foreground">Manage platform users ({total} total)</p>
         </div>
+        <button
+          onClick={() => setShowCreateModal(true)}
+          className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90"
+        >
+          <PlusIcon className="h-5 w-5" />
+          Add User
+        </button>
       </div>
 
       {/* Filters */}
@@ -296,6 +331,144 @@ export default function AdminUsersPage() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Create User Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-background border rounded-lg p-6 max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold">Add New User</h2>
+              <button onClick={() => setShowCreateModal(false)} className="p-1 hover:bg-muted rounded">
+                <XMarkIcon className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateUser} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">First Name *</label>
+                  <input
+                    type="text"
+                    value={newUser.firstName}
+                    onChange={(e) => setNewUser(p => ({ ...p, firstName: e.target.value }))}
+                    className="w-full px-3 py-2 border rounded-lg text-sm"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Last Name *</label>
+                  <input
+                    type="text"
+                    value={newUser.lastName}
+                    onChange={(e) => setNewUser(p => ({ ...p, lastName: e.target.value }))}
+                    className="w-full px-3 py-2 border rounded-lg text-sm"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">Email *</label>
+                <input
+                  type="email"
+                  value={newUser.email}
+                  onChange={(e) => setNewUser(p => ({ ...p, email: e.target.value }))}
+                  className="w-full px-3 py-2 border rounded-lg text-sm"
+                  placeholder="user@example.com"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">Username *</label>
+                <input
+                  type="text"
+                  value={newUser.username}
+                  onChange={(e) => setNewUser(p => ({ ...p, username: e.target.value.replace(/[^a-zA-Z0-9_]/g, '') }))}
+                  className="w-full px-3 py-2 border rounded-lg text-sm"
+                  placeholder="username"
+                  minLength={3}
+                  required
+                />
+                <p className="text-xs text-muted-foreground mt-1">Letters, numbers, and underscores only</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">Password *</label>
+                <input
+                  type="password"
+                  value={newUser.password}
+                  onChange={(e) => setNewUser(p => ({ ...p, password: e.target.value }))}
+                  className="w-full px-3 py-2 border rounded-lg text-sm"
+                  placeholder="Minimum 8 characters"
+                  minLength={8}
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">Role *</label>
+                <select
+                  value={newUser.role}
+                  onChange={(e) => setNewUser(p => ({ ...p, role: e.target.value }))}
+                  className="w-full px-3 py-2 border rounded-lg text-sm bg-background"
+                >
+                  <option value="BUYER">Buyer</option>
+                  <option value="ADMIN">Admin</option>
+                  <option value="MODERATOR">Moderator</option>
+                  <option value="SUPPORT">Support</option>
+                  <option value="FINANCE">Finance</option>
+                </select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {newUser.role === 'ADMIN' && 'Full platform access including settings and user management'}
+                  {newUser.role === 'MODERATOR' && 'Can manage content, services, and handle disputes'}
+                  {newUser.role === 'SUPPORT' && 'Can view users, orders, and respond to support tickets'}
+                  {newUser.role === 'FINANCE' && 'Can manage payouts, transactions, and financial reports'}
+                  {newUser.role === 'BUYER' && 'Standard user account with no admin privileges'}
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">Country</label>
+                <input
+                  type="text"
+                  value={newUser.country}
+                  onChange={(e) => setNewUser(p => ({ ...p, country: e.target.value }))}
+                  className="w-full px-3 py-2 border rounded-lg text-sm"
+                  placeholder="ZA"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateModal(false)}
+                  className="px-4 py-2 border rounded-lg hover:bg-muted text-sm"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={creating}
+                  className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50 text-sm flex items-center gap-2"
+                >
+                  {creating ? (
+                    <>
+                      <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      <PlusIcon className="h-4 w-4" />
+                      Create User
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

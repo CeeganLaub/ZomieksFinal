@@ -4,7 +4,7 @@ import { eq, and, desc, sql, count, gte, lte, like, or } from 'drizzle-orm';
 import { 
   users, orders, services, sellerProfiles, transactions,
   disputes, refunds, sellerPayouts, subscriptions, categories, bankDetails,
-  courses,
+  courses, userRoles,
 } from '@zomieks/db';
 import { createId } from '@paralleldrive/cuid2';
 import type { Env } from '../types';
@@ -155,6 +155,7 @@ app.get('/users', async (c) => {
   const limit = parseInt(c.req.query('limit') || '20');
   const search = c.req.query('search');
   const role = c.req.query('role');
+  const isSeller = c.req.query('isSeller');
   const status = c.req.query('status');
   const offset = (page - 1) * limit;
   
@@ -169,8 +170,10 @@ app.get('/users', async (c) => {
     ));
   }
   
-  if (role === 'seller') {
+  if (role === 'seller' || isSeller === 'true') {
     whereConditions.push(eq(users.isSeller, true));
+  } else if (isSeller === 'false') {
+    whereConditions.push(eq(users.isSeller, false));
   }
   
   if (status === 'suspended') {
@@ -327,6 +330,78 @@ app.post('/users/:id/action', validate(userActionSchema), async (c) => {
   return c.json({
     success: true,
     message: `User ${action} successful`,
+  });
+});
+
+// Create user from admin panel
+const createUserSchema = z.object({
+  email: z.string().email().max(255),
+  username: z.string().min(3).max(30).regex(/^[a-zA-Z0-9_]+$/),
+  password: z.string().min(8).max(128),
+  firstName: z.string().min(1).max(100),
+  lastName: z.string().min(1).max(100),
+  role: z.enum(['BUYER', 'ADMIN', 'MODERATOR', 'SUPPORT', 'FINANCE']).default('BUYER'),
+  country: z.string().max(100).optional(),
+});
+
+async function hashPasswordPBKDF2(password: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const keyMaterial = await crypto.subtle.importKey('raw', encoder.encode(password), 'PBKDF2', false, ['deriveBits']);
+  const hash = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' }, keyMaterial, 256);
+  const saltHex = Array.from(salt).map(b => b.toString(16).padStart(2, '0')).join('');
+  const hashHex = Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
+  return `${saltHex}:${hashHex}`;
+}
+
+app.post('/users/create', validate(createUserSchema), async (c) => {
+  const body = getValidatedBody<z.infer<typeof createUserSchema>>(c);
+  const db = c.get('db');
+  const now = new Date().toISOString();
+
+  // Check if email or username already exists
+  const existing = await db.query.users.findFirst({
+    where: or(eq(users.email, body.email.toLowerCase()), eq(users.username, body.username.toLowerCase())),
+  });
+  if (existing) {
+    return c.json({
+      success: false,
+      error: { message: existing.email === body.email.toLowerCase() ? 'Email already in use' : 'Username already taken' },
+    }, 409);
+  }
+
+  const passwordHash = await hashPasswordPBKDF2(body.password);
+  const userId = createId();
+
+  await db.insert(users).values({
+    id: userId,
+    email: body.email.toLowerCase(),
+    username: body.username.toLowerCase(),
+    passwordHash,
+    firstName: body.firstName,
+    lastName: body.lastName,
+    country: body.country || null,
+    isEmailVerified: true,
+    isAdmin: body.role === 'ADMIN',
+    isAdminCreated: true,
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  // Insert role into userRoles table
+  await db.insert(userRoles).values({
+    id: createId(),
+    userId,
+    role: body.role,
+    createdAt: now,
+  });
+
+  return c.json({
+    success: true,
+    data: {
+      user: { id: userId, email: body.email.toLowerCase(), username: body.username.toLowerCase(), role: body.role },
+    },
+    message: 'User created successfully',
   });
 });
 
