@@ -501,7 +501,7 @@ app.post('/:id/accept', requireAuth, async (c) => {
     .where(eq(orders.id, id));
   
   // Queue escrow release
-  await c.env.ESCROW_QUEUE.send({
+  await c.env.ESCROW_QUEUE?.send({
     type: 'RELEASE_ESCROW',
     orderId: id,
     timestamp: new Date().toISOString(),
@@ -627,7 +627,7 @@ app.post('/:id/cancel', requireAuth, async (c) => {
   
   // Queue refund if already paid
   if (['PAID', 'IN_PROGRESS'].includes(order.status)) {
-    await c.env.ESCROW_QUEUE.send({
+    await c.env.ESCROW_QUEUE?.send({
       type: 'PROCESS_REFUND',
       orderId: id,
       timestamp: new Date().toISOString(),

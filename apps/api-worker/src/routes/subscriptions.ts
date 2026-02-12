@@ -259,7 +259,7 @@ app.post('/cancel', requireAuth, validate(cancelSchema), async (c) => {
     .where(eq(subscriptions.id, subscription.id));
   
   // Queue email notification
-  await c.env.EMAIL_QUEUE.send({
+  await c.env.EMAIL_QUEUE?.send({
     type: 'subscription_cancelled',
     to: user.email,
     data: {

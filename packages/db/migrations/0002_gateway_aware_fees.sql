@@ -27,8 +27,7 @@ ALTER TABLE orders ADD COLUMN gateway_method TEXT;
 -- Keep legacy fields for backward compatibility (buyer_fee, total_amount, seller_fee, seller_payout already exist)
 
 -- ============ TRANSACTIONS ============
--- New fee model fields
-ALTER TABLE transactions ADD COLUMN type TEXT NOT NULL DEFAULT 'PAYMENT';
+-- New fee model fields (type already exists from initial migration)
 ALTER TABLE transactions ADD COLUMN gateway_method TEXT;
 ALTER TABLE transactions ADD COLUMN gateway_ref TEXT;
 ALTER TABLE transactions ADD COLUMN gross_amount INTEGER;
@@ -77,15 +76,12 @@ CREATE INDEX IF NOT EXISTS seller_payouts_available_at_idx ON seller_payouts(ava
 
 -- ============ DATA MIGRATION ============
 -- Migrate existing orders to new fee fields if they have legacy data
--- This sets base_amount = price and calculates other fields from legacy columns
 UPDATE orders 
 SET 
   base_amount = COALESCE(price, 0),
   gross_amount = COALESCE(total_amount, 0),
-  buyer_platform_fee = COALESCE(buyer_fee, 0),
-  seller_platform_fee = COALESCE(seller_fee, 0),
-  seller_payout_amount = COALESCE(seller_payout, 0),
-  platform_revenue = COALESCE(buyer_fee, 0) + COALESCE(seller_fee, 0)
+  buyer_platform_fee = COALESCE(service_fee, 0),
+  platform_revenue = COALESCE(service_fee, 0)
 WHERE base_amount = 0 AND COALESCE(total_amount, 0) > 0;
 
 -- Migrate existing transactions

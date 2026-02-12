@@ -34,12 +34,11 @@ ALTER TABLE seller_profiles ADD COLUMN bio_testimonial_count INTEGER NOT NULL DE
 ALTER TABLE escrow_holds ADD COLUMN enrollment_id TEXT;
 CREATE UNIQUE INDEX IF NOT EXISTS escrow_holds_enrollment_id_unique ON escrow_holds(enrollment_id);
 
--- Refunds: course refund support
-ALTER TABLE refunds ADD COLUMN order_id TEXT;
+-- Refunds: course refund support (order_id already exists from initial migration)
 ALTER TABLE refunds ADD COLUMN enrollment_id TEXT;
 ALTER TABLE refunds ADD COLUMN processing_fee INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE refunds ADD COLUMN refund_type TEXT NOT NULL DEFAULT 'GATEWAY';
-CREATE INDEX IF NOT EXISTS refunds_order_id_idx ON refunds(order_id);
+-- order_id index already exists from initial migration
 CREATE INDEX IF NOT EXISTS refunds_enrollment_id_idx ON refunds(enrollment_id);
 
 -- Make refunds.transaction_id nullable (course refunds may not have a gateway transaction)

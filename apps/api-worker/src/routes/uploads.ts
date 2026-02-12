@@ -166,6 +166,7 @@ app.put('/:id', async (c) => {
   }
   
   // Upload to R2
+  if (!c.env.UPLOADS) return c.json({ success: false, error: { message: 'File storage not configured' } }, 503);
   await c.env.UPLOADS.put(intent.key, body, {
     httpMetadata: {
       contentType: intent.contentType,
@@ -200,6 +201,7 @@ app.put('/:id', async (c) => {
 app.get('/:key{.+}', async (c) => {
   const key = c.req.param('key');
   
+  if (!c.env.UPLOADS) return c.json({ success: false, error: { message: 'File storage not configured' } }, 503);
   // Try to get from R2
   const object = await c.env.UPLOADS.get(key);
   
@@ -248,7 +250,7 @@ app.delete('/:key{.+}', async (c) => {
     }, 403);
   }
   
-  await c.env.UPLOADS.delete(key);
+  await c.env.UPLOADS?.delete(key);
   
   return c.json({
     success: true,
@@ -280,6 +282,7 @@ app.post('/avatar', async (c) => {
   const ext = contentType.split('/')[1] || 'jpg';
   const key = `avatar/${user.id}/${createId()}.${ext}`;
   
+  if (!c.env.UPLOADS) return c.json({ success: false, error: { message: 'File storage not configured' } }, 503);
   await c.env.UPLOADS.put(key, body, {
     httpMetadata: { contentType },
     customMetadata: {

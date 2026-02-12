@@ -98,21 +98,21 @@ export default function HomePage() {
   return (
     <div className="overflow-hidden">
       {/* Hero Section */}
-      <section className="relative min-h-[70vh] flex items-center bg-gradient-to-br from-emerald-950/30 via-background to-purple-950/20 overflow-hidden">
+      <section className="relative min-h-[70vh] flex items-center bg-gradient-to-b from-background via-background to-muted/30 overflow-hidden">
         {/* Animated background elements */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <motion.div
-            className="absolute top-20 left-10 w-72 h-72 bg-primary/10 rounded-full blur-3xl"
+            className="absolute top-32 left-10 w-72 h-72 bg-primary/5 rounded-full blur-3xl"
             animate={{ x: [0, 30, 0], y: [0, -20, 0] }}
             transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
           />
           <motion.div
-            className="absolute bottom-20 right-10 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl"
+            className="absolute bottom-20 right-10 w-80 h-80 bg-purple-500/5 rounded-full blur-3xl"
             animate={{ x: [0, -30, 0], y: [0, 20, 0] }}
             transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
           />
           <motion.div
-            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-gradient-to-r from-primary/5 to-purple-500/5 rounded-full blur-3xl"
+            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-gradient-to-r from-primary/3 to-purple-500/3 rounded-full blur-3xl"
             animate={{ scale: [1, 1.1, 1], rotate: [0, 180, 360] }}
             transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
           />
@@ -264,7 +264,7 @@ export default function HomePage() {
       </section>
 
       {/* Trust Badges */}
-      <section className="py-8 bg-gray-950">
+      <section className="py-8 bg-gray-950 relative z-10">
         <div className="container">
           <motion.div
             className="grid grid-cols-2 md:grid-cols-4 gap-4"

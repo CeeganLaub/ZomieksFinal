@@ -3,8 +3,12 @@ main = "src/index.ts"
 compatibility_date = "2024-12-01"
 compatibility_flags = ["nodejs_compat"]
 
-# Account settings (replace with your actual values)
-# account_id = "your-account-id"
+account_id = "1842cd01813277b018d4172a14a00f17"
+
+# Custom domain for the API worker
+routes = [
+  { pattern = "api.zomieks.com", custom_domain = true }
+]
 
 # Development settings
 [dev]
@@ -13,66 +17,65 @@ local_protocol = "http"
 
 # Environment variables (secrets should be set via wrangler secret put)
 [vars]
-ENVIRONMENT = "development"
-APP_URL = "http://localhost:5173"
+ENVIRONMENT = "production"
+APP_URL = "https://www.zomieks.com"
+FRONTEND_URL = "https://www.zomieks.com"
 CDN_URL = ""
-PAYFAST_SANDBOX = "true"
-OZOW_TEST_MODE = "true"
+PAYFAST_SANDBOX = "false"
+OZOW_TEST_MODE = "false"
 
 # D1 Database
 [[d1_databases]]
 binding = "DB"
 database_name = "zomieks-db"
-database_id = "local-dev-placeholder"
+database_id = "8667321c-8a98-4000-99af-4583257cd229"
 migrations_dir = "../../packages/db/migrations"
 
-# KV Namespaces (for local dev, IDs are placeholders - wrangler dev --local uses local storage)
+# KV Namespaces
 [[kv_namespaces]]
 binding = "CACHE"
-id = "cache-placeholder"
+id = "d397483c29b94ee6a33c7665863d03c3"
 
 [[kv_namespaces]]
 binding = "SESSIONS"
-id = "sessions-placeholder"
+id = "590bdb3acba74ba98610217652a03715"
 
 [[kv_namespaces]]
 binding = "RATE_LIMIT"
-id = "ratelimit-placeholder"
+id = "94732323e8d64e3da23b8392c879012b"
 
-# R2 Storage
-[[r2_buckets]]
-binding = "UPLOADS"
-bucket_name = "zomieks-uploads"
-preview_bucket_name = "zomieks-uploads-dev"
+# R2 Storage (enable R2 in dashboard first, then uncomment)
+# [[r2_buckets]]
+# binding = "UPLOADS"
+# bucket_name = "zomieks-uploads"
 
-# Queues
-[[queues.producers]]
-queue = "escrow-queue"
-binding = "ESCROW_QUEUE"
+# Queues (enable Queues in dashboard first, then uncomment)
+# [[queues.producers]]
+# queue = "escrow-queue"
+# binding = "ESCROW_QUEUE"
 
-[[queues.producers]]
-queue = "notification-queue"
-binding = "NOTIFICATION_QUEUE"
+# [[queues.producers]]
+# queue = "notification-queue"
+# binding = "NOTIFICATION_QUEUE"
 
-[[queues.producers]]
-queue = "email-queue"
-binding = "EMAIL_QUEUE"
+# [[queues.producers]]
+# queue = "email-queue"
+# binding = "EMAIL_QUEUE"
 
-# Queue consumers (processed in separate workers or same worker)
-[[queues.consumers]]
-queue = "escrow-queue"
-max_batch_size = 10
-max_batch_timeout = 30
+# [[queues.consumers]]
+# queue = "escrow-queue"
+# max_batch_size = 10
+# max_batch_timeout = 30
 
-[[queues.consumers]]
-queue = "notification-queue"
-max_batch_size = 50
-max_batch_timeout = 10
+# [[queues.consumers]]
+# queue = "notification-queue"
+# max_batch_size = 50
+# max_batch_timeout = 10
 
-[[queues.consumers]]
-queue = "email-queue"
-max_batch_size = 20
-max_batch_timeout = 30
+# [[queues.consumers]]
+# queue = "email-queue"
+# max_batch_size = 20
+# max_batch_timeout = 30
 
 # Durable Objects
 [[durable_objects.bindings]]
@@ -87,23 +90,10 @@ class_name = "Presence"
 name = "CRM_NOTIFICATIONS"
 class_name = "CrmNotifications"
 
-# Durable Object migrations
+# Durable Object migrations (free plan requires new_sqlite_classes)
 [[migrations]]
 tag = "v1"
-new_classes = ["ChatRoom", "Presence", "CrmNotifications"]
-
-# Routes (production)
-# routes = [
-#   { pattern = "api.zomieks.com/*", zone_name = "zomieks.com" }
-# ]
-
-# Production environment
-[env.production]
-vars = { ENVIRONMENT = "production", APP_URL = "https://zomieks.com", PAYFAST_SANDBOX = "false", OZOW_TEST_MODE = "false" }
-
-# Staging environment  
-[env.staging]
-vars = { ENVIRONMENT = "staging", APP_URL = "https://staging.zomieks.com", PAYFAST_SANDBOX = "true", OZOW_TEST_MODE = "true" }
+new_sqlite_classes = ["ChatRoom", "Presence", "CrmNotifications"]
 
 # Secrets (set via: wrangler secret put SECRET_NAME)
 # Required secrets:

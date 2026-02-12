@@ -71,8 +71,8 @@ export default function Header({ showSearch = true, variant = 'default' }: Heade
     <header className={cn(
       "sticky top-0 z-50 w-full transition-all duration-300",
       scrolled
-        ? "bg-background/80 backdrop-blur-xl shadow-sm border-b border-border/50"
-        : "bg-background/95 backdrop-blur-lg border-b border-transparent"
+        ? "bg-background/95 backdrop-blur-xl shadow-sm border-b border-border/50"
+        : "bg-background border-b border-transparent"
     )}>
       {/* Gradient accent line */}
       <div className="absolute bottom-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-primary/40 to-transparent" />

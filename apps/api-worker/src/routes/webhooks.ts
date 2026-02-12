@@ -161,7 +161,7 @@ app.post('/payments/payfast', async (c) => {
     
     // Send notifications
     try {
-      await env.NOTIFICATION_QUEUE.send({
+      await env.NOTIFICATION_QUEUE?.send({
         type: 'order_paid',
         orderId: order.id,
         buyerId: order.buyerId,
@@ -170,7 +170,7 @@ app.post('/payments/payfast', async (c) => {
       
       const seller = order.seller as { email?: string } | null;
       if (seller?.email) {
-        await env.EMAIL_QUEUE.send({
+        await env.EMAIL_QUEUE?.send({
           type: 'new_order',
           to: seller.email,
           data: {
@@ -326,7 +326,7 @@ app.post('/payments/ozow', async (c) => {
     
     // Send notifications
     try {
-      await env.NOTIFICATION_QUEUE.send({
+      await env.NOTIFICATION_QUEUE?.send({
         type: 'order_paid',
         orderId: order.id,
         buyerId: order.buyerId,
@@ -335,7 +335,7 @@ app.post('/payments/ozow', async (c) => {
       
       const seller2 = order.seller as { email?: string } | null;
       if (seller2?.email) {
-        await env.EMAIL_QUEUE.send({
+        await env.EMAIL_QUEUE?.send({
           type: 'new_order',
           to: seller2.email,
           data: {
@@ -478,7 +478,7 @@ app.post('/subscription/payfast', async (c) => {
     
     // Notify user
     if (subscription.user?.email) {
-      await env.EMAIL_QUEUE.send({
+      await env.EMAIL_QUEUE?.send({
         type: 'payment_failed',
         to: subscription.user.email,
         data: {

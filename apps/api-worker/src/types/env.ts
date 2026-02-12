@@ -8,13 +8,13 @@ export interface Env {
   SESSIONS: KVNamespace;
   RATE_LIMIT: KVNamespace;
   
-  // R2 Bucket
-  UPLOADS: R2Bucket;
+  // R2 Bucket (enable R2 in dashboard first)
+  UPLOADS?: R2Bucket;
   
-  // Queues
-  ESCROW_QUEUE: Queue;
-  NOTIFICATION_QUEUE: Queue;
-  EMAIL_QUEUE: Queue;
+  // Queues (enable Queues in dashboard first)
+  ESCROW_QUEUE?: Queue;
+  NOTIFICATION_QUEUE?: Queue;
+  EMAIL_QUEUE?: Queue;
   
   // Durable Objects
   CHAT_ROOMS: DurableObjectNamespace;
