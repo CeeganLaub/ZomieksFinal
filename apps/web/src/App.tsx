@@ -26,6 +26,17 @@ const CoursePage = lazy(() => import('./pages/CoursePage'));
 const CoursePlayerPage = lazy(() => import('./pages/CoursePlayerPage'));
 const ExplorePage = lazy(() => import('./pages/ExplorePage'));
 
+// Static/info pages (lazy loaded)
+const AboutPage = lazy(() => import('./pages/AboutPage'));
+const CareersPage = lazy(() => import('./pages/CareersPage'));
+const PressPage = lazy(() => import('./pages/PressPage'));
+const PartnershipsPage = lazy(() => import('./pages/PartnershipsPage'));
+const HelpCenterPage = lazy(() => import('./pages/HelpCenterPage'));
+const TrustSafetyPage = lazy(() => import('./pages/TrustSafetyPage'));
+const TermsPage = lazy(() => import('./pages/TermsPage'));
+const PrivacyPolicyPage = lazy(() => import('./pages/PrivacyPolicyPage'));
+const CookiePolicyPage = lazy(() => import('./pages/CookiePolicyPage'));
+
 // Auth pages (lazy loaded)
 const LoginPage = lazy(() => import('./pages/auth/LoginPage'));
 const RegisterPage = lazy(() => import('./pages/auth/RegisterPage'));
@@ -117,6 +128,15 @@ function App() {
           <Route path="/sellers/:username" element={<SellerPage />} />
           <Route path="/courses" element={<CoursesPage />} />
           <Route path="/courses/:slug" element={<CoursePage />} />
+          <Route path="/about" element={<AboutPage />} />
+          <Route path="/careers" element={<CareersPage />} />
+          <Route path="/press" element={<PressPage />} />
+          <Route path="/partnerships" element={<PartnershipsPage />} />
+          <Route path="/help" element={<HelpCenterPage />} />
+          <Route path="/trust" element={<TrustSafetyPage />} />
+          <Route path="/terms" element={<TermsPage />} />
+          <Route path="/privacy" element={<PrivacyPolicyPage />} />
+          <Route path="/cookies" element={<CookiePolicyPage />} />
         </Route>
 
         {/* Course player (full screen, no layout) */}

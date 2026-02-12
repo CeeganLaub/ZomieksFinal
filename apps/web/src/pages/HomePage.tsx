@@ -96,9 +96,9 @@ export default function HomePage() {
   };
 
   return (
-    <div className="overflow-hidden">
+    <div>
       {/* Hero Section */}
-      <section className="relative min-h-[70vh] flex items-center bg-gradient-to-b from-background via-background to-muted/30 overflow-hidden">
+      <section className="relative isolate min-h-[70vh] flex items-center bg-gradient-to-b from-background via-background to-muted/30 overflow-hidden">
         {/* Animated background elements */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <motion.div
@@ -264,7 +264,7 @@ export default function HomePage() {
       </section>
 
       {/* Trust Badges */}
-      <section className="py-8 bg-gray-950 relative z-10">
+      <section className="py-8 bg-gray-950 relative z-10 border-y border-gray-800">
         <div className="container">
           <motion.div
             className="grid grid-cols-2 md:grid-cols-4 gap-4"
@@ -293,7 +293,7 @@ export default function HomePage() {
       </section>
 
       {/* BioLink Showcase */}
-      <section className="py-20 bg-gradient-to-b from-background to-muted/20 overflow-hidden">
+      <section className="relative isolate py-20 bg-background overflow-hidden">
         <div className="container">
           <div className="grid md:grid-cols-2 gap-12 items-center">
             {/* Phone Mockup */}
@@ -430,7 +430,7 @@ export default function HomePage() {
       </section>
 
       {/* Featured Services */}
-      <section className="bg-gradient-to-b from-muted/30 to-background py-20">
+      <section className="bg-muted/30 py-20 relative isolate">
         <div className="container">
           <div className="flex justify-between items-end mb-12">
             <div>
@@ -543,7 +543,7 @@ export default function HomePage() {
       </section>
 
       {/* Why Sell on Zomieks */}
-      <section className="py-20 bg-gradient-to-b from-background to-muted/30">
+      <section className="py-20 bg-background relative isolate">
         <div className="container">
           <div className="text-center mb-14">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-sm font-medium mb-4">
@@ -667,7 +667,7 @@ export default function HomePage() {
       </section>
 
       {/* Featured Courses */}
-      <section className="py-20 bg-gradient-to-b from-gray-950 to-gray-900 text-white relative overflow-hidden">
+      <section className="py-20 bg-gray-950 text-white relative isolate overflow-hidden">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-0 right-0 w-96 h-96 bg-purple-600/10 rounded-full blur-3xl" />
           <div className="absolute bottom-0 left-0 w-72 h-72 bg-primary/10 rounded-full blur-3xl" />
@@ -748,7 +748,7 @@ export default function HomePage() {
       </section>
 
       {/* Stats Section */}
-      <section className="py-20 bg-gradient-to-r from-primary via-emerald-600 to-teal-600 text-primary-foreground relative overflow-hidden">
+      <section className="py-20 bg-gradient-to-r from-primary via-emerald-600 to-teal-600 text-primary-foreground relative isolate overflow-hidden">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-0 left-0 w-64 h-64 bg-white/5 rounded-full blur-3xl" />
           <div className="absolute bottom-0 right-0 w-96 h-96 bg-white/5 rounded-full blur-3xl" />
@@ -836,53 +836,10 @@ export default function HomePage() {
         </motion.div>
       </section>
 
-      {/* Testimonials Placeholder */}
-      <section className="py-20 bg-muted/30">
-        <div className="container">
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={staggerContainer}
-          >
-            <motion.div className="text-center mb-12" variants={fadeInUp}>
-              <h2 className="text-3xl md:text-4xl font-bold mb-4">Loved by Thousands</h2>
-              <p className="text-lg text-muted-foreground">See what our community has to say</p>
-            </motion.div>
 
-            <motion.div className="grid md:grid-cols-3 gap-6" variants={staggerContainer}>
-              {[
-                { name: 'Sarah M.', role: 'Business Owner', text: 'Found an amazing designer who created my brand identity. The process was smooth and the results exceeded my expectations!' },
-                { name: 'John D.', role: 'Startup Founder', text: 'As a startup, we needed quality work within budget. Zomieks connected us with talented developers who delivered brilliantly.' },
-                { name: 'Thabo K.', role: 'Marketing Manager', text: 'The freelancers here are professional and skilled. Our social media presence has improved dramatically since using Zomieks.' },
-              ].map((testimonial, i) => (
-                <motion.div key={i} variants={fadeInUp}>
-                  <Card className="h-full p-6 hover:shadow-lg transition-shadow">
-                    <div className="flex items-center gap-1 mb-4">
-                      {[...Array(5)].map((_, j) => (
-                        <StarIcon key={j} className="h-5 w-5 text-yellow-400" />
-                      ))}
-                    </div>
-                    <p className="text-muted-foreground mb-6 italic">"{testimonial.text}"</p>
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-purple-500 flex items-center justify-center text-white font-bold">
-                        {testimonial.name.charAt(0)}
-                      </div>
-                      <div>
-                        <div className="font-semibold">{testimonial.name}</div>
-                        <div className="text-sm text-muted-foreground">{testimonial.role}</div>
-                      </div>
-                    </div>
-                  </Card>
-                </motion.div>
-              ))}
-            </motion.div>
-          </motion.div>
-        </div>
-      </section>
 
       {/* CTA */}
-      <section className="relative py-24 overflow-hidden">
+      <section className="relative isolate py-24 overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-primary via-primary to-purple-700" />
         <div className="absolute inset-0 opacity-30">
           <div className="absolute top-0 left-0 w-96 h-96 bg-white/10 rounded-full blur-3xl" />
