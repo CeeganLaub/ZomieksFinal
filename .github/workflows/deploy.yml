@@ -23,13 +23,13 @@ jobs:
 
       - name: Deploy Worker (API)
         working-directory: apps/api-worker
-        run: npx wrangler deploy --no-bundle=false
+        run: npx wrangler deploy 2>&1 | tee /tmp/deploy.log; if grep -q "Uploaded" /tmp/deploy.log; then echo "Worker uploaded successfully"; else exit 1; fi
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
       - name: Deploy Pages (Frontend)
-        run: npx wrangler pages deploy apps/web/dist --project-name=zomieksfinal
+        run: npx wrangler pages deploy apps/web/dist --project-name=zomieksfinal --commit-dirty=true
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
