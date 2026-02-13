@@ -10,6 +10,7 @@ import { createId } from '@paralleldrive/cuid2';
 import type { Env } from '../types';
 import { authMiddleware, requireAuth, requireAdmin } from '../middleware/auth';
 import { validate, getValidatedBody } from '../middleware/validation';
+import { sendEmail } from '../services/email';
 import {
   createPayoutBatch,
   confirmPayoutBatch,
@@ -1111,6 +1112,38 @@ app.get('/sellers/pending-kyc', async (c) => {
   return c.json({
     success: true,
     data: { sellers },
+  });
+});
+
+// Send test email (admin only)
+app.post('/email/test', async (c) => {
+  const body = await c.req.json<{ to: string }>();
+  const to = body?.to;
+  if (!to || typeof to !== 'string' || !to.includes('@')) {
+    return c.json({ success: false, error: { message: 'Valid "to" email required' } }, 400);
+  }
+
+  const result = await sendEmail(
+    {
+      to,
+      subject: 'Zomieks Test Email',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h1 style="color: #00b22d;">Email Setup Working!</h1>
+          <p>This is a test email from your Zomieks platform.</p>
+          <p>If you're reading this, your Cloudflare Email Workers send_email binding is configured correctly.</p>
+          <p style="color: #666;">— Zomieks Platform</p>
+        </div>
+      `,
+    },
+    'noreply@zomieks.com',
+    'Zomieks',
+    c.env
+  );
+
+  return c.json({
+    success: true,
+    data: { sent: result, binding: !!c.env.SEND_EMAIL },
   });
 });
 
