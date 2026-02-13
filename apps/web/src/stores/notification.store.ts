@@ -42,8 +42,8 @@ export const useNotificationStore = create<NotificationState>((set) => ({
           data: { notifications: Notification[]; unreadCount: number } 
         }>('/users/notifications');
         set({ 
-          notifications: response.data.notifications,
-          unreadCount: response.data.unreadCount,
+          notifications: response.data?.notifications || [],
+          unreadCount: response.data?.unreadCount || 0,
         });
       } catch {
         // Silently fail - notifications endpoint may not exist yet

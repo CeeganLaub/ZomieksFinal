@@ -72,9 +72,9 @@ export default function MiniChatWindow({ conversationId, index }: MiniChatWindow
           success: boolean;
           data: { conversation: ConvData; messages: MsgData[] };
         }>(`/conversations/${conversationId}`);
-        if (!cancelled) {
+        if (!cancelled && res.data) {
           setConversation(res.data.conversation);
-          setMessages(res.data.messages);
+          setMessages(res.data.messages || []);
         }
       } catch (err) {
         console.error('Failed to load conversation:', err);

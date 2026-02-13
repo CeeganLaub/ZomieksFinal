@@ -88,7 +88,7 @@ export default function ChatBubble({ message, isOwn, compact = false, showAvatar
             </div>
           </div>
           <p className={cn('text-[9px] px-3 pb-1.5', isOwn ? 'text-muted-foreground/60' : 'text-muted-foreground')}>
-            {formatDistanceToNow(new Date(message.createdAt), { addSuffix: true })}
+            {message.createdAt ? formatDistanceToNow(new Date(message.createdAt), { addSuffix: true }) : ''}
           </p>
         </div>
       </div>
@@ -132,7 +132,7 @@ export default function ChatBubble({ message, isOwn, compact = false, showAvatar
           'text-[9px] mt-0.5',
           isOwn ? 'text-primary-foreground/50' : 'text-muted-foreground/70'
         )}>
-          {formatDistanceToNow(new Date(message.createdAt), { addSuffix: true })}
+          {message.createdAt ? formatDistanceToNow(new Date(message.createdAt), { addSuffix: true }) : ''}
         </p>
       </div>
     </div>

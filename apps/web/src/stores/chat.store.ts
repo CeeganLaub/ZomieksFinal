@@ -70,9 +70,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({ isLoading: true });
     try {
       const response = await api.get<{ success: boolean; data: { conversations: Conversation[] } }>('/conversations');
-      const conversations = response.data.conversations;
+      const conversations = response.data?.conversations || [];
       const conversationMap = new Map(conversations.map(c => [c.id, c]));
       set({ conversations, conversationMap });
+    } catch {
+      // Silently fail — conversations may not be available
     } finally {
       set({ isLoading: false });
     }
@@ -86,9 +88,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
         data: { conversation: Conversation; messages: Message[] } 
       }>(`/conversations/${id}`);
       set({ 
-        activeConversation: response.data.conversation,
-        messages: response.data.messages,
+        activeConversation: response.data?.conversation || null,
+        messages: response.data?.messages || [],
       });
+    } catch {
+      // Silently fail
     } finally {
       set({ isLoading: false });
     }

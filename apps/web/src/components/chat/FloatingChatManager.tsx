@@ -10,11 +10,12 @@ import { useLocation } from 'react-router-dom';
  * Renders at the App level, visible on all pages when logged in.
  */
 export default function FloatingChatManager() {
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, isLoading } = useAuthStore();
   const { openChats } = useFloatingChatStore();
   const location = useLocation();
 
-  if (!isAuthenticated) return null;
+  // Don't render until auth is fully initialized (prevents crashes from stale hydrated state)
+  if (!isAuthenticated || isLoading) return null;
 
   // Get the conversation ID from the current route if on a full conversation page
   const conversationPageMatch = location.pathname.match(
