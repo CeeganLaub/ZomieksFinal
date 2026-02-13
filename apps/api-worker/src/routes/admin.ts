@@ -1137,7 +1137,7 @@ app.post('/email/test', async (c) => {
           </div>
         `,
       },
-      'onboarding@resend.dev',
+      'noreply@zomieks.com',
       'Zomieks',
       c.env
     );
