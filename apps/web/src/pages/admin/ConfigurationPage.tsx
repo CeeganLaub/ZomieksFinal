@@ -109,6 +109,7 @@ const CATEGORY_DEFINITIONS: Record<string, { name: string; description: string; 
 export default function ConfigurationPage() {
   const [configs, setConfigs] = useState<ConfigItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['platform', 'smtp']));
   const [showSecrets, setShowSecrets] = useState<Set<string>>(new Set());
@@ -126,17 +127,21 @@ export default function ConfigurationPage() {
   async function loadConfigs() {
     try {
       setLoading(true);
+      setError(null);
       const res = await api.get<{ success: boolean; data: ConfigItem[] }>('/admin/settings/config');
       setConfigs(res.data || []);
       
-      // Pre-populate edit values
+      // Pre-populate edit values, skip masked secrets
       const values: Record<string, string> = {};
       res.data?.forEach((item: ConfigItem) => {
         const fieldKey = `${item.category}.${item.key}`;
+        // Don't pre-populate masked secret values — they'd overwrite real secrets on save
+        if (item.isSecret && item.value === '••••••••') return;
         values[fieldKey] = item.value || '';
       });
       setEditValues(values);
-    } catch (error) {
+    } catch (err) {
+      setError('Failed to load configuration. Please check your connection and try again.');
       toast.error('Failed to load configuration');
     } finally {
       setLoading(false);
@@ -301,6 +306,24 @@ export default function ConfigurationPage() {
     return (
       <div className="flex items-center justify-center h-64">
         <ArrowPathIcon className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-4">
+        <div className="bg-destructive/10 border border-destructive/30 text-destructive rounded-lg p-4 max-w-md text-center">
+          <p className="font-medium mb-1">Error loading configuration</p>
+          <p className="text-sm opacity-80">{error}</p>
+        </div>
+        <button
+          onClick={loadConfigs}
+          className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90"
+        >
+          <ArrowPathIcon className="h-4 w-4" />
+          Retry
+        </button>
       </div>
     );
   }

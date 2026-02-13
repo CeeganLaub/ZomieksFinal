@@ -96,11 +96,11 @@ export default function HomePage() {
   };
 
   return (
-    <div>
+    <div className="overflow-x-hidden">
       {/* Hero Section */}
-      <section className="relative isolate min-h-[70vh] flex items-center bg-gradient-to-b from-background via-background to-muted/30 overflow-hidden">
+      <section className="relative min-h-[70vh] flex items-center bg-gradient-to-b from-background via-background to-muted/30 overflow-hidden">
         {/* Animated background elements */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute inset-0 -z-10 overflow-hidden pointer-events-none" aria-hidden="true">
           <motion.div
             className="absolute top-32 left-10 w-72 h-72 bg-primary/5 rounded-full blur-3xl"
             animate={{ x: [0, 30, 0], y: [0, -20, 0] }}
@@ -137,11 +137,12 @@ export default function HomePage() {
               
               <h1 className="text-5xl md:text-7xl font-bold mb-6 leading-tight">
                 Find the perfect{' '}
-                <span className="relative">
-                  <span className="text-primary">freelance</span>
+                <span className="relative inline-block">
+                  <span className="text-primary relative z-10">freelance</span>
                   <motion.svg
-                    className="absolute -bottom-2 left-0 w-full"
+                    className="absolute -bottom-2 left-0 w-full h-3"
                     viewBox="0 0 300 12"
+                    preserveAspectRatio="none"
                     initial={{ pathLength: 0 }}
                     animate={{ pathLength: 1 }}
                     transition={{ delay: 0.5, duration: 0.8 }}
@@ -246,25 +247,10 @@ export default function HomePage() {
             </motion.div>
           </div>
         </div>
-
-        {/* Scroll indicator */}
-        <motion.div
-          className="absolute bottom-8 left-1/2 -translate-x-1/2"
-          animate={{ y: [0, 10, 0] }}
-          transition={{ duration: 2, repeat: Infinity }}
-        >
-          <div className="w-6 h-10 rounded-full border-2 border-muted-foreground/30 flex justify-center pt-2">
-            <motion.div
-              className="w-1.5 h-3 bg-muted-foreground/30 rounded-full"
-              animate={{ y: [0, 8, 0], opacity: [1, 0.5, 1] }}
-              transition={{ duration: 2, repeat: Infinity }}
-            />
-          </div>
-        </motion.div>
       </section>
 
       {/* Trust Badges */}
-      <section className="py-8 bg-gray-950 relative z-10 border-y border-gray-800">
+      <section className="py-8 bg-muted/80 dark:bg-gray-950 relative z-20 border-y border-border dark:border-gray-800">
         <div className="container">
           <motion.div
             className="grid grid-cols-2 md:grid-cols-4 gap-4"
@@ -276,15 +262,15 @@ export default function HomePage() {
             {trustBadges.map((badge, i) => (
               <motion.div
                 key={i}
-                className="flex items-center gap-3 justify-center p-4 rounded-xl bg-white/5 border border-white/5"
+                className="flex items-center gap-3 justify-center p-4 rounded-xl bg-background/60 dark:bg-white/5 border border-border dark:border-white/5"
                 variants={fadeInUp}
               >
                 <div className="p-2.5 rounded-lg bg-primary/20">
                   <badge.icon className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-white text-sm">{badge.title}</h3>
-                  <p className="text-xs text-gray-400">{badge.desc}</p>
+                  <h3 className="font-semibold text-foreground text-sm">{badge.title}</h3>
+                  <p className="text-xs text-muted-foreground">{badge.desc}</p>
                 </div>
               </motion.div>
             ))}
@@ -293,8 +279,8 @@ export default function HomePage() {
       </section>
 
       {/* BioLink Showcase */}
-      <section className="relative isolate py-20 bg-background overflow-hidden">
-        <div className="container">
+      <section className="relative py-20 bg-background overflow-hidden">
+        <div className="container relative z-10">
           <div className="grid md:grid-cols-2 gap-12 items-center">
             {/* Phone Mockup */}
             <div className="flex justify-center order-2 md:order-1">
@@ -393,7 +379,8 @@ export default function HomePage() {
       </section>
 
       {/* Categories */}
-      <section className="container py-20">
+      <section className="py-20 bg-muted/20">
+        <div className="container">
         <div className="text-center mb-12">
           <h2 className="text-3xl md:text-4xl font-bold mb-4">Explore Popular Categories</h2>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
@@ -427,11 +414,12 @@ export default function HomePage() {
             ))}
           </div>
         )}
+        </div>
       </section>
 
       {/* Featured Services */}
-      <section className="bg-muted/30 py-20 relative isolate">
-        <div className="container">
+      <section className="bg-background py-20 relative">
+        <div className="container relative z-10">
           <div className="flex justify-between items-end mb-12">
             <div>
               <h2 className="text-3xl md:text-4xl font-bold mb-2">Featured Services</h2>
@@ -473,14 +461,15 @@ export default function HomePage() {
                         <img 
                           src={service.images[0]} 
                           alt={service.title}
-                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500 relative z-[1]"
                           loading="lazy"
                         />
-                      ) : null}
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <SparklesIcon className="h-12 w-12 text-muted-foreground/20" />
-                      </div>
-                      <div className="absolute bottom-3 right-3 bg-background/90 backdrop-blur-sm px-3 py-1.5 rounded-full text-sm font-semibold shadow-lg">
+                      ) : (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <SparklesIcon className="h-12 w-12 text-muted-foreground/20" />
+                        </div>
+                      )}
+                      <div className="absolute bottom-3 right-3 z-[2] bg-background/90 backdrop-blur-sm px-3 py-1.5 rounded-full text-sm font-semibold shadow-lg">
                         {service.pricingType === 'SUBSCRIPTION'
                           ? `R${(service.subscriptionTiers?.[0]?.price || service.packages?.[0]?.price || 0).toLocaleString()}/mo`
                           : service.pricingType === 'BOTH'
@@ -543,8 +532,8 @@ export default function HomePage() {
       </section>
 
       {/* Why Sell on Zomieks */}
-      <section className="py-20 bg-background relative isolate">
-        <div className="container">
+      <section className="py-20 bg-muted/20 relative">
+        <div className="container relative z-10">
           <div className="text-center mb-14">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-sm font-medium mb-4">
               <SparklesIcon className="h-4 w-4" />
@@ -667,8 +656,8 @@ export default function HomePage() {
       </section>
 
       {/* Featured Courses */}
-      <section className="py-20 bg-gray-950 text-white relative isolate overflow-hidden">
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+      <section className="py-20 bg-gray-900 dark:bg-gray-950 text-white relative overflow-hidden">
+        <div className="absolute inset-0 -z-10 overflow-hidden pointer-events-none" aria-hidden="true">
           <div className="absolute top-0 right-0 w-96 h-96 bg-purple-600/10 rounded-full blur-3xl" />
           <div className="absolute bottom-0 left-0 w-72 h-72 bg-primary/10 rounded-full blur-3xl" />
         </div>
@@ -748,8 +737,8 @@ export default function HomePage() {
       </section>
 
       {/* Stats Section */}
-      <section className="py-20 bg-gradient-to-r from-primary via-emerald-600 to-teal-600 text-primary-foreground relative isolate overflow-hidden">
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+      <section className="py-20 bg-gradient-to-r from-primary via-emerald-600 to-teal-600 text-primary-foreground relative overflow-hidden">
+        <div className="absolute inset-0 -z-10 overflow-hidden pointer-events-none" aria-hidden="true">
           <div className="absolute top-0 left-0 w-64 h-64 bg-white/5 rounded-full blur-3xl" />
           <div className="absolute bottom-0 right-0 w-96 h-96 bg-white/5 rounded-full blur-3xl" />
         </div>
@@ -778,7 +767,8 @@ export default function HomePage() {
       </section>
 
       {/* How it works */}
-      <section className="container py-20">
+      <section className="py-20 bg-background">
+        <div className="container">
         <motion.div
           initial="hidden"
           whileInView="visible"
@@ -834,14 +824,15 @@ export default function HomePage() {
             ))}
           </div>
         </motion.div>
+        </div>
       </section>
 
 
 
       {/* CTA */}
-      <section className="relative isolate py-24 overflow-hidden">
+      <section className="relative py-24 overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-primary via-primary to-purple-700" />
-        <div className="absolute inset-0 opacity-30">
+        <div className="absolute inset-0 -z-0 opacity-30 pointer-events-none" aria-hidden="true">
           <div className="absolute top-0 left-0 w-96 h-96 bg-white/10 rounded-full blur-3xl" />
           <div className="absolute bottom-0 right-0 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl" />
         </div>
@@ -897,7 +888,7 @@ export default function HomePage() {
       </section>
 
       {/* Become a Seller CTA */}
-      <section className="py-20">
+      <section className="py-20 bg-background">
         <div className="container">
           <motion.div
             initial="hidden"
@@ -906,7 +897,7 @@ export default function HomePage() {
             variants={fadeInUp}
           >
             <div className="rounded-3xl overflow-hidden bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 border border-gray-800 relative">
-              <div className="absolute inset-0 overflow-hidden pointer-events-none">
+              <div className="absolute inset-0 -z-0 overflow-hidden pointer-events-none" aria-hidden="true">
                 <div className="absolute top-0 right-0 w-96 h-96 bg-primary/10 rounded-full blur-3xl" />
                 <div className="absolute bottom-0 left-0 w-72 h-72 bg-purple-600/10 rounded-full blur-3xl" />
               </div>
