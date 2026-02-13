@@ -41,8 +41,8 @@ export interface Env {
   PAYFAST_SANDBOX?: string;
   OZOW_TEST_MODE?: string;
   
-  // Email (Cloudflare Email Workers send_email binding)
-  SEND_EMAIL?: any; // SendEmail binding - optional, falls back to console logging
+  // Email (Resend API)
+  RESEND_API_KEY?: string;
 }
 
 // Extend Hono context

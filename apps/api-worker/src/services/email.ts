@@ -1,10 +1,8 @@
 /**
  * Email Service
- * Sends emails via Cloudflare Email Workers (send_email binding)
- * Requires Email Routing to be enabled on the domain in Cloudflare Dashboard
+ * Sends transactional emails via Resend API (https://resend.com)
+ * Falls back to console logging if RESEND_API_KEY is not configured
  */
-import { EmailMessage } from 'cloudflare:email';
-import { createMimeMessage } from 'mimetext';
 
 interface EmailOptions {
   to: string;
@@ -18,6 +16,10 @@ interface EmailQueueMessage {
   type: string;
   to: string;
   data: Record<string, any>;
+}
+
+interface EmailEnv {
+  RESEND_API_KEY?: string;
 }
 
 // Email templates
@@ -176,42 +178,49 @@ const templates = {
 };
 
 /**
- * Send email via Cloudflare Email Workers send_email binding
- * Falls back to console logging if binding is not available
+ * Send email via Resend API
+ * Falls back to console logging if RESEND_API_KEY is not configured
  */
 export async function sendEmail(
   options: EmailOptions,
   fromEmail: string,
   fromName: string,
-  env?: { SEND_EMAIL?: any }
-): Promise<boolean> {
+  env?: EmailEnv
+): Promise<{ success: boolean; error?: string }> {
   try {
-    const msg = createMimeMessage();
-    msg.setSender({ name: fromName, addr: fromEmail });
-    msg.setRecipient(options.to);
-    msg.setSubject(options.subject);
-    msg.addMessage({ contentType: 'text/html', data: options.html });
-    if (options.text) {
-      msg.addMessage({ contentType: 'text/plain', data: options.text });
-    }
-    if (options.replyTo) {
-      msg.setHeader('Reply-To', options.replyTo);
+    if (!env?.RESEND_API_KEY) {
+      console.log('[EMAIL FALLBACK] No RESEND_API_KEY. Would send to:', options.to, 'Subject:', options.subject);
+      return { success: true };
     }
 
-    if (env?.SEND_EMAIL) {
-      const message = new EmailMessage(fromEmail, options.to, msg.asRaw());
-      await env.SEND_EMAIL.send(message);
-      console.log('Email sent to:', options.to, 'Subject:', options.subject);
-      return true;
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${env.RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: `${fromName} <${fromEmail}>`,
+        to: [options.to],
+        subject: options.subject,
+        html: options.html,
+        ...(options.text && { text: options.text }),
+        ...(options.replyTo && { reply_to: options.replyTo }),
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json<{ message?: string }>().catch(() => ({ message: response.statusText }));
+      console.error('Resend API error:', response.status, error);
+      return { success: false, error: (error as any)?.message || `HTTP ${response.status}` };
     }
 
-    // Fallback: log email if binding not configured
-    console.log('[EMAIL FALLBACK] Would send to:', options.to, 'Subject:', options.subject);
-    return true;
-  } catch (error) {
-    console.error('Email send error:', error);
-    console.log('Failed email to:', options.to, 'Subject:', options.subject);
-    return false;
+    console.log('Email sent to:', options.to, 'Subject:', options.subject);
+    return { success: true };
+  } catch (error: any) {
+    const errorMsg = error?.message || String(error);
+    console.error('Email send error:', errorMsg);
+    return { success: false, error: errorMsg };
   }
 }
 
@@ -220,7 +229,7 @@ export async function processEmailQueue(
   message: EmailQueueMessage,
   fromEmail: string = 'noreply@zomieks.com',
   fromName: string = 'Zomieks',
-  env?: { SEND_EMAIL?: any }
+  env?: EmailEnv
 ): Promise<boolean> {
   const template = templates[message.type as keyof typeof templates];
 
@@ -231,7 +240,8 @@ export async function processEmailQueue(
 
   const { subject, html } = template(message.data as any);
 
-  return sendEmail({ to: message.to, subject, html }, fromEmail, fromName, env);
+  const result = await sendEmail({ to: message.to, subject, html }, fromEmail, fromName, env);
+  return result.success;
 }
 
 export { templates };

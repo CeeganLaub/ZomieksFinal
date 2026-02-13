@@ -1123,28 +1123,36 @@ app.post('/email/test', async (c) => {
     return c.json({ success: false, error: { message: 'Valid "to" email required' } }, 400);
   }
 
-  const result = await sendEmail(
-    {
-      to,
-      subject: 'Zomieks Test Email',
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h1 style="color: #00b22d;">Email Setup Working!</h1>
-          <p>This is a test email from your Zomieks platform.</p>
-          <p>If you're reading this, your Cloudflare Email Workers send_email binding is configured correctly.</p>
-          <p style="color: #666;">— Zomieks Platform</p>
-        </div>
-      `,
-    },
-    'noreply@zomieks.com',
-    'Zomieks',
-    c.env
-  );
+  try {
+    const result = await sendEmail(
+      {
+        to,
+        subject: 'Zomieks Test Email',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h1 style="color: #00b22d;">Email Setup Working!</h1>
+            <p>This is a test email from your Zomieks platform.</p>
+            <p>If you're reading this, your Resend email integration is configured correctly.</p>
+            <p style="color: #666;">— Zomieks Platform</p>
+          </div>
+        `,
+      },
+      'onboarding@resend.dev',
+      'Zomieks',
+      c.env
+    );
 
-  return c.json({
-    success: true,
-    data: { sent: result, binding: !!c.env.SEND_EMAIL },
-  });
+    return c.json({
+      success: result.success,
+      data: { sent: result.success, hasApiKey: !!c.env.RESEND_API_KEY, error: result.error },
+    });
+  } catch (error: any) {
+    return c.json({
+      success: false,
+      error: { message: error?.message || 'Unknown error' },
+      data: { hasApiKey: !!c.env.RESEND_API_KEY },
+    });
+  }
 });
 
 export default app;

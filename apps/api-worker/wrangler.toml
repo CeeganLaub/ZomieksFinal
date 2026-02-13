@@ -96,14 +96,13 @@ class_name = "CrmNotifications"
 tag = "v1"
 new_sqlite_classes = ["ChatRoom", "Presence", "CrmNotifications"]
 
-# Cloudflare Email Workers (send_email binding)
-# Requires Email Routing to be enabled on the domain in Cloudflare Dashboard
-[[send_email]]
-name = "SEND_EMAIL"
+# Email sending via Resend
+# Set RESEND_API_KEY via: wrangler secret put RESEND_API_KEY
 
 # Secrets (set via: wrangler secret put SECRET_NAME)
 # Required secrets:
 # - JWT_SECRET
+# - RESEND_API_KEY
 # - PAYFAST_MERCHANT_ID
 # - PAYFAST_MERCHANT_KEY
 # - PAYFAST_PASSPHRASE
