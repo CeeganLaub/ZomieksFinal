@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useChatStore } from '../../stores/chat.store';
 import { useFloatingChatStore } from '../../stores/floatingChat.store';
 import { useAuthStore } from '../../stores/auth.store';
@@ -11,9 +11,10 @@ import {
   MinusIcon,
   ArrowTopRightOnSquareIcon,
   PaperAirplaneIcon,
+  CurrencyDollarIcon,
 } from '@heroicons/react/24/outline';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../../lib/api';
+import { api, conversationsApi } from '../../lib/api';
 
 interface MiniChatWindowProps {
   conversationId: string;
@@ -53,6 +54,9 @@ export default function MiniChatWindow({ conversationId, index }: MiniChatWindow
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const [typingUser, setTypingUser] = useState<string | null>(null);
+  const [showOfferForm, setShowOfferForm] = useState(false);
+  const [offerData, setOfferData] = useState({ description: '', price: '', deliveryDays: '', revisions: '1', offerType: 'ONE_TIME' as 'ONE_TIME' | 'MONTHLY' });
+  const [isSendingOffer, setIsSendingOffer] = useState(false);
 
   const isMinimized = minimizedChats.includes(conversationId);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -170,6 +174,61 @@ export default function MiniChatWindow({ conversationId, index }: MiniChatWindow
     navigate(`/messages/${conversationId}`);
   };
 
+  const isSeller = conversation ? conversation.sellerId === user?.id : false;
+
+  const handleSendOffer = useCallback(async () => {
+    if (!offerData.description || !offerData.price || !offerData.deliveryDays || isSendingOffer) return;
+    setIsSendingOffer(true);
+    try {
+      const res = await conversationsApi.sendOffer(conversationId, {
+        description: offerData.description,
+        price: parseFloat(offerData.price),
+        deliveryDays: parseInt(offerData.deliveryDays),
+        revisions: parseInt(offerData.revisions) || 0,
+        offerType: offerData.offerType,
+      });
+      if (res.data?.message) {
+        setMessages((prev) => [...prev, res.data.message]);
+        addMessage(res.data.message as any);
+      }
+      setShowOfferForm(false);
+      setOfferData({ description: '', price: '', deliveryDays: '', revisions: '1', offerType: 'ONE_TIME' });
+    } catch (err) {
+      console.error('Failed to send offer:', err);
+    } finally {
+      setIsSendingOffer(false);
+    }
+  }, [conversationId, offerData, isSendingOffer, addMessage]);
+
+  const handleAcceptOffer = useCallback(async (messageId: string) => {
+    try {
+      const res = await conversationsApi.acceptOffer(conversationId, messageId);
+      if (res.data?.order) {
+        // Update the offer message status locally
+        setMessages((prev) => prev.map(m =>
+          m.id === messageId && m.quickOffer
+            ? { ...m, quickOffer: { ...m.quickOffer, status: 'ACCEPTED' } }
+            : m
+        ));
+      }
+    } catch (err) {
+      console.error('Failed to accept offer:', err);
+    }
+  }, [conversationId]);
+
+  const handleDeclineOffer = useCallback(async (messageId: string) => {
+    try {
+      await conversationsApi.declineOffer(conversationId, messageId);
+      setMessages((prev) => prev.map(m =>
+        m.id === messageId && m.quickOffer
+          ? { ...m, quickOffer: { ...m.quickOffer, status: 'DECLINED' } }
+          : m
+      ));
+    } catch (err) {
+      console.error('Failed to decline offer:', err);
+    }
+  }, [conversationId]);
+
   const otherUser = conversation
     ? (conversation.buyerId === user?.id ? conversation.seller : conversation.buyer)
     : null;
@@ -206,6 +265,8 @@ export default function MiniChatWindow({ conversationId, index }: MiniChatWindow
                     isOwn={msg.senderId === user?.id}
                     compact
                     showAvatar={msg.senderId !== user?.id}
+                    onAcceptOffer={handleAcceptOffer}
+                    onDeclineOffer={handleDeclineOffer}
                   />
                 ))}
                 {typingUser && (
@@ -223,9 +284,99 @@ export default function MiniChatWindow({ conversationId, index }: MiniChatWindow
             )}
           </div>
 
+          {/* Offer form slide-up */}
+          <AnimatePresence>
+            {showOfferForm && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="border-t bg-card overflow-hidden"
+              >
+                <div className="p-2.5 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[11px] font-semibold text-primary">Send Custom Offer</p>
+                    <button onClick={() => setShowOfferForm(false)} className="p-0.5 hover:bg-muted rounded">
+                      <XMarkIcon className="h-3.5 w-3.5 text-muted-foreground" />
+                    </button>
+                  </div>
+                  <textarea
+                    value={offerData.description}
+                    onChange={(e) => setOfferData(d => ({ ...d, description: e.target.value }))}
+                    placeholder="What will you deliver?"
+                    rows={2}
+                    className="w-full text-xs px-2.5 py-1.5 rounded-lg border bg-muted/40 focus:bg-background focus:outline-none focus:border-primary/50 resize-none"
+                  />
+                  <div className="grid grid-cols-3 gap-1.5">
+                    <div>
+                      <label className="text-[9px] text-muted-foreground mb-0.5 block">Price (R)</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={offerData.price}
+                        onChange={(e) => setOfferData(d => ({ ...d, price: e.target.value }))}
+                        className="w-full text-xs px-2 py-1.5 rounded-lg border bg-muted/40 focus:bg-background focus:outline-none focus:border-primary/50"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[9px] text-muted-foreground mb-0.5 block">Days</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={offerData.deliveryDays}
+                        onChange={(e) => setOfferData(d => ({ ...d, deliveryDays: e.target.value }))}
+                        className="w-full text-xs px-2 py-1.5 rounded-lg border bg-muted/40 focus:bg-background focus:outline-none focus:border-primary/50"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[9px] text-muted-foreground mb-0.5 block">Revisions</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={offerData.revisions}
+                        onChange={(e) => setOfferData(d => ({ ...d, revisions: e.target.value }))}
+                        className="w-full text-xs px-2 py-1.5 rounded-lg border bg-muted/40 focus:bg-background focus:outline-none focus:border-primary/50"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={offerData.offerType}
+                      onChange={(e) => setOfferData(d => ({ ...d, offerType: e.target.value as 'ONE_TIME' | 'MONTHLY' }))}
+                      className="flex-1 text-xs px-2 py-1.5 rounded-lg border bg-muted/40 focus:bg-background focus:outline-none focus:border-primary/50"
+                    >
+                      <option value="ONE_TIME">One-time</option>
+                      <option value="MONTHLY">Monthly</option>
+                    </select>
+                    <button
+                      onClick={handleSendOffer}
+                      disabled={!offerData.description || !offerData.price || !offerData.deliveryDays || isSendingOffer}
+                      className="px-3 py-1.5 text-[11px] font-medium rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                    >
+                      {isSendingOffer ? 'Sending...' : 'Send Offer'}
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {/* Input area */}
           <div className="border-t p-2 bg-card">
             <div className="flex items-end gap-1.5">
+              {isSeller && (
+                <button
+                  onClick={() => setShowOfferForm(v => !v)}
+                  className={cn(
+                    'p-2 rounded-xl transition-colors shrink-0',
+                    showOfferForm ? 'bg-primary/10 text-primary' : 'hover:bg-muted text-muted-foreground'
+                  )}
+                  title="Send custom offer"
+                >
+                  <CurrencyDollarIcon className="h-3.5 w-3.5" />
+                </button>
+              )}
               <textarea
                 ref={inputRef}
                 value={newMessage}

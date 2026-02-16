@@ -31,6 +31,8 @@ interface ChatBubbleProps {
   isOwn: boolean;
   compact?: boolean;
   showAvatar?: boolean;
+  onAcceptOffer?: (messageId: string) => void;
+  onDeclineOffer?: (messageId: string) => void;
 }
 
 function Avatar({ sender, size = 'sm' }: { sender: ChatMessage['sender']; size?: 'sm' | 'md' }) {
@@ -45,7 +47,7 @@ function Avatar({ sender, size = 'sm' }: { sender: ChatMessage['sender']; size?:
   );
 }
 
-export default function ChatBubble({ message, isOwn, compact = false, showAvatar = true }: ChatBubbleProps) {
+export default function ChatBubble({ message, isOwn, compact = false, showAvatar = true, onAcceptOffer, onDeclineOffer }: ChatBubbleProps) {
   const isSystem = message.type === 'SYSTEM' || message.type === 'ORDER_UPDATE';
 
   if (isSystem) {
@@ -86,6 +88,26 @@ export default function ChatBubble({ message, isOwn, compact = false, showAvatar
             )}>
               {offer.status}
             </div>
+            {offer.status === 'PENDING' && !isOwn && (onAcceptOffer || onDeclineOffer) && (
+              <div className="flex gap-1.5 mt-1.5">
+                {onAcceptOffer && (
+                  <button
+                    onClick={() => onAcceptOffer(message.id)}
+                    className="flex-1 text-[10px] font-medium py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                  >
+                    Accept
+                  </button>
+                )}
+                {onDeclineOffer && (
+                  <button
+                    onClick={() => onDeclineOffer(message.id)}
+                    className="flex-1 text-[10px] font-medium py-1.5 rounded-lg border border-border text-muted-foreground hover:bg-muted transition-colors"
+                  >
+                    Decline
+                  </button>
+                )}
+              </div>
+            )}
           </div>
           <p className={cn('text-[9px] px-3 pb-1.5', isOwn ? 'text-muted-foreground/60' : 'text-muted-foreground')}>
             {message.createdAt ? formatDistanceToNow(new Date(message.createdAt), { addSuffix: true }) : ''}

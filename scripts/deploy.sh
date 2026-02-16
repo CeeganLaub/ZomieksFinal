@@ -49,9 +49,9 @@ echo ""
 # Step 3: Deploy to Cloudflare Pages
 echo "3️⃣ Deploying Frontend (Pages)..."
 if [ "$ENV" = "production" ]; then
-    npx wrangler pages deploy dist --project-name=zomieks --branch=main
+    npx wrangler pages deploy dist --project-name=zomiekscom --branch=main
 else
-    npx wrangler pages deploy dist --project-name=zomieks --branch=staging
+    npx wrangler pages deploy dist --project-name=zomiekscom --branch=staging
 fi
 
 echo "✓ Frontend deployed"

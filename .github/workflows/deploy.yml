@@ -30,7 +30,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
       - name: Deploy Pages (Frontend)
-        run: npx wrangler pages deploy apps/web/dist --project-name=zomieksfinal --commit-dirty=true
+        run: npx wrangler pages deploy apps/web/dist --project-name=zomiekscom --commit-dirty=true
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

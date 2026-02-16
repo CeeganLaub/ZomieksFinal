@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { eq, and, or, desc, isNull, count, sql } from 'drizzle-orm';
 import { 
-  conversations, messages, users, orders, 
+  conversations, messages, users, orders, services,
   conversationNotes, conversationLabels, labels,
   savedReplies, pipelineStages
 } from '@zomieks/db';
@@ -10,6 +10,8 @@ import { createId } from '@paralleldrive/cuid2';
 import type { Env } from '../types';
 import { authMiddleware, requireAuth, requireSeller } from '../middleware/auth';
 import { validate, getValidatedBody } from '../middleware/validation';
+import { calculateFees, DEFAULT_FEE_POLICY } from '../services/fee-engine';
+import type { Gateway, PaymentMethod } from '../services/fee-engine';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -20,12 +22,6 @@ app.use('*', requireAuth);
 const sendMessageSchema = z.object({
   content: z.string().min(1).max(5000),
   attachments: z.array(z.string()).optional(),
-  offerDetails: z.object({
-    description: z.string(),
-    price: z.number().positive(),
-    deliveryDays: z.number().int().positive(),
-    revisions: z.number().int().min(0),
-  }).optional(),
 });
 
 const updateLabelSchema = z.object({
@@ -42,37 +38,64 @@ const savedReplySchema = z.object({
   shortcut: z.string().max(20).optional(),
 });
 
-// Helper: Format conversation for list
+const offerSchema = z.object({
+  description: z.string().min(1).max(1000),
+  price: z.number().positive(),
+  deliveryDays: z.number().int().positive(),
+  revisions: z.number().int().min(0).optional(),
+  offerType: z.enum(['ONE_TIME', 'MONTHLY']).optional().default('ONE_TIME'),
+});
+
+const acceptOfferSchema = z.object({
+  paymentGateway: z.string().optional().default('ozow'),
+});
+
+// Helpers
+function generateOrderNumber(): string {
+  const prefix = 'ZOM';
+  const timestamp = Date.now().toString(36).toUpperCase();
+  const random = Math.random().toString(36).substring(2, 6).toUpperCase();
+  return `${prefix}-${random}-${timestamp}`;
+}
+
 function formatConversation(conv: any, userId: string) {
-  const otherParticipant = conv.participantOne?.id === userId 
-    ? conv.participantTwo 
-    : conv.participantOne;
+  const isBuyer = conv.buyerId === userId;
+  const otherParticipant = isBuyer ? conv.seller : conv.buyer;
   
   return {
     id: conv.id,
+    buyerId: conv.buyerId,
+    sellerId: conv.sellerId,
     participant: otherParticipant ? {
       id: otherParticipant.id,
       username: otherParticipant.username,
       firstName: otherParticipant.firstName,
       avatar: otherParticipant.avatar,
-      isOnline: otherParticipant.isOnline,
+    } : null,
+    buyer: conv.buyer ? {
+      id: conv.buyer.id,
+      username: conv.buyer.username,
+      firstName: conv.buyer.firstName,
+      avatar: conv.buyer.avatar,
+    } : null,
+    seller: conv.seller ? {
+      id: conv.seller.id,
+      username: conv.seller.username,
+      firstName: conv.seller.firstName,
+      avatar: conv.seller.avatar,
     } : null,
     order: conv.order ? {
       id: conv.order.id,
       orderNumber: conv.order.orderNumber,
       status: conv.order.status,
     } : null,
-    lastMessage: conv.lastMessage,
+    lastMessage: conv.lastMessagePreview,
     lastMessageAt: conv.lastMessageAt,
-    unreadCount: conv.participantOneId === userId 
-      ? conv.unreadCountOne 
-      : conv.unreadCountTwo,
-    isStarred: conv.participantOneId === userId 
-      ? conv.isStarredByOne 
-      : conv.isStarredByTwo,
+    unreadCount: isBuyer ? conv.unreadBuyerCount : conv.unreadSellerCount,
+    isStarred: conv.isStarred,
     status: conv.status,
     pipelineStage: conv.pipelineStage,
-    labels: conv.conversationLabels?.map((cl: any) => ({
+    labels: conv.labels?.map((cl: any) => ({
       id: cl.label?.id,
       name: cl.label?.name,
       color: cl.label?.color,
@@ -85,16 +108,14 @@ app.get('/', async (c) => {
   const user = c.get('user')!;
   const db = c.get('db');
   const status = c.req.query('status');
-  const labelId = c.req.query('label');
   const starred = c.req.query('starred') === 'true';
   const page = parseInt(c.req.query('page') || '1');
   const limit = parseInt(c.req.query('limit') || '20');
   const offset = (page - 1) * limit;
   
-  // Build where conditions
   const baseCondition = or(
-    eq(conversations.participantOneId, user.id),
-    eq(conversations.participantTwoId, user.id)
+    eq(conversations.buyerId, user.id),
+    eq(conversations.sellerId, user.id)
   );
   
   let whereConditions: any[] = [baseCondition];
@@ -104,34 +125,22 @@ app.get('/', async (c) => {
   }
   
   if (starred) {
-    whereConditions.push(
-      or(
-        and(
-          eq(conversations.participantOneId, user.id),
-          eq(conversations.isStarredByOne, true)
-        ),
-        and(
-          eq(conversations.participantTwoId, user.id),
-          eq(conversations.isStarredByTwo, true)
-        )
-      )
-    );
+    whereConditions.push(eq(conversations.isStarred, true));
   }
   
   const convList = await db.query.conversations.findMany({
     where: and(...whereConditions),
     with: {
-      participantOne: true,
-      participantTwo: true,
+      buyer: true,
+      seller: true,
       order: true,
-      conversationLabels: { with: { label: true } },
+      labels: { with: { label: true } },
     },
     orderBy: desc(conversations.lastMessageAt),
     limit,
     offset,
   });
   
-  // Get unread count
   const [{ total }] = await db
     .select({ total: count() })
     .from(conversations)
@@ -139,12 +148,12 @@ app.get('/', async (c) => {
       baseCondition,
       or(
         and(
-          eq(conversations.participantOneId, user.id),
-          sql`${conversations.unreadCountOne} > 0`
+          eq(conversations.buyerId, user.id),
+          sql`${conversations.unreadBuyerCount} > 0`
         ),
         and(
-          eq(conversations.participantTwoId, user.id),
-          sql`${conversations.unreadCountTwo} > 0`
+          eq(conversations.sellerId, user.id),
+          sql`${conversations.unreadSellerCount} > 0`
         )
       )
     ));
@@ -172,15 +181,15 @@ app.get('/:id', async (c) => {
     where: and(
       eq(conversations.id, id),
       or(
-        eq(conversations.participantOneId, user.id),
-        eq(conversations.participantTwoId, user.id)
+        eq(conversations.buyerId, user.id),
+        eq(conversations.sellerId, user.id)
       )
     ),
     with: {
-      participantOne: { with: { sellerProfile: true } },
-      participantTwo: { with: { sellerProfile: true } },
+      buyer: { with: { sellerProfile: true } },
+      seller: { with: { sellerProfile: true } },
       order: true,
-      conversationLabels: { with: { label: true } },
+      labels: { with: { label: true } },
       notes: {
         orderBy: desc(conversationNotes.createdAt),
       },
@@ -194,7 +203,6 @@ app.get('/:id', async (c) => {
     }, 404);
   }
   
-  // Get messages
   const messageList = await db.query.messages.findMany({
     where: eq(messages.conversationId, id),
     with: { sender: true },
@@ -204,13 +212,12 @@ app.get('/:id', async (c) => {
   });
   
   // Mark as read
-  if (conversation.participantOneId === user.id && conversation.unreadCountOne > 0) {
+  const isBuyer = conversation.buyerId === user.id;
+  const unreadCount = isBuyer ? conversation.unreadBuyerCount : conversation.unreadSellerCount;
+  
+  if (unreadCount > 0) {
     await db.update(conversations)
-      .set({ unreadCountOne: 0 })
-      .where(eq(conversations.id, id));
-  } else if (conversation.participantTwoId === user.id && conversation.unreadCountTwo > 0) {
-    await db.update(conversations)
-      .set({ unreadCountTwo: 0 })
+      .set(isBuyer ? { unreadBuyerCount: 0 } : { unreadSellerCount: 0 })
       .where(eq(conversations.id, id));
   }
   
@@ -229,16 +236,18 @@ app.get('/:id', async (c) => {
       conversation: formatConversation(conversation, user.id),
       messages: messageList.reverse().map(msg => ({
         id: msg.id,
+        conversationId: msg.conversationId,
         senderId: msg.senderId,
         sender: {
+          id: msg.sender?.id,
           username: msg.sender?.username,
+          firstName: msg.sender?.firstName,
           avatar: msg.sender?.avatar,
         },
         content: msg.content,
+        type: msg.type,
         attachments: msg.attachments,
-        offerDetails: msg.offerDetails,
-        isOffer: msg.isOffer,
-        isSystemMessage: msg.isSystemMessage,
+        quickOffer: msg.quickOffer,
         isRead: msg.isRead,
         createdAt: msg.createdAt,
       })),
@@ -263,8 +272,8 @@ app.post('/:id/messages', validate(sendMessageSchema), async (c) => {
     where: and(
       eq(conversations.id, id),
       or(
-        eq(conversations.participantOneId, user.id),
-        eq(conversations.participantTwoId, user.id)
+        eq(conversations.buyerId, user.id),
+        eq(conversations.sellerId, user.id)
       )
     ),
   });
@@ -279,72 +288,65 @@ app.post('/:id/messages', validate(sendMessageSchema), async (c) => {
   const messageId = createId();
   const now = new Date().toISOString();
   
-  // Create message
   await db.insert(messages).values({
     id: messageId,
     conversationId: id,
     senderId: user.id,
     content: body.content,
-    attachments: body.attachments || [],
-    isOffer: !!body.offerDetails,
-    offerDetails: body.offerDetails || null,
+    attachments: body.attachments ? body.attachments.map(url => ({ url, name: url.split('/').pop() || 'file', size: 0, type: '' })) : null,
+    type: 'TEXT',
     createdAt: now,
-    updatedAt: now,
+    deliveredAt: now,
   });
   
   // Update conversation
-  const recipientIsOne = conversation.participantOneId !== user.id;
+  const isBuyer = conversation.buyerId === user.id;
   await db.update(conversations)
     .set({
-      lastMessage: body.content.substring(0, 100),
+      lastMessagePreview: body.content.substring(0, 100),
       lastMessageAt: now,
-      messageCount: conversation.messageCount + 1,
-      ...(recipientIsOne 
-        ? { unreadCountOne: conversation.unreadCountOne + 1 }
-        : { unreadCountTwo: conversation.unreadCountTwo + 1 }
+      messageCount: (conversation.messageCount || 0) + 1,
+      ...(isBuyer
+        ? { unreadSellerCount: (conversation.unreadSellerCount || 0) + 1 }
+        : { unreadBuyerCount: (conversation.unreadBuyerCount || 0) + 1 }
       ),
       updatedAt: now,
     })
     .where(eq(conversations.id, id));
   
-  // Queue notification
-  const recipientId = recipientIsOne 
-    ? conversation.participantOneId 
-    : conversation.participantTwoId;
-  await c.env.NOTIFICATION_QUEUE.send({
-    type: 'new_message',
-    recipientId,
-    senderId: user.id,
-    conversationId: id,
-    preview: body.content.substring(0, 100),
+  // Get sender info for response
+  const sender = await db.query.users.findFirst({
+    where: eq(users.id, user.id),
+    columns: { id: true, username: true, firstName: true, avatar: true },
   });
   
-  // Queue email notification to recipient
+  // Queue notification
+  const recipientId = isBuyer ? conversation.sellerId : conversation.buyerId;
   try {
-    const recipient = await db.query.users.findFirst({
-      where: eq(users.id, recipientId),
-      columns: { email: true },
+    await c.env.NOTIFICATION_QUEUE.send({
+      type: 'new_message',
+      recipientId,
+      senderId: user.id,
+      conversationId: id,
+      preview: body.content.substring(0, 100),
     });
-    if (recipient) {
-      await c.env.EMAIL_QUEUE.send({
-        type: 'new_message',
-        to: recipient.email,
-        data: {
-          senderName: user.firstName || user.username,
-          preview: body.content.substring(0, 100),
-          conversationId: id,
-        },
-      });
-    }
   } catch (e) {
-    console.error('Failed to queue message email:', e);
+    console.error('Failed to queue notification:', e);
   }
   
   return c.json({
     success: true,
     data: {
-      messageId,
-      createdAt: now,
+      message: {
+        id: messageId,
+        conversationId: id,
+        senderId: user.id,
+        sender: sender || { id: user.id, username: user.username },
+        content: body.content,
+        type: 'TEXT',
+        attachments: body.attachments || [],
+        createdAt: now,
+      },
     },
   });
 });
@@ -362,7 +364,6 @@ app.post('/start', async (c) => {
     }, 400);
   }
   
-  // Can't message self
   if (participantId === user.id) {
     return c.json({
       success: false,
@@ -370,9 +371,9 @@ app.post('/start', async (c) => {
     }, 400);
   }
   
-  // Check participant exists
   const participant = await db.query.users.findFirst({
     where: eq(users.id, participantId),
+    with: { sellerProfile: true },
   });
   
   if (!participant) {
@@ -382,20 +383,16 @@ app.post('/start', async (c) => {
     }, 404);
   }
   
+  // Determine buyer/seller roles
+  const participantIsSeller = participant.isSeller;
+  const buyerId = participantIsSeller ? user.id : participantId;
+  const sellerId = participantIsSeller ? participantId : user.id;
+  
   // Check for existing conversation
   const existing = await db.query.conversations.findFirst({
-    where: and(
-      or(
-        and(
-          eq(conversations.participantOneId, user.id),
-          eq(conversations.participantTwoId, participantId)
-        ),
-        and(
-          eq(conversations.participantOneId, participantId),
-          eq(conversations.participantTwoId, user.id)
-        )
-      ),
-      orderId ? eq(conversations.orderId, orderId) : isNull(conversations.orderId)
+    where: or(
+      and(eq(conversations.buyerId, buyerId), eq(conversations.sellerId, sellerId)),
+      and(eq(conversations.buyerId, sellerId), eq(conversations.sellerId, buyerId))
     ),
   });
   
@@ -406,36 +403,36 @@ app.post('/start', async (c) => {
     });
   }
   
-  // Create new conversation
   const conversationId = createId();
   const now = new Date().toISOString();
   
   await db.insert(conversations).values({
     id: conversationId,
-    participantOneId: user.id,
-    participantTwoId: participantId,
+    buyerId,
+    sellerId,
     orderId: orderId || null,
-    lastMessage: content?.substring(0, 100) || null,
+    lastMessagePreview: content?.substring(0, 100) || null,
     lastMessageAt: content ? now : null,
     createdAt: now,
     updatedAt: now,
   });
   
-  // Send initial message if provided
   if (content) {
     await db.insert(messages).values({
       id: createId(),
       conversationId,
       senderId: user.id,
       content,
+      type: 'TEXT',
       createdAt: now,
-      updatedAt: now,
+      deliveredAt: now,
     });
     
+    const recipientIsBuyer = buyerId !== user.id;
     await db.update(conversations)
       .set({
         messageCount: 1,
-        unreadCountTwo: 1,
+        ...(recipientIsBuyer ? { unreadBuyerCount: 1 } : { unreadSellerCount: 1 }),
       })
       .where(eq(conversations.id, conversationId));
   }
@@ -456,8 +453,8 @@ app.patch('/:id/star', async (c) => {
     where: and(
       eq(conversations.id, id),
       or(
-        eq(conversations.participantOneId, user.id),
-        eq(conversations.participantTwoId, user.id)
+        eq(conversations.buyerId, user.id),
+        eq(conversations.sellerId, user.id)
       )
     ),
   });
@@ -469,21 +466,13 @@ app.patch('/:id/star', async (c) => {
     }, 404);
   }
   
-  const isParticipantOne = conversation.participantOneId === user.id;
-  const currentStar = isParticipantOne 
-    ? conversation.isStarredByOne 
-    : conversation.isStarredByTwo;
-  
   await db.update(conversations)
-    .set(isParticipantOne 
-      ? { isStarredByOne: !currentStar }
-      : { isStarredByTwo: !currentStar }
-    )
+    .set({ isStarred: !conversation.isStarred })
     .where(eq(conversations.id, id));
   
   return c.json({
     success: true,
-    data: { isStarred: !currentStar },
+    data: { isStarred: !conversation.isStarred },
   });
 });
 
@@ -498,8 +487,8 @@ app.patch('/:id/labels', requireSeller, validate(updateLabelSchema), async (c) =
     where: and(
       eq(conversations.id, id),
       or(
-        eq(conversations.participantOneId, user.id),
-        eq(conversations.participantTwoId, user.id)
+        eq(conversations.buyerId, user.id),
+        eq(conversations.sellerId, user.id)
       )
     ),
   });
@@ -511,11 +500,9 @@ app.patch('/:id/labels', requireSeller, validate(updateLabelSchema), async (c) =
     }, 404);
   }
   
-  // Remove existing labels
   await db.delete(conversationLabels)
     .where(eq(conversationLabels.conversationId, id));
   
-  // Add new labels
   if (labelIds.length > 0) {
     await db.insert(conversationLabels).values(
       labelIds.map(labelId => ({
@@ -525,10 +512,7 @@ app.patch('/:id/labels', requireSeller, validate(updateLabelSchema), async (c) =
     );
   }
   
-  return c.json({
-    success: true,
-    message: 'Labels updated',
-  });
+  return c.json({ success: true, message: 'Labels updated' });
 });
 
 // POST /:id/notes - Add note (seller CRM)
@@ -542,8 +526,8 @@ app.post('/:id/notes', requireSeller, validate(noteSchema), async (c) => {
     where: and(
       eq(conversations.id, id),
       or(
-        eq(conversations.participantOneId, user.id),
-        eq(conversations.participantTwoId, user.id)
+        eq(conversations.buyerId, user.id),
+        eq(conversations.sellerId, user.id)
       )
     ),
   });
@@ -561,7 +545,7 @@ app.post('/:id/notes', requireSeller, validate(noteSchema), async (c) => {
   await db.insert(conversationNotes).values({
     id: noteId,
     conversationId: id,
-    sellerId: user.id,
+    userId: user.id,
     content,
     createdAt: now,
     updatedAt: now,
@@ -569,12 +553,342 @@ app.post('/:id/notes', requireSeller, validate(noteSchema), async (c) => {
   
   return c.json({
     success: true,
+    data: { id: noteId, content, createdAt: now },
+  });
+});
+
+// ═══ CUSTOM OFFER ENDPOINTS ═══════════════════════════════════
+
+// POST /:id/offer - Seller sends custom offer
+app.post('/:id/offer', requireSeller, validate(offerSchema), async (c) => {
+  const { id } = c.req.param();
+  const body = getValidatedBody<z.infer<typeof offerSchema>>(c);
+  const user = c.get('user')!;
+  const db = c.get('db');
+  
+  const conversation = await db.query.conversations.findFirst({
+    where: and(
+      eq(conversations.id, id),
+      eq(conversations.sellerId, user.id)
+    ),
+    with: { buyer: true },
+  });
+  
+  if (!conversation) {
+    return c.json({
+      success: false,
+      error: { message: 'Conversation not found or you are not the seller' },
+    }, 404);
+  }
+  
+  // Calculate fees so buyer can see the total
+  const priceInCents = Math.round(body.price * 100);
+  let buyerFee = 0;
+  let totalAmount = body.price;
+  try {
+    const fees = calculateFees({
+      baseAmount: priceInCents,
+      gateway: 'OZOW' as Gateway,
+      method: 'EFT' as PaymentMethod,
+      policy: DEFAULT_FEE_POLICY,
+    });
+    buyerFee = fees.buyerPlatformFee / 100;
+    totalAmount = fees.grossAmount / 100;
+  } catch {
+    buyerFee = 0;
+    totalAmount = body.price;
+  }
+  
+  const quickOffer = {
+    description: body.description,
+    price: body.price,
+    deliveryDays: body.deliveryDays,
+    revisions: body.revisions || 0,
+    offerType: body.offerType,
+    buyerFee,
+    totalAmount,
+    status: 'PENDING',
+  };
+  
+  const offerMsgId = createId();
+  const now = new Date().toISOString();
+  
+  await db.insert(messages).values({
+    id: offerMsgId,
+    conversationId: id,
+    senderId: user.id,
+    content: `Custom offer: ${body.description}`,
+    type: 'QUICK_OFFER',
+    quickOffer,
+    createdAt: now,
+    deliveredAt: now,
+  });
+  
+  await db.update(conversations)
+    .set({
+      lastMessagePreview: `Offer: R${body.price}`,
+      lastMessageAt: now,
+      messageCount: (conversation.messageCount || 0) + 1,
+      unreadBuyerCount: (conversation.unreadBuyerCount || 0) + 1,
+      updatedAt: now,
+    })
+    .where(eq(conversations.id, id));
+  
+  const sender = await db.query.users.findFirst({
+    where: eq(users.id, user.id),
+    columns: { id: true, username: true, firstName: true, avatar: true },
+  });
+  
+  try {
+    await c.env.NOTIFICATION_QUEUE.send({
+      type: 'custom_offer',
+      recipientId: conversation.buyerId,
+      senderId: user.id,
+      conversationId: id,
+      preview: `Custom offer for R${body.price}`,
+    });
+  } catch (e) {
+    console.error('Failed to queue notification:', e);
+  }
+  
+  return c.json({
+    success: true,
     data: {
-      id: noteId,
-      content,
-      createdAt: now,
+      message: {
+        id: offerMsgId,
+        conversationId: id,
+        senderId: user.id,
+        sender: sender || { id: user.id, username: user.username },
+        content: `Custom offer: ${body.description}`,
+        type: 'QUICK_OFFER',
+        quickOffer,
+        createdAt: now,
+      },
     },
   });
+});
+
+// POST /:id/offer/:messageId/accept - Buyer accepts offer
+app.post('/:id/offer/:messageId/accept', validate(acceptOfferSchema), async (c) => {
+  const { id, messageId } = c.req.param();
+  const body = getValidatedBody<z.infer<typeof acceptOfferSchema>>(c);
+  const user = c.get('user')!;
+  const db = c.get('db');
+  
+  const conversation = await db.query.conversations.findFirst({
+    where: and(
+      eq(conversations.id, id),
+      eq(conversations.buyerId, user.id)
+    ),
+  });
+  
+  if (!conversation) {
+    return c.json({
+      success: false,
+      error: { message: 'Conversation not found' },
+    }, 404);
+  }
+  
+  const offerMessage = await db.query.messages.findFirst({
+    where: and(
+      eq(messages.id, messageId),
+      eq(messages.conversationId, id),
+      eq(messages.type, 'QUICK_OFFER')
+    ),
+  });
+  
+  if (!offerMessage || !offerMessage.quickOffer) {
+    return c.json({
+      success: false,
+      error: { message: 'Offer not found' },
+    }, 404);
+  }
+  
+  const offer = offerMessage.quickOffer as any;
+  
+  if (offer.status !== 'PENDING') {
+    return c.json({
+      success: false,
+      error: { message: `Offer has already been ${offer.status.toLowerCase()}` },
+    }, 400);
+  }
+  
+  // Find seller's active service
+  const sellerService = await db.query.services.findFirst({
+    where: and(
+      eq(services.sellerId, conversation.sellerId),
+      eq(services.isActive, true)
+    ),
+  });
+  
+  if (!sellerService) {
+    return c.json({
+      success: false,
+      error: { message: 'Seller has no active service' },
+    }, 400);
+  }
+  
+  const priceInCents = Math.round(offer.price * 100);
+  const fees = calculateFees({
+    baseAmount: priceInCents,
+    gateway: 'OZOW' as Gateway,
+    method: 'EFT' as PaymentMethod,
+    policy: DEFAULT_FEE_POLICY,
+  });
+  
+  const orderId = createId();
+  const orderNumber = generateOrderNumber();
+  const now = new Date().toISOString();
+  const deliveryDueAt = new Date(Date.now() + offer.deliveryDays * 24 * 60 * 60 * 1000).toISOString();
+  
+  await db.insert(orders).values({
+    id: orderId,
+    orderNumber,
+    buyerId: user.id,
+    sellerId: conversation.sellerId,
+    serviceId: sellerService.id,
+    baseAmount: fees.baseAmount,
+    buyerPlatformFee: fees.buyerPlatformFee,
+    buyerProcessingFee: fees.buyerProcessingFee,
+    sellerPlatformFee: fees.sellerPlatformFee,
+    grossAmount: fees.grossAmount,
+    sellerPayoutAmount: fees.sellerPayoutAmount,
+    platformRevenue: fees.platformRevenue,
+    gateway: 'OZOW',
+    gatewayMethod: 'EFT',
+    deliveryDays: offer.deliveryDays,
+    revisions: offer.revisions || 0,
+    requirements: offer.description,
+    deliveryDueAt,
+    status: 'PENDING_PAYMENT',
+    createdAt: now,
+    updatedAt: now,
+  });
+  
+  // Update offer status
+  await db.update(messages)
+    .set({ quickOffer: { ...offer, status: 'ACCEPTED', orderId } })
+    .where(eq(messages.id, messageId));
+  
+  // Link conversation to order
+  await db.update(conversations)
+    .set({ orderId, updatedAt: now })
+    .where(eq(conversations.id, id));
+  
+  // System message
+  await db.insert(messages).values({
+    id: createId(),
+    conversationId: id,
+    senderId: user.id,
+    content: `Offer accepted! Order #${orderNumber} has been created.`,
+    type: 'SYSTEM',
+    createdAt: now,
+    deliveredAt: now,
+  });
+  
+  try {
+    await c.env.NOTIFICATION_QUEUE.send({
+      type: 'offer_accepted',
+      recipientId: conversation.sellerId,
+      senderId: user.id,
+      conversationId: id,
+      preview: `Offer accepted — Order #${orderNumber}`,
+    });
+  } catch (e) {
+    console.error('Failed to queue notification:', e);
+  }
+  
+  return c.json({
+    success: true,
+    data: {
+      order: {
+        id: orderId,
+        orderNumber,
+        status: 'PENDING_PAYMENT',
+        grossAmount: fees.grossAmount / 100,
+      },
+      paymentUrl: `/api/v1/payments/initiate?orderId=${orderId}&gateway=${body.paymentGateway}`,
+    },
+  });
+});
+
+// POST /:id/offer/:messageId/decline - Buyer declines offer
+app.post('/:id/offer/:messageId/decline', async (c) => {
+  const { id, messageId } = c.req.param();
+  const user = c.get('user')!;
+  const db = c.get('db');
+  
+  const conversation = await db.query.conversations.findFirst({
+    where: and(
+      eq(conversations.id, id),
+      eq(conversations.buyerId, user.id)
+    ),
+  });
+  
+  if (!conversation) {
+    return c.json({
+      success: false,
+      error: { message: 'Conversation not found' },
+    }, 404);
+  }
+  
+  const offerMessage = await db.query.messages.findFirst({
+    where: and(
+      eq(messages.id, messageId),
+      eq(messages.conversationId, id),
+      eq(messages.type, 'QUICK_OFFER')
+    ),
+  });
+  
+  if (!offerMessage || !offerMessage.quickOffer) {
+    return c.json({
+      success: false,
+      error: { message: 'Offer not found' },
+    }, 404);
+  }
+  
+  const offer = offerMessage.quickOffer as any;
+  
+  if (offer.status !== 'PENDING') {
+    return c.json({
+      success: false,
+      error: { message: `Offer has already been ${offer.status.toLowerCase()}` },
+    }, 400);
+  }
+  
+  const now = new Date().toISOString();
+  
+  await db.update(messages)
+    .set({ quickOffer: { ...offer, status: 'DECLINED' } })
+    .where(eq(messages.id, messageId));
+  
+  await db.insert(messages).values({
+    id: createId(),
+    conversationId: id,
+    senderId: user.id,
+    content: 'The custom offer was declined.',
+    type: 'SYSTEM',
+    createdAt: now,
+    deliveredAt: now,
+  });
+  
+  await db.update(conversations)
+    .set({ lastMessagePreview: 'Offer declined', lastMessageAt: now, updatedAt: now })
+    .where(eq(conversations.id, id));
+  
+  try {
+    await c.env.NOTIFICATION_QUEUE.send({
+      type: 'offer_declined',
+      recipientId: conversation.sellerId,
+      senderId: user.id,
+      conversationId: id,
+      preview: 'Your custom offer was declined',
+    });
+  } catch (e) {
+    console.error('Failed to queue notification:', e);
+  }
+  
+  return c.json({ success: true, data: { message: 'Offer declined' } });
 });
 
 // CRM: Saved Replies
@@ -583,8 +897,8 @@ app.get('/crm/saved-replies', requireSeller, async (c) => {
   const db = c.get('db');
   
   const replies = await db.query.savedReplies.findMany({
-    where: eq(savedReplies.sellerId, user.id),
-    orderBy: desc(savedReplies.useCount),
+    where: eq(savedReplies.userId, user.id),
+    orderBy: desc(savedReplies.usageCount),
   });
   
   return c.json({
@@ -603,12 +917,10 @@ app.post('/crm/saved-replies', requireSeller, validate(savedReplySchema), async 
   
   await db.insert(savedReplies).values({
     id,
-    sellerId: user.id,
+    userId: user.id,
     title: body.title,
     content: body.content,
-    shortcut: body.shortcut || null,
-    createdAt: now,
-    updatedAt: now,
+    shortcut: body.shortcut || body.title.toLowerCase().replace(/\s+/g, '-'),
   });
   
   return c.json({
@@ -623,7 +935,7 @@ app.get('/crm/labels', requireSeller, async (c) => {
   const db = c.get('db');
   
   const labelList = await db.query.labels.findMany({
-    where: eq(labels.sellerId, user.id),
+    where: eq(labels.userId, user.id),
     orderBy: [labels.name],
   });
   
@@ -650,11 +962,9 @@ app.post('/crm/labels', requireSeller, async (c) => {
   
   await db.insert(labels).values({
     id,
-    sellerId: user.id,
+    userId: user.id,
     name,
     color,
-    createdAt: now,
-    updatedAt: now,
   });
   
   return c.json({
@@ -669,7 +979,7 @@ app.get('/crm/pipeline', requireSeller, async (c) => {
   const db = c.get('db');
   
   const stages = await db.query.pipelineStages.findMany({
-    where: eq(pipelineStages.sellerId, user.id),
+    where: eq(pipelineStages.userId, user.id),
     orderBy: [pipelineStages.order],
   });
   

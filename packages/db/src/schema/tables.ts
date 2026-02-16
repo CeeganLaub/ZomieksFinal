@@ -733,10 +733,17 @@ export const conversations = sqliteTable('conversations', {
   probability: integer('probability'),
   expectedClose: text('expected_close'),
 
+  // These columns exist in the DB as is_starred / is_archived
+  isStarred: integer('is_starred', { mode: 'boolean' }).default(false).notNull(),
+  isArchived: integer('is_archived', { mode: 'boolean' }).default(false).notNull(),
+
   firstResponseAt: text('first_response_at'),
   lastMessageAt: text('last_message_at'),
-  unreadBuyerCount: integer('unread_buyer_count').default(0).notNull(),
-  unreadSellerCount: integer('unread_seller_count').default(0).notNull(),
+  lastMessagePreview: text('last_message_preview'),
+  messageCount: integer('message_count').default(0).notNull(),
+  // DB columns are unread_buyer / unread_seller
+  unreadBuyerCount: integer('unread_buyer').default(0).notNull(),
+  unreadSellerCount: integer('unread_seller').default(0).notNull(),
 
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
   updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
@@ -755,8 +762,10 @@ export const messages = sqliteTable('messages', {
   type: text('type').$type<MessageType>().default('TEXT').notNull(),
 
   attachments: text('attachments', { mode: 'json' }).$type<{ url: string; name: string; size: number; type: string }[]>(),
-  quickOffer: text('quick_offer', { mode: 'json' }).$type<{ description: string; price: number; deliveryDays: number; status: string }>(),
+  metadata: text('metadata', { mode: 'json' }),
+  quickOffer: text('quick_offer', { mode: 'json' }).$type<{ description: string; price: number; deliveryDays: number; revisions?: number; offerType?: string; status: string; buyerFee?: number; totalAmount?: number; orderId?: string }>(),
 
+  isRead: integer('is_read', { mode: 'boolean' }).default(false).notNull(),
   isAutoResponse: integer('is_auto_response', { mode: 'boolean' }).default(false).notNull(),
   triggeredBy: text('triggered_by'),
 
