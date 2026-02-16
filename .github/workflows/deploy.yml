@@ -21,12 +21,267 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Apply D1 Migrations
+      - name: Mark Applied Migrations
         working-directory: apps/api-worker
-        run: npx wrangler d1 migrations apply zomieks-db --remote
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          # Mark manually-applied migrations as tracked (0005-0009 were applied out-of-band)
+          npx wrangler d1 execute zomieks-db --remote --command \
+            "INSERT OR IGNORE INTO d1_migrations (name) VALUES ('0005_project_board.sql'),('0006_schema_sync.sql'),('0007_project_expansion.sql'),('0008_chat_offers_sync.sql'),('0009_project_upgrades_expansion.sql');" \
+            || true
+
+      - name: Apply Schema Fixes
+        working-directory: apps/api-worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          # Apply all ALTER TABLE ADD COLUMN individually (SQLite has no IF NOT EXISTS for columns)
+          # Each runs independently so already-existing columns don't block others
+          run_sql() { npx wrangler d1 execute zomieks-db --remote --command "$1" 2>/dev/null || true; }
+
+          echo "=== Services ==="
+          run_sql "ALTER TABLE services ADD COLUMN video TEXT;"
+          run_sql "ALTER TABLE services ADD COLUMN rating INTEGER NOT NULL DEFAULT 0;"
+          run_sql "ALTER TABLE services ADD COLUMN review_count INTEGER NOT NULL DEFAULT 0;"
+          run_sql "ALTER TABLE services ADD COLUMN favorite_count INTEGER NOT NULL DEFAULT 0;"
+          run_sql "ALTER TABLE services ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1;"
+          run_sql "ALTER TABLE services ADD COLUMN is_paused INTEGER NOT NULL DEFAULT 0;"
+          run_sql "CREATE INDEX IF NOT EXISTS services_rating_idx ON services(rating);"
+
+          echo "=== Service Packages ==="
+          run_sql "ALTER TABLE service_packages ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1;"
+
+          echo "=== Subscription Tiers ==="
+          run_sql "ALTER TABLE subscription_tiers ADD COLUMN price INTEGER NOT NULL DEFAULT 0;"
+          run_sql "ALTER TABLE subscription_tiers ADD COLUMN interval TEXT NOT NULL DEFAULT 'MONTHLY';"
+          run_sql "ALTER TABLE subscription_tiers ADD COLUMN payfast_frequency INTEGER NOT NULL DEFAULT 3;"
+
+          echo "=== Orders ==="
+          run_sql "ALTER TABLE orders ADD COLUMN currency TEXT NOT NULL DEFAULT 'ZAR';"
+          run_sql "ALTER TABLE orders ADD COLUMN buyer_fee INTEGER DEFAULT 0;"
+          run_sql "ALTER TABLE orders ADD COLUMN seller_fee INTEGER DEFAULT 0;"
+          run_sql "ALTER TABLE orders ADD COLUMN seller_payout INTEGER DEFAULT 0;"
+          run_sql "ALTER TABLE orders ADD COLUMN revisions INTEGER NOT NULL DEFAULT 0;"
+          run_sql "ALTER TABLE orders ADD COLUMN paid_at TEXT;"
+          run_sql "ALTER TABLE orders ADD COLUMN delivery_due_at TEXT;"
+          run_sql "ALTER TABLE orders ADD COLUMN cancel_reason TEXT;"
+
+          echo "=== Order Milestones ==="
+          run_sql "ALTER TABLE order_milestones ADD COLUMN name TEXT NOT NULL DEFAULT '';"
+          run_sql "ALTER TABLE order_milestones ADD COLUMN order_num INTEGER NOT NULL DEFAULT 0;"
+          run_sql "ALTER TABLE order_milestones ADD COLUMN due_at TEXT NOT NULL DEFAULT '';"
+          run_sql "ALTER TABLE order_milestones ADD COLUMN delivered_at TEXT;"
+          run_sql "ALTER TABLE order_milestones ADD COLUMN approved_at TEXT;"
+
+          echo "=== Order Deliveries ==="
+          run_sql "ALTER TABLE order_deliveries ADD COLUMN attachments TEXT;"
+          run_sql "ALTER TABLE order_deliveries ADD COLUMN delivered_at TEXT NOT NULL DEFAULT '';"
+          run_sql "ALTER TABLE order_deliveries ADD COLUMN reviewed_at TEXT;"
+
+          echo "=== Order Revisions ==="
+          run_sql "ALTER TABLE order_revisions ADD COLUMN requested_at TEXT NOT NULL DEFAULT '';"
+          run_sql "ALTER TABLE order_revisions ADD COLUMN resolved_at TEXT;"
+
+          echo "=== Subscriptions ==="
+          run_sql "ALTER TABLE subscriptions ADD COLUMN current_period_start TEXT NOT NULL DEFAULT '';"
+          run_sql "ALTER TABLE subscriptions ADD COLUMN current_period_end TEXT NOT NULL DEFAULT '';"
+          run_sql "ALTER TABLE subscriptions ADD COLUMN payfast_token TEXT;"
+          run_sql "ALTER TABLE subscriptions ADD COLUMN payfast_subscription_id TEXT;"
+          run_sql "ALTER TABLE subscriptions ADD COLUMN paused_at TEXT;"
+          run_sql "ALTER TABLE subscriptions ADD COLUMN pause_reason TEXT;"
+          run_sql "ALTER TABLE subscriptions ADD COLUMN cancel_reason TEXT;"
+          run_sql "ALTER TABLE subscriptions ADD COLUMN current_usage TEXT;"
+          run_sql "CREATE UNIQUE INDEX IF NOT EXISTS subscriptions_payfast_token_unique ON subscriptions(payfast_token);"
+
+          echo "=== Subscription Payments ==="
+          run_sql "ALTER TABLE subscription_payments ADD COLUMN buyer_fee INTEGER NOT NULL DEFAULT 0;"
+          run_sql "ALTER TABLE subscription_payments ADD COLUMN total_amount INTEGER NOT NULL DEFAULT 0;"
+          run_sql "ALTER TABLE subscription_payments ADD COLUMN seller_fee INTEGER NOT NULL DEFAULT 0;"
+          run_sql "ALTER TABLE subscription_payments ADD COLUMN seller_payout INTEGER NOT NULL DEFAULT 0;"
+          run_sql "ALTER TABLE subscription_payments ADD COLUMN platform_revenue INTEGER NOT NULL DEFAULT 0;"
+          run_sql "ALTER TABLE subscription_payments ADD COLUMN escrow_status TEXT NOT NULL DEFAULT 'HELD';"
+          run_sql "ALTER TABLE subscription_payments ADD COLUMN released_at TEXT;"
+          run_sql "ALTER TABLE subscription_payments ADD COLUMN period_start TEXT NOT NULL DEFAULT '';"
+          run_sql "ALTER TABLE subscription_payments ADD COLUMN period_end TEXT NOT NULL DEFAULT '';"
+
+          echo "=== Seller Payouts ==="
+          run_sql "ALTER TABLE seller_payouts ADD COLUMN currency TEXT NOT NULL DEFAULT 'ZAR';"
+          run_sql "ALTER TABLE seller_payouts ADD COLUMN bank_reference TEXT;"
+          run_sql "ALTER TABLE seller_payouts ADD COLUMN failed_at TEXT;"
+
+          echo "=== Refunds ==="
+          run_sql "ALTER TABLE refunds ADD COLUMN failed_reason TEXT;"
+
+          echo "=== Disputes ==="
+          run_sql "ALTER TABLE disputes ADD COLUMN raised_by TEXT NOT NULL DEFAULT '';"
+          run_sql "ALTER TABLE disputes ADD COLUMN resolved_by TEXT;"
+
+          echo "=== Reviews ==="
+          run_sql "ALTER TABLE reviews ADD COLUMN author_id TEXT NOT NULL DEFAULT '';"
+          run_sql "ALTER TABLE reviews ADD COLUMN recipient_id TEXT NOT NULL DEFAULT '';"
+          run_sql "ALTER TABLE reviews ADD COLUMN quality_rating INTEGER;"
+          run_sql "ALTER TABLE reviews ADD COLUMN value_rating INTEGER;"
+
+          echo "=== Notifications ==="
+          run_sql "ALTER TABLE notifications ADD COLUMN message TEXT NOT NULL DEFAULT '';"
+
+          echo "=== Pipeline Stages ==="
+          run_sql "ALTER TABLE pipeline_stages ADD COLUMN user_id TEXT;"
+          run_sql "ALTER TABLE pipeline_stages ADD COLUMN is_default INTEGER NOT NULL DEFAULT 0;"
+          run_sql "ALTER TABLE pipeline_stages ADD COLUMN auto_response_id TEXT;"
+
+          echo "=== Labels ==="
+          run_sql "ALTER TABLE labels ADD COLUMN user_id TEXT;"
+
+          echo "=== Saved Replies ==="
+          run_sql "ALTER TABLE saved_replies ADD COLUMN user_id TEXT;"
+          run_sql "ALTER TABLE saved_replies ADD COLUMN category TEXT;"
+          run_sql "ALTER TABLE saved_replies ADD COLUMN usage_count INTEGER NOT NULL DEFAULT 0;"
+
+          echo "=== Auto Triggers ==="
+          run_sql "ALTER TABLE auto_triggers ADD COLUMN user_id TEXT;"
+          run_sql "ALTER TABLE auto_triggers ADD COLUMN action_payload TEXT NOT NULL DEFAULT '{}';"
+          run_sql "ALTER TABLE auto_triggers ADD COLUMN delay_minutes INTEGER NOT NULL DEFAULT 0;"
+          run_sql "ALTER TABLE auto_triggers ADD COLUMN active_hours_only INTEGER NOT NULL DEFAULT 0;"
+
+          echo "=== Conversation Notes ==="
+          run_sql "ALTER TABLE conversation_notes ADD COLUMN user_id TEXT;"
+          run_sql "ALTER TABLE conversation_notes ADD COLUMN is_pinned INTEGER NOT NULL DEFAULT 0;"
+
+          echo "=== Conversation Metrics ==="
+          run_sql "ALTER TABLE conversation_metrics ADD COLUMN user_id TEXT;"
+          run_sql "ALTER TABLE conversation_metrics ADD COLUMN avg_first_response_ms INTEGER;"
+          run_sql "ALTER TABLE conversation_metrics ADD COLUMN avg_response_time_ms INTEGER;"
+          run_sql "ALTER TABLE conversation_metrics ADD COLUMN responses_within_1hr INTEGER NOT NULL DEFAULT 0;"
+          run_sql "ALTER TABLE conversation_metrics ADD COLUMN deals_won INTEGER NOT NULL DEFAULT 0;"
+          run_sql "ALTER TABLE conversation_metrics ADD COLUMN deals_lost INTEGER NOT NULL DEFAULT 0;"
+          run_sql "ALTER TABLE conversation_metrics ADD COLUMN deal_value_won INTEGER NOT NULL DEFAULT 0;"
+
+          echo "=== Seller Metrics ==="
+          run_sql "ALTER TABLE seller_metrics ADD COLUMN user_id TEXT;"
+          run_sql "ALTER TABLE seller_metrics ADD COLUMN gross_revenue INTEGER NOT NULL DEFAULT 0;"
+          run_sql "ALTER TABLE seller_metrics ADD COLUMN platform_fees INTEGER NOT NULL DEFAULT 0;"
+          run_sql "ALTER TABLE seller_metrics ADD COLUMN net_revenue INTEGER NOT NULL DEFAULT 0;"
+          run_sql "ALTER TABLE seller_metrics ADD COLUMN avg_delivery_time_hrs INTEGER;"
+          run_sql "ALTER TABLE seller_metrics ADD COLUMN on_time_deliveries INTEGER NOT NULL DEFAULT 0;"
+          run_sql "ALTER TABLE seller_metrics ADD COLUMN late_deliveries INTEGER NOT NULL DEFAULT 0;"
+
+          echo "=== 0005/0007/0009 project columns ==="
+          run_sql "ALTER TABLE projects ADD COLUMN is_featured INTEGER NOT NULL DEFAULT 0;"
+          run_sql "ALTER TABLE projects ADD COLUMN is_urgent INTEGER NOT NULL DEFAULT 0;"
+          run_sql "ALTER TABLE projects ADD COLUMN completed_at TEXT;"
+          run_sql "ALTER TABLE projects ADD COLUMN awarded_seller_id TEXT;"
+          run_sql "ALTER TABLE projects ADD COLUMN is_sealed INTEGER NOT NULL DEFAULT 0;"
+          run_sql "ALTER TABLE projects ADD COLUMN is_private INTEGER NOT NULL DEFAULT 0;"
+          run_sql "ALTER TABLE projects ADD COLUMN has_ip_agreement INTEGER NOT NULL DEFAULT 0;"
+          run_sql "ALTER TABLE project_bids ADD COLUMN ip_agreed_at TEXT;"
+
+          echo "=== 0007 tables (project_upgrades, project_files, project_payments, project_reviews) ==="
+          run_sql "CREATE TABLE IF NOT EXISTS project_upgrades (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, type TEXT NOT NULL, amount INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'PENDING', payment_ref TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);"
+          run_sql "CREATE INDEX IF NOT EXISTS idx_project_upgrades_project_id ON project_upgrades(project_id);"
+          run_sql "CREATE TABLE IF NOT EXISTS project_files (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, uploaded_by TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, file_name TEXT NOT NULL, file_url TEXT NOT NULL, file_size INTEGER NOT NULL DEFAULT 0, file_type TEXT, created_at TEXT NOT NULL);"
+          run_sql "CREATE INDEX IF NOT EXISTS idx_project_files_project_id ON project_files(project_id);"
+          run_sql "CREATE TABLE IF NOT EXISTS project_payments (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, bid_id TEXT REFERENCES project_bids(id), payer_id TEXT NOT NULL REFERENCES users(id), payee_id TEXT NOT NULL REFERENCES users(id), amount INTEGER NOT NULL, platform_fee INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'PENDING', milestone_label TEXT, payment_ref TEXT, released_at TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);"
+          run_sql "CREATE INDEX IF NOT EXISTS idx_project_payments_project_id ON project_payments(project_id);"
+          run_sql "CREATE INDEX IF NOT EXISTS idx_project_payments_payer_id ON project_payments(payer_id);"
+          run_sql "CREATE TABLE IF NOT EXISTS project_reviews (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, reviewer_id TEXT NOT NULL REFERENCES users(id), reviewee_id TEXT NOT NULL REFERENCES users(id), rating INTEGER NOT NULL, comment TEXT, created_at TEXT NOT NULL);"
+          run_sql "CREATE INDEX IF NOT EXISTS idx_project_reviews_project_id ON project_reviews(project_id);"
+          run_sql "CREATE UNIQUE INDEX IF NOT EXISTS idx_project_reviews_unique ON project_reviews(project_id, reviewer_id);"
+
+          echo "=== 0006 columns (transactions/escrow) ==="
+          run_sql "ALTER TABLE transactions ADD COLUMN gateway_reference TEXT;"
+          run_sql "ALTER TABLE transactions ADD COLUMN gateway_data TEXT;"
+          run_sql "ALTER TABLE transactions ADD COLUMN buyer_fee INTEGER;"
+          run_sql "ALTER TABLE transactions ADD COLUMN total_amount INTEGER;"
+          run_sql "ALTER TABLE transactions ADD COLUMN seller_fee INTEGER;"
+          run_sql "ALTER TABLE transactions ADD COLUMN seller_payout INTEGER;"
+          run_sql "ALTER TABLE transactions ADD COLUMN paid_at TEXT;"
+          run_sql "ALTER TABLE transactions ADD COLUMN failed_at TEXT;"
+          run_sql "ALTER TABLE transactions ADD COLUMN failed_reason TEXT;"
+          run_sql "ALTER TABLE escrow_holds ADD COLUMN milestone_id TEXT;"
+          run_sql "ALTER TABLE escrow_holds ADD COLUMN subscription_payment_id TEXT;"
+          run_sql "ALTER TABLE escrow_holds ADD COLUMN seller_amount INTEGER;"
+          run_sql "ALTER TABLE escrow_holds ADD COLUMN hold_until TEXT;"
+          run_sql "ALTER TABLE escrow_holds ADD COLUMN refunded_at TEXT;"
+          run_sql "ALTER TABLE escrow_holds ADD COLUMN payout_id TEXT;"
+          run_sql "ALTER TABLE escrow_holds ADD COLUMN seller_id TEXT;"
+          run_sql "CREATE INDEX IF NOT EXISTS transactions_gateway_ref_idx ON transactions(gateway_ref);"
+          run_sql "CREATE UNIQUE INDEX IF NOT EXISTS escrow_holds_milestone_id_unique ON escrow_holds(milestone_id);"
+          run_sql "CREATE UNIQUE INDEX IF NOT EXISTS escrow_holds_subscription_payment_id_unique ON escrow_holds(subscription_payment_id);"
+
+          echo "=== 0008 columns (conversations/messages) ==="
+          run_sql "ALTER TABLE conversations ADD COLUMN lead_score INTEGER NOT NULL DEFAULT 0;"
+          run_sql "ALTER TABLE conversations ADD COLUMN source TEXT;"
+          run_sql "ALTER TABLE conversations ADD COLUMN pipeline_stage_id TEXT;"
+          run_sql "ALTER TABLE conversations ADD COLUMN deal_value INTEGER;"
+          run_sql "ALTER TABLE conversations ADD COLUMN probability INTEGER;"
+          run_sql "ALTER TABLE conversations ADD COLUMN expected_close TEXT;"
+          run_sql "ALTER TABLE conversations ADD COLUMN first_response_at TEXT;"
+          run_sql "ALTER TABLE conversations ADD COLUMN message_count INTEGER NOT NULL DEFAULT 0;"
+          run_sql "ALTER TABLE messages ADD COLUMN quick_offer TEXT;"
+          run_sql "ALTER TABLE messages ADD COLUMN is_auto_response INTEGER NOT NULL DEFAULT 0;"
+          run_sql "ALTER TABLE messages ADD COLUMN triggered_by TEXT;"
+          run_sql "ALTER TABLE messages ADD COLUMN delivered_at TEXT;"
+          run_sql "CREATE INDEX IF NOT EXISTS conversations_pipeline_stage_id_idx ON conversations(pipeline_stage_id);"
+
+          echo "=== Data Migrations ==="
+          run_sql "UPDATE subscription_tiers SET price = monthly_price WHERE price = 0 AND monthly_price > 0;"
+          run_sql "UPDATE orders SET revisions = revisions_allowed WHERE revisions = 0 AND revisions_allowed > 0;"
+          run_sql "UPDATE orders SET cancel_reason = cancellation_reason WHERE cancel_reason IS NULL AND cancellation_reason IS NOT NULL;"
+          run_sql "UPDATE order_milestones SET name = title WHERE name = '' AND title IS NOT NULL;"
+          run_sql "UPDATE order_deliveries SET attachments = files WHERE attachments IS NULL AND files IS NOT NULL;"
+          run_sql "UPDATE order_deliveries SET delivered_at = created_at WHERE delivered_at = '';"
+          run_sql "UPDATE order_revisions SET requested_at = created_at WHERE requested_at = '';"
+          run_sql "UPDATE subscriptions SET payfast_subscription_id = gateway_subscription_id WHERE payfast_subscription_id IS NULL AND gateway_subscription_id IS NOT NULL;"
+          run_sql "UPDATE subscriptions SET paused_at = pause_start WHERE paused_at IS NULL AND pause_start IS NOT NULL;"
+          run_sql "UPDATE subscription_payments SET period_start = billing_period_start WHERE period_start = '' AND billing_period_start IS NOT NULL;"
+          run_sql "UPDATE subscription_payments SET period_end = billing_period_end WHERE period_end = '' AND billing_period_end IS NOT NULL;"
+          run_sql "UPDATE subscription_payments SET total_amount = amount WHERE total_amount = 0 AND amount > 0;"
+          run_sql "UPDATE disputes SET raised_by = initiated_by WHERE raised_by = '' AND initiated_by IS NOT NULL;"
+          run_sql "UPDATE disputes SET resolved_by = resolver_id WHERE resolved_by IS NULL AND resolver_id IS NOT NULL;"
+          run_sql "UPDATE reviews SET author_id = buyer_id WHERE author_id = '' AND buyer_id IS NOT NULL;"
+          run_sql "UPDATE reviews SET recipient_id = seller_id WHERE recipient_id = '' AND seller_id IS NOT NULL;"
+          run_sql "UPDATE reviews SET quality_rating = service_rating WHERE quality_rating IS NULL AND service_rating IS NOT NULL;"
+          run_sql "UPDATE reviews SET value_rating = recommendation_rating WHERE value_rating IS NULL AND recommendation_rating IS NOT NULL;"
+          run_sql "UPDATE notifications SET message = body WHERE message = '' AND body IS NOT NULL;"
+          run_sql "UPDATE pipeline_stages SET user_id = seller_id WHERE user_id IS NULL AND seller_id IS NOT NULL;"
+          run_sql "UPDATE labels SET user_id = seller_id WHERE user_id IS NULL AND seller_id IS NOT NULL;"
+          run_sql "UPDATE saved_replies SET user_id = seller_id WHERE user_id IS NULL AND seller_id IS NOT NULL;"
+          run_sql "UPDATE saved_replies SET usage_count = use_count WHERE usage_count = 0 AND use_count > 0;"
+          run_sql "UPDATE auto_triggers SET user_id = seller_id WHERE user_id IS NULL AND seller_id IS NOT NULL;"
+          run_sql "UPDATE auto_triggers SET action_payload = action_data WHERE action_payload = '{}' AND action_data IS NOT NULL;"
+          run_sql "UPDATE conversation_notes SET user_id = author_id WHERE user_id IS NULL AND author_id IS NOT NULL;"
+          run_sql "UPDATE conversation_metrics SET user_id = seller_id WHERE user_id IS NULL AND seller_id IS NOT NULL;"
+          run_sql "UPDATE seller_metrics SET user_id = seller_id WHERE user_id IS NULL AND seller_id IS NOT NULL;"
+          run_sql "UPDATE seller_metrics SET gross_revenue = revenue WHERE gross_revenue = 0 AND revenue > 0;"
+
+          echo "=== Table Recreations ==="
+          # Conversation Labels: recreate with id PK
+          run_sql "DROP TABLE IF EXISTS conversation_labels_backup;"
+          run_sql "CREATE TABLE IF NOT EXISTS conversation_labels_new (id TEXT PRIMARY KEY, conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE, label_id TEXT NOT NULL REFERENCES labels(id) ON DELETE CASCADE, created_at TEXT NOT NULL DEFAULT '');"
+          run_sql "INSERT OR IGNORE INTO conversation_labels_new (id, conversation_id, label_id, created_at) SELECT lower(hex(randomblob(12))), conversation_id, label_id, COALESCE(created_at, datetime('now')) FROM conversation_labels;"
+          run_sql "DROP TABLE IF EXISTS conversation_labels;"
+          run_sql "ALTER TABLE conversation_labels_new RENAME TO conversation_labels;"
+          run_sql "CREATE UNIQUE INDEX IF NOT EXISTS conversation_labels_unique ON conversation_labels(conversation_id, label_id);"
+
+          # Activities: recreate to match Drizzle schema
+          run_sql "CREATE TABLE IF NOT EXISTS activities_new (id TEXT PRIMARY KEY, conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE, action TEXT NOT NULL, data TEXT NOT NULL DEFAULT '{}', performed_by TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL);"
+          run_sql "INSERT OR IGNORE INTO activities_new (id, conversation_id, action, data, performed_by, created_at) SELECT id, conversation_id, action, COALESCE(data, '{}'), COALESCE(performed_by, ''), created_at FROM activities;"
+          run_sql "DROP TABLE IF EXISTS activities;"
+          run_sql "ALTER TABLE activities_new RENAME TO activities;"
+          run_sql "CREATE INDEX IF NOT EXISTS activities_conversation_created_idx ON activities(conversation_id, created_at);"
+
+          echo "Schema fixes complete"
+
+      - name: Apply D1 Migrations
+        working-directory: apps/api-worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler d1 migrations apply zomieks-db --remote
 
       - name: Deploy Worker (API)
         working-directory: apps/api-worker

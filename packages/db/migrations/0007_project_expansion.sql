@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS project_upgrades (
   updated_at TEXT NOT NULL
 );
 
-CREATE INDEX idx_project_upgrades_project_id ON project_upgrades(project_id);
+CREATE INDEX IF NOT EXISTS idx_project_upgrades_project_id ON project_upgrades(project_id);
 
 -- ============ PROJECT FILES ============
 CREATE TABLE IF NOT EXISTS project_files (
@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS project_files (
   created_at TEXT NOT NULL
 );
 
-CREATE INDEX idx_project_files_project_id ON project_files(project_id);
+CREATE INDEX IF NOT EXISTS idx_project_files_project_id ON project_files(project_id);
 
 -- ============ PROJECT PAYMENTS (milestone-based) ============
 CREATE TABLE IF NOT EXISTS project_payments (
@@ -52,8 +52,8 @@ CREATE TABLE IF NOT EXISTS project_payments (
   updated_at TEXT NOT NULL
 );
 
-CREATE INDEX idx_project_payments_project_id ON project_payments(project_id);
-CREATE INDEX idx_project_payments_payer_id ON project_payments(payer_id);
+CREATE INDEX IF NOT EXISTS idx_project_payments_project_id ON project_payments(project_id);
+CREATE INDEX IF NOT EXISTS idx_project_payments_payer_id ON project_payments(payer_id);
 
 -- ============ PROJECT REVIEWS ============
 CREATE TABLE IF NOT EXISTS project_reviews (
@@ -66,5 +66,5 @@ CREATE TABLE IF NOT EXISTS project_reviews (
   created_at TEXT NOT NULL
 );
 
-CREATE INDEX idx_project_reviews_project_id ON project_reviews(project_id);
-CREATE UNIQUE INDEX idx_project_reviews_unique ON project_reviews(project_id, reviewer_id);
+CREATE INDEX IF NOT EXISTS idx_project_reviews_project_id ON project_reviews(project_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_project_reviews_unique ON project_reviews(project_id, reviewer_id);

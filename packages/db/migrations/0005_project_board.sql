@@ -19,10 +19,10 @@ CREATE TABLE IF NOT EXISTS projects (
   updated_at TEXT NOT NULL
 );
 
-CREATE INDEX idx_projects_buyer_id ON projects(buyer_id);
-CREATE INDEX idx_projects_status ON projects(status);
-CREATE INDEX idx_projects_category ON projects(category_id);
-CREATE INDEX idx_projects_created ON projects(created_at);
+CREATE INDEX IF NOT EXISTS idx_projects_buyer_id ON projects(buyer_id);
+CREATE INDEX IF NOT EXISTS idx_projects_status ON projects(status);
+CREATE INDEX IF NOT EXISTS idx_projects_category ON projects(category_id);
+CREATE INDEX IF NOT EXISTS idx_projects_created ON projects(created_at);
 
 CREATE TABLE IF NOT EXISTS project_bids (
   id TEXT PRIMARY KEY,
@@ -36,6 +36,6 @@ CREATE TABLE IF NOT EXISTS project_bids (
   updated_at TEXT NOT NULL
 );
 
-CREATE INDEX idx_project_bids_project_id ON project_bids(project_id);
-CREATE INDEX idx_project_bids_seller_id ON project_bids(seller_id);
-CREATE UNIQUE INDEX idx_project_bids_unique ON project_bids(project_id, seller_id);
+CREATE INDEX IF NOT EXISTS idx_project_bids_project_id ON project_bids(project_id);
+CREATE INDEX IF NOT EXISTS idx_project_bids_seller_id ON project_bids(seller_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_project_bids_unique ON project_bids(project_id, seller_id);
