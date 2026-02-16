@@ -1,8 +1,7 @@
 import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { toast } from 'sonner';
 import { useAuthStore } from '../../stores/auth.store';
 import { projectsApi, servicesApi } from '../../lib/api';
 import {
@@ -18,7 +17,6 @@ import {
   ChevronRightIcon,
   AdjustmentsHorizontalIcon,
   RocketLaunchIcon,
-  LockClosedIcon,
   EyeSlashIcon,
   ShieldCheckIcon,
 } from '@heroicons/react/24/outline';
@@ -43,14 +41,6 @@ const STATUS_BADGES: Record<string, { label: string; className: string }> = {
   CANCELLED: { label: 'Cancelled', className: 'bg-red-100 text-red-600' },
 };
 
-const UPGRADE_PRICES: Record<string, number> = {
-  FEATURED: 50,
-  URGENT: 100,
-  SEALED: 50,
-  PRIVATE: 150,
-  IP_AGREEMENT: 200,
-};
-
 function formatBudget(min?: number | null, max?: number | null) {
   const fmt = (v: number) => `R${(v / 100).toLocaleString()}`;
   if (min && max) return `${fmt(min)} – ${fmt(max)}`;
@@ -71,8 +61,6 @@ function timeAgo(dateStr: string) {
 
 export default function ProjectsPage() {
   const { user } = useAuthStore();
-  const queryClient = useQueryClient();
-  const [showCreate, setShowCreate] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -139,60 +127,19 @@ export default function ProjectsPage() {
   const resultsCount = allData?.meta?.total || 0;
   const hasActiveFilters = search || category || budgetMin || budgetMax;
 
-  // Create form state
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [categoryId, setCategoryId] = useState('');
-  const [formBudgetMin, setFormBudgetMin] = useState('');
-  const [formBudgetMax, setFormBudgetMax] = useState('');
-  const [deadline, setDeadline] = useState('');
-  const [skillInput, setSkillInput] = useState('');
-  const [skills, setSkills] = useState<string[]>([]);
-  const [upgrades, setUpgrades] = useState<string[]>([]);
-
-  const upgradeTotal = upgrades.reduce((sum, u) => sum + (UPGRADE_PRICES[u] || 0), 0);
-
-  const createMutation = useMutation({
-    mutationFn: () => projectsApi.create({
-      title,
-      description,
-      categoryId: categoryId || undefined,
-      budgetMin: formBudgetMin ? parseFloat(formBudgetMin) : undefined,
-      budgetMax: formBudgetMax ? parseFloat(formBudgetMax) : undefined,
-      deadline: deadline || undefined,
-      skills: skills.length > 0 ? skills : undefined,
-      upgrades: upgrades.length > 0 ? upgrades : undefined,
-    }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['projects'] });
-      toast.success('Project posted successfully!');
-      setShowCreate(false);
-      setTitle(''); setDescription(''); setCategoryId(''); setFormBudgetMin(''); setFormBudgetMax(''); setDeadline(''); setSkills([]); setUpgrades([]);
-    },
-    onError: (e: any) => toast.error(e?.error?.message || 'Failed to post project'),
-  });
-
-  const addSkill = () => {
-    const s = skillInput.trim();
-    if (s && skills.length < 10 && !skills.includes(s)) {
-      setSkills([...skills, s]);
-      setSkillInput('');
-    }
-  };
-
   return (
     <div className="min-h-screen bg-gradient-to-b from-muted/30 to-background">
       {/* ───── Colorful CTA Hero ───── */}
       <motion.div
-        className="relative overflow-hidden bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600"
+        className="relative overflow-hidden bg-gradient-to-r from-emerald-600 via-primary to-teal-600"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5 }}
       >
         {/* Decorative circles */}
         <div className="absolute -top-20 -left-20 w-72 h-72 bg-white/10 rounded-full blur-3xl" />
-        <div className="absolute -bottom-10 right-10 w-60 h-60 bg-pink-400/20 rounded-full blur-3xl" />
-        <div className="absolute top-10 right-1/4 w-40 h-40 bg-cyan-400/15 rounded-full blur-2xl" />
+        <div className="absolute -bottom-10 right-10 w-60 h-60 bg-teal-400/20 rounded-full blur-3xl" />
+        <div className="absolute top-10 right-1/4 w-40 h-40 bg-emerald-300/15 rounded-full blur-2xl" />
 
         <div className="relative container py-12 md:py-16">
           <motion.div
@@ -215,15 +162,13 @@ export default function ProjectsPage() {
 
             {/* Hero actions */}
             <div className="flex flex-wrap gap-3 mb-8">
-              {user && !user.isSeller && (
-                <button
-                  onClick={() => setShowCreate(true)}
-                  className="inline-flex items-center gap-2 px-6 py-3 bg-white text-purple-700 rounded-xl text-sm font-bold hover:bg-white/90 transition-all shadow-xl shadow-purple-900/30"
-                >
-                  <PlusIcon className="h-5 w-5" />
-                  Post a Project
-                </button>
-              )}
+              <Link
+                to="/projects/post"
+                className="inline-flex items-center gap-2 px-6 py-3 bg-white text-emerald-700 rounded-xl text-sm font-bold hover:bg-white/90 transition-all shadow-xl shadow-emerald-900/30"
+              >
+                <PlusIcon className="h-5 w-5" />
+                Post a Project
+              </Link>
               {user?.isSeller && (
                 <button
                   onClick={() => updateFilter('view', 'bids')}
@@ -423,15 +368,13 @@ export default function ProjectsPage() {
                   </div>
 
                   {/* Post Project CTA in sidebar */}
-                  {user && !user.isSeller && (
-                    <button
-                      onClick={() => setShowCreate(true)}
-                      className="w-full py-3 bg-gradient-to-r from-violet-600 to-indigo-600 text-white rounded-xl text-sm font-bold hover:opacity-90 transition-all flex items-center justify-center gap-2"
-                    >
-                      <PlusIcon className="h-4 w-4" />
-                      Post a Project
-                    </button>
-                  )}
+                  <Link
+                    to="/projects/post"
+                    className="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-xl text-sm font-bold hover:opacity-90 transition-all flex items-center justify-center gap-2"
+                  >
+                    <PlusIcon className="h-4 w-4" />
+                    Post a Project
+                  </Link>
                 </div>
               </motion.aside>
             </AnimatePresence>
@@ -494,9 +437,9 @@ export default function ProjectsPage() {
                   </p>
                   {hasActiveFilters ? (
                     <button onClick={clearFilters} className="px-6 py-2.5 bg-primary text-primary-foreground rounded-xl text-sm font-medium">Clear all filters</button>
-                  ) : user && !user.isSeller ? (
-                    <button onClick={() => setShowCreate(true)} className="px-6 py-2.5 bg-gradient-to-r from-violet-600 to-indigo-600 text-white rounded-xl text-sm font-bold">Post a Project</button>
-                  ) : null}
+                  ) : (
+                    <Link to="/projects/post" className="px-6 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-xl text-sm font-bold">Post a Project</Link>
+                  )}
                 </motion.div>
               ) : (
                 <>
@@ -625,9 +568,9 @@ export default function ProjectsPage() {
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold">My Posted Projects</h2>
               {user && !user.isSeller && (
-                <button onClick={() => setShowCreate(true)} className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-xl text-sm font-medium hover:bg-primary/90">
+              <Link to="/projects/post" className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-xl text-sm font-medium hover:bg-primary/90">
                   <PlusIcon className="h-4 w-4" /> New Project
-                </button>
+              </Link>
               )}
             </div>
             {(myData?.data || []).length === 0 ? (
@@ -701,158 +644,6 @@ export default function ProjectsPage() {
           </div>
         ) : null}
       </div>
-
-      {/* ───── Create Project Modal ───── */}
-      <AnimatePresence>
-        {showCreate && (
-          <motion.div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            onClick={() => setShowCreate(false)}
-          >
-            <motion.div
-              className="bg-card border rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
-              initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between p-5 border-b sticky top-0 bg-card z-10">
-                <h2 className="text-lg font-bold">Post a Project</h2>
-                <button onClick={() => setShowCreate(false)} className="p-1 hover:bg-muted rounded-lg">
-                  <XMarkIcon className="h-5 w-5" />
-                </button>
-              </div>
-              <form className="p-5 space-y-4" onSubmit={(e) => { e.preventDefault(); createMutation.mutate(); }}>
-                <div>
-                  <label className="text-sm font-medium">Project Title *</label>
-                  <input
-                    value={title} onChange={(e) => setTitle(e.target.value)}
-                    placeholder="e.g. Build a React landing page"
-                    className="w-full mt-1 px-3 py-2 border rounded-xl bg-background text-sm"
-                    required minLength={10} maxLength={200}
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium">Description *</label>
-                  <textarea
-                    value={description} onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Describe what you need done..."
-                    className="w-full mt-1 px-3 py-2 border rounded-xl bg-background text-sm min-h-[120px] resize-y"
-                    required minLength={30} maxLength={5000}
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium">Category</label>
-                  <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className="w-full mt-1 px-3 py-2 border rounded-xl bg-background text-sm">
-                    <option value="">Any category</option>
-                    {categories.map((cat) => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
-                  </select>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-sm font-medium">Min Budget (ZAR)</label>
-                    <input type="number" min="50" step="1" value={formBudgetMin} onChange={(e) => setFormBudgetMin(e.target.value)} placeholder="500" className="w-full mt-1 px-3 py-2 border rounded-xl bg-background text-sm" />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium">Max Budget (ZAR)</label>
-                    <input type="number" min="50" step="1" value={formBudgetMax} onChange={(e) => setFormBudgetMax(e.target.value)} placeholder="5000" className="w-full mt-1 px-3 py-2 border rounded-xl bg-background text-sm" />
-                  </div>
-                </div>
-                <div>
-                  <label className="text-sm font-medium">Deadline</label>
-                  <input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} min={new Date().toISOString().split('T')[0]} className="w-full mt-1 px-3 py-2 border rounded-xl bg-background text-sm" />
-                </div>
-                <div>
-                  <label className="text-sm font-medium">Required Skills</label>
-                  <div className="flex gap-2 mt-1">
-                    <input value={skillInput} onChange={(e) => setSkillInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addSkill(); }}} placeholder="e.g. React, Node.js" className="flex-1 px-3 py-2 border rounded-xl bg-background text-sm" />
-                    <button type="button" onClick={addSkill} className="px-3 py-2 bg-muted rounded-xl text-sm font-medium hover:bg-muted/80">Add</button>
-                  </div>
-                  {skills.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 mt-2">
-                      {skills.map((s) => (
-                        <span key={s} className="bg-primary/10 text-primary text-xs px-2 py-1 rounded-full flex items-center gap-1">
-                          {s}
-                          <button type="button" onClick={() => setSkills(skills.filter((x) => x !== s))} className="hover:text-red-500"><XMarkIcon className="h-3 w-3" /></button>
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* ─── Upgrades ─── */}
-                <div>
-                  <label className="text-sm font-medium">Boost Your Project (optional)</label>
-                  <div className="grid grid-cols-2 gap-3 mt-2">
-                    {/* Featured */}
-                    <label className={`flex items-start gap-3 p-3 border rounded-xl cursor-pointer transition-colors ${
-                      upgrades.includes('FEATURED') ? 'border-amber-400 bg-amber-50/50' : 'hover:border-muted-foreground/30'
-                    }`}>
-                      <input type="checkbox" checked={upgrades.includes('FEATURED')} onChange={(e) => setUpgrades(e.target.checked ? [...upgrades, 'FEATURED'] : upgrades.filter(u => u !== 'FEATURED'))} className="mt-0.5" />
-                      <div>
-                        <div className="flex items-center gap-1 font-medium text-sm"><BoltIcon className="h-4 w-4 text-amber-600" /> Featured</div>
-                        <p className="text-xs text-muted-foreground">Top of results</p>
-                        <p className="text-xs font-semibold text-amber-700 mt-0.5">R50</p>
-                      </div>
-                    </label>
-                    {/* Urgent */}
-                    <label className={`flex items-start gap-3 p-3 border rounded-xl cursor-pointer transition-colors ${
-                      upgrades.includes('URGENT') ? 'border-red-400 bg-red-50/50' : 'hover:border-muted-foreground/30'
-                    }`}>
-                      <input type="checkbox" checked={upgrades.includes('URGENT')} onChange={(e) => setUpgrades(e.target.checked ? [...upgrades, 'URGENT'] : upgrades.filter(u => u !== 'URGENT'))} className="mt-0.5" />
-                      <div>
-                        <div className="flex items-center gap-1 font-medium text-sm"><FireIcon className="h-4 w-4 text-red-600" /> Urgent</div>
-                        <p className="text-xs text-muted-foreground">Priority listing</p>
-                        <p className="text-xs font-semibold text-red-700 mt-0.5">R100</p>
-                      </div>
-                    </label>
-                    {/* Sealed */}
-                    <label className={`flex items-start gap-3 p-3 border rounded-xl cursor-pointer transition-colors ${
-                      upgrades.includes('SEALED') ? 'border-purple-400 bg-purple-50/50' : 'hover:border-muted-foreground/30'
-                    }`}>
-                      <input type="checkbox" checked={upgrades.includes('SEALED')} onChange={(e) => setUpgrades(e.target.checked ? [...upgrades, 'SEALED'] : upgrades.filter(u => u !== 'SEALED'))} className="mt-0.5" />
-                      <div>
-                        <div className="flex items-center gap-1 font-medium text-sm"><EyeSlashIcon className="h-4 w-4 text-purple-600" /> Sealed</div>
-                        <p className="text-xs text-muted-foreground">Hide bids from others</p>
-                        <p className="text-xs font-semibold text-purple-700 mt-0.5">R50</p>
-                      </div>
-                    </label>
-                    {/* Private */}
-                    <label className={`flex items-start gap-3 p-3 border rounded-xl cursor-pointer transition-colors ${
-                      upgrades.includes('PRIVATE') ? 'border-gray-500 bg-gray-50/50' : 'hover:border-muted-foreground/30'
-                    }`}>
-                      <input type="checkbox" checked={upgrades.includes('PRIVATE')} onChange={(e) => setUpgrades(e.target.checked ? [...upgrades, 'PRIVATE'] : upgrades.filter(u => u !== 'PRIVATE'))} className="mt-0.5" />
-                      <div>
-                        <div className="flex items-center gap-1 font-medium text-sm"><LockClosedIcon className="h-4 w-4 text-gray-600" /> Private</div>
-                        <p className="text-xs text-muted-foreground">Invite only</p>
-                        <p className="text-xs font-semibold text-gray-700 mt-0.5">R150</p>
-                      </div>
-                    </label>
-                    {/* IP Agreement */}
-                    <label className={`flex items-start gap-3 p-3 border rounded-xl cursor-pointer transition-colors col-span-2 ${
-                      upgrades.includes('IP_AGREEMENT') ? 'border-blue-400 bg-blue-50/50' : 'hover:border-muted-foreground/30'
-                    }`}>
-                      <input type="checkbox" checked={upgrades.includes('IP_AGREEMENT')} onChange={(e) => setUpgrades(e.target.checked ? [...upgrades, 'IP_AGREEMENT'] : upgrades.filter(u => u !== 'IP_AGREEMENT'))} className="mt-0.5" />
-                      <div>
-                        <div className="flex items-center gap-1 font-medium text-sm"><ShieldCheckIcon className="h-4 w-4 text-blue-600" /> IP Agreement</div>
-                        <p className="text-xs text-muted-foreground">Sellers must accept IP transfer agreement before bidding</p>
-                        <p className="text-xs font-semibold text-blue-700 mt-0.5">R200</p>
-                      </div>
-                    </label>
-                  </div>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={createMutation.isPending}
-                  className="w-full py-3 bg-gradient-to-r from-violet-600 to-indigo-600 text-white rounded-xl text-sm font-bold hover:opacity-90 disabled:opacity-50 transition-all"
-                >
-                  {createMutation.isPending ? 'Posting...' : `Post Project${upgradeTotal > 0 ? ` (+R${upgradeTotal} upgrades)` : ''}`}
-                </button>
-              </form>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }

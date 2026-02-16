@@ -53,6 +53,7 @@ const SubscriptionsPage = lazy(() => import('./pages/dashboard/SubscriptionsPage
 const MyCoursesPage = lazy(() => import('./pages/dashboard/MyCoursesPage'));
 const ProjectsPage = lazy(() => import('./pages/dashboard/ProjectsPage'));
 const ProjectDetailPage = lazy(() => import('./pages/dashboard/ProjectDetailPage'));
+const PostProjectPage = lazy(() => import('./pages/dashboard/PostProjectPage'));
 const SettingsPage = lazy(() => import('./pages/dashboard/SettingsPage'));
 
 // Seller pages (lazy loaded)
@@ -134,6 +135,7 @@ function App() {
           <Route path="/courses" element={<CoursesPage />} />
           <Route path="/courses/:slug" element={<CoursePage />} />
           <Route path="/projects" element={<ProjectsPage />} />
+          <Route path="/projects/post" element={<PostProjectPage />} />
           <Route path="/projects/:id" element={<ProjectDetailPage />} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="/careers" element={<CareersPage />} />
