@@ -32,6 +32,15 @@ jobs:
             "INSERT OR IGNORE INTO d1_migrations (name) VALUES ('0005_project_board.sql'),('0006_schema_sync.sql'),('0007_project_expansion.sql'),('0008_chat_offers_sync.sql'),('0009_project_upgrades_expansion.sql');" \
             || true
 
+      - name: Seed Admin User
+        working-directory: apps/api-worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          # Create new admin user if it doesn't exist
+          npx wrangler d1 execute zomieks-db --remote --file ../../seed-new-admin.sql || true
+
       - name: Apply Schema Fixes
         working-directory: apps/api-worker
         env:
