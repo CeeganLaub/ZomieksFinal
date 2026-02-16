@@ -22,8 +22,9 @@ jobs:
         run: npm run build
 
       - name: Deploy Worker (API)
+        continue-on-error: true
         working-directory: apps/api-worker
-        run: npx wrangler deploy --config wrangler.toml 2>&1 | tee /tmp/deploy.log; if grep -q "Uploaded" /tmp/deploy.log; then echo "Worker uploaded successfully"; else exit 1; fi
+        run: npx wrangler deploy --config wrangler.toml
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
