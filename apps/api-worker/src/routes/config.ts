@@ -449,6 +449,64 @@ app.delete('/fees/:id', async (c) => {
   });
 });
 
+// ============ SYSTEM STATUS ============
+
+// Check real binding/secret status
+app.get('/status', async (c) => {
+  const env = c.env;
+  const db = c.get('db');
+
+  const checks: Record<string, { ok: boolean; label: string }> = {};
+
+  // Database
+  try {
+    await db.query.siteConfig.findFirst();
+    checks.database = { ok: true, label: 'D1 Database' };
+  } catch {
+    checks.database = { ok: false, label: 'D1 Database' };
+  }
+
+  // KV Namespaces
+  checks.kvCache = { ok: !!env.CACHE, label: 'KV Cache' };
+  checks.kvSessions = { ok: !!env.SESSIONS, label: 'KV Sessions' };
+  checks.kvRateLimit = { ok: !!env.RATE_LIMIT, label: 'KV Rate Limit' };
+
+  // R2
+  checks.r2Uploads = { ok: !!env.UPLOADS, label: 'R2 Uploads' };
+
+  // Queues
+  checks.escrowQueue = { ok: !!env.ESCROW_QUEUE, label: 'Escrow Queue' };
+  checks.notificationQueue = { ok: !!env.NOTIFICATION_QUEUE, label: 'Notification Queue' };
+  checks.emailQueue = { ok: !!env.EMAIL_QUEUE, label: 'Email Queue' };
+
+  // Durable Objects
+  checks.chatRooms = { ok: !!env.CHAT_ROOMS, label: 'Chat Rooms DO' };
+  checks.presence = { ok: !!env.PRESENCE, label: 'Presence DO' };
+  checks.crmNotifications = { ok: !!env.CRM_NOTIFICATIONS, label: 'CRM Notifications DO' };
+
+  // Secrets
+  checks.jwtSecret = { ok: !!env.JWT_SECRET, label: 'JWT Secret' };
+  checks.jwtRefreshSecret = { ok: !!env.JWT_REFRESH_SECRET, label: 'JWT Refresh Secret' };
+  checks.ozowSiteCode = { ok: !!env.OZOW_SITE_CODE, label: 'Ozow Site Code' };
+  checks.ozowPrivateKey = { ok: !!env.OZOW_PRIVATE_KEY, label: 'Ozow Private Key' };
+  checks.ozowApiKey = { ok: !!env.OZOW_API_KEY, label: 'Ozow API Key' };
+  checks.resendApiKey = { ok: !!env.RESEND_API_KEY, label: 'Resend API Key' };
+
+  // Fee policy
+  const activePolicy = await db.query.feePolicy.findFirst({
+    where: eq(feePolicy.isActive, true),
+  });
+  checks.feePolicy = { ok: !!activePolicy, label: 'Fee Policy (DB)' };
+
+  const total = Object.keys(checks).length;
+  const passing = Object.values(checks).filter(c => c.ok).length;
+
+  return c.json({
+    success: true,
+    data: { checks, total, passing },
+  });
+});
+
 // Calculate fee preview
 app.post('/fees/preview', async (c) => {
   const body = await c.req.json() as { 

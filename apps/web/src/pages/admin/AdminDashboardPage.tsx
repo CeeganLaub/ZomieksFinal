@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api } from '../../lib/api';
+import { api, adminApi } from '../../lib/api';
 import { 
   UsersIcon, 
   ShoppingBagIcon,
@@ -10,6 +10,8 @@ import {
   ArrowTrendingUpIcon,
   ArrowPathIcon,
   ShieldCheckIcon,
+  CheckCircleIcon,
+  XCircleIcon,
 } from '@heroicons/react/24/outline';
 
 interface DashboardStats {
@@ -25,13 +27,30 @@ interface DashboardStats {
   revenueMonth: number;
 }
 
+interface SystemStatusData {
+  checks: Record<string, { ok: boolean; label: string }>;
+  total: number;
+  passing: number;
+}
+
 export default function AdminDashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [systemStatus, setSystemStatus] = useState<SystemStatusData | null>(null);
 
   useEffect(() => {
     loadStats();
+    loadSystemStatus();
   }, []);
+
+  async function loadSystemStatus() {
+    try {
+      const res = await adminApi.systemStatus();
+      if (res.data) setSystemStatus(res.data);
+    } catch {
+      // Silently fail — dashboard still shows stats
+    }
+  }
 
   async function loadStats() {
     try {
@@ -227,39 +246,50 @@ export default function AdminDashboardPage() {
         </div>
       </div>
 
-      {/* Recent Activity */}
+      {/* System Status */}
       <div className="bg-background border rounded-lg p-6">
-        <h2 className="font-semibold mb-4">System Status</h2>
-        <div className="space-y-3">
-          <div className="flex items-center justify-between py-2">
-            <span className="text-sm">Payment Gateway</span>
-            <span className="flex items-center gap-2 text-sm text-green-600">
-              <span className="h-2 w-2 bg-green-500 rounded-full"></span>
-              Operational
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-semibold">System Status</h2>
+          {systemStatus && (
+            <span className={`text-sm font-medium px-2 py-1 rounded ${
+              systemStatus.passing === systemStatus.total
+                ? 'bg-green-100 text-green-800'
+                : systemStatus.passing > systemStatus.total / 2
+                  ? 'bg-yellow-100 text-yellow-800'
+                  : 'bg-red-100 text-red-800'
+            }`}>
+              {systemStatus.passing}/{systemStatus.total} configured
             </span>
-          </div>
-          <div className="flex items-center justify-between py-2 border-t">
-            <span className="text-sm">Email Service</span>
-            <span className="flex items-center gap-2 text-sm text-green-600">
-              <span className="h-2 w-2 bg-green-500 rounded-full"></span>
-              Operational
-            </span>
-          </div>
-          <div className="flex items-center justify-between py-2 border-t">
-            <span className="text-sm">File Storage</span>
-            <span className="flex items-center gap-2 text-sm text-green-600">
-              <span className="h-2 w-2 bg-green-500 rounded-full"></span>
-              Operational
-            </span>
-          </div>
-          <div className="flex items-center justify-between py-2 border-t">
-            <span className="text-sm">Database</span>
-            <span className="flex items-center gap-2 text-sm text-green-600">
-              <span className="h-2 w-2 bg-green-500 rounded-full"></span>
-              Operational
-            </span>
-          </div>
+          )}
         </div>
+        {systemStatus ? (
+          <div className="space-y-2">
+            {Object.entries(systemStatus.checks).map(([key, check], i) => (
+              <div key={key} className={`flex items-center justify-between py-2 ${i > 0 ? 'border-t' : ''}`}>
+                <span className="text-sm">{check.label}</span>
+                <span className={`flex items-center gap-2 text-sm ${check.ok ? 'text-green-600' : 'text-red-500'}`}>
+                  {check.ok ? (
+                    <><CheckCircleIcon className="h-4 w-4" /> Configured</>
+                  ) : (
+                    <><XCircleIcon className="h-4 w-4" /> Not Set</>
+                  )}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {['Payment Gateway', 'Email Service', 'File Storage', 'Database'].map((label, i) => (
+              <div key={label} className={`flex items-center justify-between py-2 ${i > 0 ? 'border-t' : ''}`}>
+                <span className="text-sm">{label}</span>
+                <span className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                  Checking...
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

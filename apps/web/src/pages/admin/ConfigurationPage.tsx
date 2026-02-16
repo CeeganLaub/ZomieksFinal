@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
+import { adminApi } from '../../lib/api';
 import { toast } from 'sonner';
 import { 
   ArrowPathIcon,
@@ -8,6 +9,9 @@ import {
   EyeIcon,
   EyeSlashIcon,
   CheckIcon,
+  CheckCircleIcon,
+  XCircleIcon,
+  InformationCircleIcon,
 } from '@heroicons/react/24/outline';
 import { cn } from '../../lib/utils';
 
@@ -62,16 +66,6 @@ const CATEGORY_DEFINITIONS: Record<string, { name: string; description: string; 
       { key: 'email_catch_all', label: 'Catch-All Address', isSecret: false, description: 'Catch-all email forwarding address' },
     ],
   },
-  sms: {
-    name: 'SMS Gateway',
-    description: 'SMS gateway for OTP and notifications',
-    fields: [
-      { key: 'provider', label: 'Provider', isSecret: false, description: 'SMS provider name (e.g., clickatell, bulksms)' },
-      { key: 'api_key', label: 'API Key', isSecret: true, description: 'SMS Gateway API Key' },
-      { key: 'api_secret', label: 'API Secret', isSecret: true, description: 'SMS Gateway API Secret' },
-      { key: 'sender_id', label: 'Sender ID', isSecret: false, description: 'SMS sender name or number' },
-    ],
-  },
   platform: {
     name: 'Platform Settings',
     description: 'General platform configuration',
@@ -110,9 +104,26 @@ export default function ConfigurationPage() {
   const [showCustomForm, setShowCustomForm] = useState(false);
   const [customConfig, setCustomConfig] = useState({ category: '', key: '', value: '', isSecret: false, description: '' });
 
+  // System status
+  const [systemStatus, setSystemStatus] = useState<{ checks: Record<string, { ok: boolean; label: string }>; total: number; passing: number } | null>(null);
+  const [statusLoading, setStatusLoading] = useState(true);
+
   useEffect(() => {
     loadConfigs();
+    loadSystemStatus();
   }, []);
+
+  async function loadSystemStatus() {
+    try {
+      setStatusLoading(true);
+      const res = await adminApi.systemStatus();
+      if (res.data) setSystemStatus(res.data);
+    } catch {
+      // Status check failed — leave null
+    } finally {
+      setStatusLoading(false);
+    }
+  }
 
   async function loadConfigs() {
     try {
@@ -333,6 +344,65 @@ export default function ConfigurationPage() {
           <PlusIcon className="h-5 w-5" />
           Add Custom
         </button>
+      </div>
+
+      {/* System Integration Status */}
+      <div className="bg-background border rounded-lg p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-semibold">System Integration Status</h2>
+          {systemStatus && (
+            <span className={cn(
+              "text-sm font-medium px-2 py-1 rounded",
+              systemStatus.passing === systemStatus.total
+                ? "bg-green-100 text-green-800"
+                : systemStatus.passing > systemStatus.total / 2
+                  ? "bg-yellow-100 text-yellow-800"
+                  : "bg-red-100 text-red-800"
+            )}>
+              {systemStatus.passing}/{systemStatus.total} configured
+            </span>
+          )}
+        </div>
+        {statusLoading ? (
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <ArrowPathIcon className="h-5 w-5 animate-spin" />
+            Checking system status...
+          </div>
+        ) : systemStatus ? (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            {Object.entries(systemStatus.checks).map(([key, check]) => (
+              <div
+                key={key}
+                className={cn(
+                  "flex items-center gap-2 p-2 rounded-lg text-sm",
+                  check.ok ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800"
+                )}
+              >
+                {check.ok ? (
+                  <CheckCircleIcon className="h-5 w-5 text-green-600 flex-shrink-0" />
+                ) : (
+                  <XCircleIcon className="h-5 w-5 text-red-500 flex-shrink-0" />
+                )}
+                <span className="truncate">{check.label}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">Unable to check system status. API may be unavailable.</p>
+        )}
+      </div>
+
+      {/* Info Box */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex gap-3">
+        <InformationCircleIcon className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
+        <div className="text-sm text-blue-800">
+          <p className="font-medium mb-1">Secrets vs Database Config</p>
+          <p>
+            Ozow credentials, JWT secrets, and API keys are set as <strong>Cloudflare Worker secrets</strong> (via <code className="bg-blue-100 px-1 rounded">wrangler secret put</code>).
+            The settings below are stored in the database for reference and non-secret configuration.
+            Items marked red above need to be set via wrangler CLI.
+          </p>
+        </div>
       </div>
 
       {/* Predefined Categories */}

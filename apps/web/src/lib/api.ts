@@ -743,6 +743,9 @@ export const adminApi = {
   updateCourse: (courseId: string, data: { status?: string }) =>
     api.patch<ApiResponse<{ course: unknown }>>(`/admin/courses/${courseId}`, data),
 
+  // System status
+  systemStatus: () => api.get<ApiResponse<{ checks: Record<string, { ok: boolean; label: string }>; total: number; passing: number }>>('/admin/settings/status'),
+
   // Categories
   categories: () => api.get<ApiResponse<{ categories: unknown[] }>>('/admin/categories'),
   createCategory: (data: { name: string; slug: string; description?: string; icon?: string; parentId?: string; order?: number }) =>
