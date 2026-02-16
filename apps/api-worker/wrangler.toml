@@ -5,10 +5,13 @@ compatibility_flags = ["nodejs_compat"]
 
 account_id = "1842cd01813277b018d4172a14a00f17"
 
-# Custom domain for the API worker
-routes = [
-  { pattern = "api.zomieks.com", custom_domain = true }
-]
+# Enable workers.dev subdomain
+workers_dev = true
+
+# Custom domain for the API worker (requires Zone:Edit token permission)
+# routes = [
+#   { pattern = "api.zomieks.com", custom_domain = true }
+# ]
 
 # Development settings
 [dev]
@@ -20,6 +23,7 @@ local_protocol = "http"
 ENVIRONMENT = "production"
 APP_URL = "https://www.zomieks.com"
 FRONTEND_URL = "https://www.zomieks.com"
+API_URL = "https://zomieks-api.ceeganlaub.workers.dev"
 CDN_URL = ""
 OZOW_TEST_MODE = "false"
 
