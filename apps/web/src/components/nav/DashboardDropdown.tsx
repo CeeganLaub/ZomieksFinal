@@ -10,12 +10,12 @@ import {
   CreditCardIcon,
   Cog6ToothIcon,
   AcademicCapIcon,
-  ClipboardDocumentListIcon,
+  MagnifyingGlassIcon,
+  FolderIcon,
 } from '@heroicons/react/24/outline';
 
 const buyerNavItems = [
   { href: '/dashboard', label: 'Dashboard', icon: HomeIcon },
-  { href: '/projects', label: 'Projects', icon: ClipboardDocumentListIcon },
   { href: '/orders', label: 'Orders', icon: ShoppingBagIcon },
   { href: '/messages', label: 'Messages', icon: ChatBubbleLeftRightIcon },
   { href: '/my-courses', label: 'My Courses', icon: AcademicCapIcon },
@@ -23,13 +23,18 @@ const buyerNavItems = [
   { href: '/settings', label: 'Settings', icon: Cog6ToothIcon },
 ];
 
+const projectNavItems = [
+  { href: '/projects', label: 'Browse Projects', icon: MagnifyingGlassIcon },
+  { href: '/projects?view=mine', label: 'My Projects', icon: FolderIcon },
+];
+
 export default function DashboardDropdown() {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const location = useLocation();
 
-  const isAnyActive = buyerNavItems.some(
-    (item) => location.pathname === item.href || location.pathname.startsWith(item.href + '/')
+  const isAnyActive = [...buyerNavItems, ...projectNavItems].some(
+    (item) => location.pathname === item.href || location.pathname.startsWith(item.href.split('?')[0] + '/')
   );
 
   useEffect(() => {
@@ -76,6 +81,33 @@ export default function DashboardDropdown() {
                 const isActive =
                   location.pathname === item.href ||
                   location.pathname.startsWith(item.href + '/');
+                return (
+                  <Link
+                    key={item.href}
+                    to={item.href}
+                    onClick={() => setIsOpen(false)}
+                    className={cn(
+                      'flex items-center gap-3 px-3 py-2.5 text-sm rounded-xl transition-colors',
+                      isActive
+                        ? 'bg-primary/10 text-primary font-medium'
+                        : 'hover:bg-muted text-foreground'
+                    )}
+                  >
+                    <item.icon className={cn('h-5 w-5', isActive ? 'text-primary' : 'text-muted-foreground')} />
+                    {item.label}
+                  </Link>
+                );
+              })}
+
+              <div className="my-1 border-t" />
+              <p className="px-3 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                Projects
+              </p>
+              {projectNavItems.map((item) => {
+                const basePath = item.href.split('?')[0];
+                const isActive = location.pathname === basePath && (
+                  !item.href.includes('?') || location.search.includes(item.href.split('?')[1])
+                );
                 return (
                   <Link
                     key={item.href}

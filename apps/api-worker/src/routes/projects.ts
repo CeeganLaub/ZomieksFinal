@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { eq, and, desc, sql, count } from 'drizzle-orm';
+import { eq, and, desc, sql, count, like, or } from 'drizzle-orm';
 import { projects, projectBids, projectUpgrades, projectFiles, projectPayments, projectReviews, users, categories, sellerProfiles } from '@zomieks/db';
 import { createId } from '@paralleldrive/cuid2';
 import type { Env } from '../types';
@@ -19,13 +19,14 @@ const createProjectSchema = z.object({
   budgetMax: z.number().max(1000000).optional(),
   deadline: z.string().optional(),
   skills: z.array(z.string()).max(10).optional(),
-  upgrades: z.array(z.enum(['FEATURED', 'URGENT'])).optional(),
+  upgrades: z.array(z.enum(['FEATURED', 'URGENT', 'SEALED', 'PRIVATE', 'IP_AGREEMENT'])).optional(),
 });
 
 const createBidSchema = z.object({
   amount: z.number().min(50).max(1000000),
   deliveryDays: z.number().min(1).max(365),
   proposal: z.string().min(20).max(3000),
+  ipAgreed: z.boolean().optional(),
 });
 
 const createReviewSchema = z.object({
@@ -39,43 +40,80 @@ const createPaymentSchema = z.object({
   milestoneLabel: z.string().max(200).optional(),
 });
 
-const UPGRADE_PRICE_CENTS = 10000; // R100
+// Upgrade pricing in cents
+const UPGRADE_PRICES: Record<string, number> = {
+  FEATURED: 5000,       // R50
+  URGENT: 10000,        // R100
+  SEALED: 5000,         // R50
+  PRIVATE: 15000,       // R150
+  IP_AGREEMENT: 20000,  // R200
+};
 
 // ─── LIST OPEN PROJECTS (public, for sellers to browse) ───
 app.get('/', async (c) => {
   const db = c.get('db');
+  const user = c.get('user');
   const page = parseInt(c.req.query('page') || '1');
   const limit = Math.min(parseInt(c.req.query('limit') || '20'), 50);
   const offset = (page - 1) * limit;
   const categoryId = c.req.query('category');
   const status = c.req.query('status') || 'OPEN';
+  const search = c.req.query('search')?.trim();
+  const sortBy = c.req.query('sortBy') || 'newest';
+  const budgetMin = c.req.query('budgetMin');
+  const budgetMax = c.req.query('budgetMax');
 
-  const conditions = [eq(projects.status, status as any)];
+  const conditions: any[] = [eq(projects.status, status as any)];
   if (categoryId) conditions.push(eq(projects.categoryId, categoryId));
+  // Hide private projects from public listing (owner can still see via /mine)
+  conditions.push(eq(projects.isPrivate, 0));
+  if (search) {
+    conditions.push(or(
+      like(projects.title, `%${search}%`),
+      like(projects.description, `%${search}%`)
+    ));
+  }
+  if (budgetMin) conditions.push(sql`${projects.budgetMax} >= ${Math.round(parseFloat(budgetMin) * 100)}`);
+  if (budgetMax) conditions.push(sql`${projects.budgetMin} <= ${Math.round(parseFloat(budgetMax) * 100)}`);
+
+  // Determine sort order
+  let orderClauses: any[];
+  switch (sortBy) {
+    case 'budget_high': orderClauses = [desc(projects.isFeatured), desc(projects.budgetMax)]; break;
+    case 'budget_low': orderClauses = [desc(projects.isFeatured), projects.budgetMin]; break;
+    case 'most_bids': orderClauses = [desc(projects.isFeatured), desc(projects.bidCount)]; break;
+    case 'deadline': orderClauses = [desc(projects.isFeatured), projects.deadline]; break;
+    default: orderClauses = [desc(projects.isFeatured), desc(projects.createdAt)];
+  }
+
+  const selectFields = {
+    id: projects.id,
+    title: projects.title,
+    description: projects.description,
+    budgetMin: projects.budgetMin,
+    budgetMax: projects.budgetMax,
+    deadline: projects.deadline,
+    skills: projects.skills,
+    status: projects.status,
+    bidCount: projects.bidCount,
+    isFeatured: projects.isFeatured,
+    isUrgent: projects.isUrgent,
+    isSealed: projects.isSealed,
+    isPrivate: projects.isPrivate,
+    hasIpAgreement: projects.hasIpAgreement,
+    createdAt: projects.createdAt,
+    buyerUsername: users.username,
+    buyerAvatar: users.avatar,
+    categoryName: categories.name,
+  };
 
   const [items, [{ total }]] = await Promise.all([
-    db.select({
-      id: projects.id,
-      title: projects.title,
-      description: projects.description,
-      budgetMin: projects.budgetMin,
-      budgetMax: projects.budgetMax,
-      deadline: projects.deadline,
-      skills: projects.skills,
-      status: projects.status,
-      bidCount: projects.bidCount,
-      isFeatured: projects.isFeatured,
-      isUrgent: projects.isUrgent,
-      createdAt: projects.createdAt,
-      buyerUsername: users.username,
-      buyerAvatar: users.avatar,
-      categoryName: categories.name,
-    })
+    db.select(selectFields)
       .from(projects)
       .leftJoin(users, eq(projects.buyerId, users.id))
       .leftJoin(categories, eq(projects.categoryId, categories.id))
       .where(and(...conditions))
-      .orderBy(desc(projects.isFeatured), desc(projects.createdAt))
+      .orderBy(...orderClauses)
       .limit(limit)
       .offset(offset),
     db.select({ total: count() }).from(projects).where(and(...conditions)),
@@ -101,6 +139,9 @@ app.get('/mine', requireAuth, async (c) => {
     bidCount: projects.bidCount,
     isFeatured: projects.isFeatured,
     isUrgent: projects.isUrgent,
+    isSealed: projects.isSealed,
+    isPrivate: projects.isPrivate,
+    hasIpAgreement: projects.hasIpAgreement,
     createdAt: projects.createdAt,
   })
     .from(projects)
@@ -108,6 +149,34 @@ app.get('/mine', requireAuth, async (c) => {
     .orderBy(desc(projects.createdAt));
 
   return c.json({ success: true, data: items });
+});
+
+// ─── GET MY BIDS (seller) ───
+app.get('/my-bids', requireSeller, async (c) => {
+  const user = c.get('user')!;
+  const db = c.get('db');
+
+  const bids = await db.select({
+    bidId: projectBids.id,
+    amount: projectBids.amount,
+    deliveryDays: projectBids.deliveryDays,
+    proposal: projectBids.proposal,
+    bidStatus: projectBids.status,
+    bidCreatedAt: projectBids.createdAt,
+    projectId: projects.id,
+    projectTitle: projects.title,
+    projectStatus: projects.status,
+    budgetMin: projects.budgetMin,
+    budgetMax: projects.budgetMax,
+    buyerUsername: users.username,
+  })
+    .from(projectBids)
+    .innerJoin(projects, eq(projectBids.projectId, projects.id))
+    .leftJoin(users, eq(projects.buyerId, users.id))
+    .where(eq(projectBids.sellerId, user.id))
+    .orderBy(desc(projectBids.createdAt));
+
+  return c.json({ success: true, data: bids });
 });
 
 // ─── GET PROJECT DETAIL ───
@@ -132,6 +201,9 @@ app.get('/:id', async (c) => {
     bidCount: projects.bidCount,
     isFeatured: projects.isFeatured,
     isUrgent: projects.isUrgent,
+    isSealed: projects.isSealed,
+    isPrivate: projects.isPrivate,
+    hasIpAgreement: projects.hasIpAgreement,
     awardedSellerId: projects.awardedSellerId,
     completedAt: projects.completedAt,
     createdAt: projects.createdAt,
@@ -147,9 +219,16 @@ app.get('/:id', async (c) => {
 
   if (!project) return c.json({ success: false, error: { message: 'Project not found' } }, 404);
 
+  // Private projects: only visible to owner
+  if (project.isPrivate && (!user || project.buyerId !== user.id)) {
+    return c.json({ success: false, error: { message: 'Project not found' } }, 404);
+  }
+
   // Get bids
   let bids: any[] = [];
-  if (user && project.buyerId === user.id) {
+  const isOwner = user && project.buyerId === user.id;
+  if (isOwner) {
+    // Owner sees all bids
     bids = await db.select({
       id: projectBids.id,
       amount: projectBids.amount,
@@ -162,6 +241,7 @@ app.get('/:id', async (c) => {
       sellerAvatar: users.avatar,
       sellerDisplayName: sellerProfiles.displayName,
       sellerTitle: sellerProfiles.professionalTitle,
+      ipAgreedAt: projectBids.ipAgreedAt,
     })
       .from(projectBids)
       .leftJoin(users, eq(projectBids.sellerId, users.id))
@@ -169,7 +249,8 @@ app.get('/:id', async (c) => {
       .where(eq(projectBids.projectId, id))
       .orderBy(desc(projectBids.createdAt));
   } else if (user?.isSeller) {
-    bids = await db.select({
+    // Seller sees own bid only
+    const ownBids = await db.select({
       id: projectBids.id,
       amount: projectBids.amount,
       deliveryDays: projectBids.deliveryDays,
@@ -181,12 +262,43 @@ app.get('/:id', async (c) => {
       sellerAvatar: users.avatar,
       sellerDisplayName: sellerProfiles.displayName,
       sellerTitle: sellerProfiles.professionalTitle,
+      ipAgreedAt: projectBids.ipAgreedAt,
     })
       .from(projectBids)
       .leftJoin(users, eq(projectBids.sellerId, users.id))
       .leftJoin(sellerProfiles, eq(users.id, sellerProfiles.userId))
       .where(and(eq(projectBids.projectId, id), eq(projectBids.sellerId, user.id)))
       .orderBy(desc(projectBids.createdAt));
+
+    // If sealed, show other bids count but mask details
+    if (project.isSealed) {
+      const allBids = await db.select({
+        id: projectBids.id,
+        status: projectBids.status,
+        createdAt: projectBids.createdAt,
+        sellerId: projectBids.sellerId,
+        sellerUsername: users.username,
+        sellerAvatar: users.avatar,
+      })
+        .from(projectBids)
+        .leftJoin(users, eq(projectBids.sellerId, users.id))
+        .where(and(eq(projectBids.projectId, id), sql`${projectBids.sellerId} != ${user.id}`))
+        .orderBy(desc(projectBids.createdAt));
+
+      // Mask sealed bids from other sellers
+      const maskedBids = allBids.map(b => ({
+        ...b,
+        amount: null,
+        deliveryDays: null,
+        proposal: '[Sealed Bid]',
+        sellerDisplayName: null,
+        sellerTitle: null,
+        ipAgreedAt: null,
+      }));
+      bids = [...ownBids, ...maskedBids];
+    } else {
+      bids = ownBids;
+    }
   }
 
   // Get upgrades, files, payments, reviews (visible to participants)
@@ -255,6 +367,9 @@ app.post('/', requireAuth, async (c) => {
 
   const isFeatured = data.upgrades?.includes('FEATURED') || false;
   const isUrgent = data.upgrades?.includes('URGENT') || false;
+  const isSealed = data.upgrades?.includes('SEALED') ? 1 : 0;
+  const isPrivate = data.upgrades?.includes('PRIVATE') ? 1 : 0;
+  const hasIpAgreement = data.upgrades?.includes('IP_AGREEMENT') ? 1 : 0;
 
   await db.insert(projects).values({
     id,
@@ -270,19 +385,22 @@ app.post('/', requireAuth, async (c) => {
     bidCount: 0,
     isFeatured,
     isUrgent,
+    isSealed,
+    isPrivate,
+    hasIpAgreement,
     createdAt: now,
     updatedAt: now,
   });
 
-  // Create upgrade records
+  // Create upgrade records with per-type pricing
   if (data.upgrades?.length) {
     for (const type of data.upgrades) {
       await db.insert(projectUpgrades).values({
         id: createId(),
         projectId: id,
         type,
-        amount: UPGRADE_PRICE_CENTS,
-        status: 'PAID', // For now, mark as paid (payment handled client-side or bundled)
+        amount: UPGRADE_PRICES[type] || 5000,
+        status: 'PAID',
         createdAt: now,
         updatedAt: now,
       });
@@ -376,6 +494,11 @@ app.post('/:id/bids', requireSeller, async (c) => {
   if (project.status !== 'OPEN') return c.json({ success: false, error: { message: 'Project is not accepting bids' } }, 400);
   if (project.buyerId === user.id) return c.json({ success: false, error: { message: 'Cannot bid on your own project' } }, 400);
 
+  // IP Agreement required
+  if (project.hasIpAgreement && !data.ipAgreed) {
+    return c.json({ success: false, error: { message: 'You must agree to the IP Agreement before bidding' } }, 400);
+  }
+
   const existing = await db.select().from(projectBids)
     .where(and(eq(projectBids.projectId, projectId), eq(projectBids.sellerId, user.id)))
     .get();
@@ -392,6 +515,7 @@ app.post('/:id/bids', requireSeller, async (c) => {
     deliveryDays: data.deliveryDays,
     proposal: data.proposal,
     status: 'PENDING',
+    ipAgreedAt: project.hasIpAgreement && data.ipAgreed ? now : null,
     createdAt: now,
     updatedAt: now,
   });
@@ -521,7 +645,7 @@ app.post('/:id/upgrade', requireAuth, async (c) => {
   const db = c.get('db');
   const id = c.req.param('id');
   const body = await c.req.json();
-  const { type } = z.object({ type: z.enum(['FEATURED', 'URGENT']) }).parse(body);
+  const { type } = z.object({ type: z.enum(['FEATURED', 'URGENT', 'SEALED', 'PRIVATE', 'IP_AGREEMENT']) }).parse(body);
 
   const project = await db.select().from(projects).where(eq(projects.id, id)).get();
   if (!project) return c.json({ success: false, error: { message: 'Project not found' } }, 404);
@@ -535,12 +659,13 @@ app.post('/:id/upgrade', requireAuth, async (c) => {
 
   const now = new Date().toISOString();
   const upgradeId = createId();
+  const amount = UPGRADE_PRICES[type] || 5000;
 
   await db.insert(projectUpgrades).values({
     id: upgradeId,
     projectId: id,
     type,
-    amount: UPGRADE_PRICE_CENTS,
+    amount,
     status: 'PAID',
     createdAt: now,
     updatedAt: now,
@@ -550,9 +675,12 @@ app.post('/:id/upgrade', requireAuth, async (c) => {
   const update: Record<string, any> = { updatedAt: now };
   if (type === 'FEATURED') update.isFeatured = true;
   if (type === 'URGENT') update.isUrgent = true;
+  if (type === 'SEALED') update.isSealed = 1;
+  if (type === 'PRIVATE') update.isPrivate = 1;
+  if (type === 'IP_AGREEMENT') update.hasIpAgreement = 1;
   await db.update(projects).set(update).where(eq(projects.id, id));
 
-  return c.json({ success: true, data: { id: upgradeId, amount: UPGRADE_PRICE_CENTS } });
+  return c.json({ success: true, data: { id: upgradeId, amount } });
 });
 
 // ─── UPLOAD FILE ───

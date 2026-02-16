@@ -14,6 +14,7 @@ import {
   ChartBarIcon,
   LinkIcon,
   SparklesIcon,
+  ClipboardDocumentListIcon,
 } from '@heroicons/react/24/outline';
 
 const sellerNavItems = [
@@ -25,6 +26,11 @@ const sellerNavItems = [
   { href: '/seller/courses', label: 'Courses', icon: AcademicCapIcon },
   { href: '/seller/analytics', label: 'Analytics', icon: ChartBarIcon },
   { href: '/seller/biolink', label: 'BioLink', icon: LinkIcon },
+];
+
+const sellerProjectItems = [
+  { href: '/projects', label: 'Find Projects', icon: ClipboardDocumentListIcon },
+  { href: '/projects?view=bids', label: 'My Bids', icon: DocumentTextIcon },
 ];
 
 export default function SellerDropdown() {
@@ -97,6 +103,33 @@ export default function SellerDropdown() {
                   item.href === '/seller'
                     ? location.pathname === '/seller'
                     : location.pathname === item.href || location.pathname.startsWith(item.href + '/');
+                return (
+                  <Link
+                    key={item.href}
+                    to={item.href}
+                    onClick={() => setIsOpen(false)}
+                    className={cn(
+                      'flex items-center gap-3 px-3 py-2.5 text-sm rounded-xl transition-colors',
+                      isActive
+                        ? 'bg-primary/10 text-primary font-medium'
+                        : 'hover:bg-muted text-foreground'
+                    )}
+                  >
+                    <item.icon className={cn('h-5 w-5', isActive ? 'text-primary' : 'text-muted-foreground')} />
+                    {item.label}
+                  </Link>
+                );
+              })}
+
+              <div className="my-1 border-t" />
+              <p className="px-3 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                Projects
+              </p>
+              {sellerProjectItems.map((item) => {
+                const basePath = item.href.split('?')[0];
+                const isActive = location.pathname === basePath && (
+                  !item.href.includes('?') || location.search.includes(item.href.split('?')[1])
+                );
                 return (
                   <Link
                     key={item.href}

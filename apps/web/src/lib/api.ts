@@ -599,11 +599,14 @@ export const sellerFeeApi = {
 
 // Projects API (marketplace project board)
 export const projectsApi = {
-  list: (params?: { category?: string; status?: string; page?: number; limit?: number }) =>
+  list: (params?: { category?: string; status?: string; page?: number; limit?: number; search?: string; sortBy?: string; budgetMin?: number; budgetMax?: number }) =>
     api.get<ApiResponse<any[]>>('/projects', { params }),
 
   mine: () =>
     api.get<ApiResponse<any[]>>('/projects/mine'),
+
+  myBids: () =>
+    api.get<ApiResponse<any[]>>('/projects/my-bids'),
 
   get: (id: string) =>
     api.get<ApiResponse<any>>(`/projects/${id}`),
@@ -624,7 +627,7 @@ export const projectsApi = {
     api.post<ApiResponse<null>>(`/projects/${id}/complete`),
 
   // Bids
-  placeBid: (projectId: string, data: { amount: number; deliveryDays: number; proposal: string }) =>
+  placeBid: (projectId: string, data: { amount: number; deliveryDays: number; proposal: string; ipAgreed?: boolean }) =>
     api.post<ApiResponse<{ id: string }>>(`/projects/${projectId}/bids`, data),
 
   acceptBid: (projectId: string, bidId: string) =>
@@ -638,7 +641,7 @@ export const projectsApi = {
     api.post<ApiResponse<{ bidId: string }>>(`/projects/${projectId}/award`, data),
 
   // Upgrades
-  upgrade: (projectId: string, type: 'FEATURED' | 'URGENT') =>
+  upgrade: (projectId: string, type: 'FEATURED' | 'URGENT' | 'SEALED' | 'PRIVATE' | 'IP_AGREEMENT') =>
     api.post<ApiResponse<{ id: string; amount: number }>>(`/projects/${projectId}/upgrade`, { type }),
 
   // Files

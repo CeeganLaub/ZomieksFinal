@@ -20,6 +20,9 @@ import {
   BoltIcon,
   FireIcon,
   PencilIcon,
+  EyeSlashIcon,
+  LockClosedIcon,
+  ShieldCheckIcon,
 } from '@heroicons/react/24/outline';
 import { StarIcon as StarSolid } from '@heroicons/react/24/solid';
 
@@ -64,6 +67,8 @@ export default function ProjectDetailPage() {
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [showEditForm, setShowEditForm] = useState(false);
+  const [showIpModal, setShowIpModal] = useState(false);
+  const [ipAgreed, setIpAgreed] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ['project', id],
@@ -105,8 +110,9 @@ export default function ProjectDetailPage() {
       amount: parseFloat(bidAmount),
       deliveryDays: parseInt(bidDays),
       proposal: bidProposal,
+      ipAgreed: project?.hasIpAgreement ? ipAgreed : undefined,
     }),
-    onSuccess: () => { invalidate(); toast.success('Bid placed!'); setShowBidForm(false); setBidAmount(''); setBidDays(''); setBidProposal(''); },
+    onSuccess: () => { invalidate(); toast.success('Bid placed!'); setShowBidForm(false); setBidAmount(''); setBidDays(''); setBidProposal(''); setIpAgreed(false); },
     onError: (e: any) => toast.error(e?.error?.message || 'Failed to place bid'),
   });
 
@@ -141,8 +147,11 @@ export default function ProjectDetailPage() {
   });
 
   const upgradeProject = useMutation({
-    mutationFn: (type: 'FEATURED' | 'URGENT') => projectsApi.upgrade(id!, type),
-    onSuccess: (_, type) => { invalidate(); toast.success(`Project upgraded to ${type}! (R100)`); },
+    mutationFn: (type: 'FEATURED' | 'URGENT' | 'SEALED' | 'PRIVATE' | 'IP_AGREEMENT') => projectsApi.upgrade(id!, type),
+    onSuccess: (_, type) => {
+      const prices: Record<string, number> = { FEATURED: 50, URGENT: 100, SEALED: 50, PRIVATE: 150, IP_AGREEMENT: 200 };
+      invalidate(); toast.success(`Project upgraded to ${type}! (R${prices[type] || 100})`);
+    },
     onError: (e: any) => toast.error(e?.error?.message || 'Failed to upgrade'),
   });
 
@@ -228,6 +237,21 @@ export default function ProjectDetailPage() {
                   <FireIcon className="h-3 w-3" /> Urgent
                 </span>
               )}
+              {project.isSealed ? (
+                <span className="text-xs px-2.5 py-1 rounded-full font-medium bg-purple-100 text-purple-700 flex items-center gap-1">
+                  <EyeSlashIcon className="h-3 w-3" /> Sealed
+                </span>
+              ) : null}
+              {project.isPrivate ? (
+                <span className="text-xs px-2.5 py-1 rounded-full font-medium bg-gray-200 text-gray-700 flex items-center gap-1">
+                  <LockClosedIcon className="h-3 w-3" /> Private
+                </span>
+              ) : null}
+              {project.hasIpAgreement ? (
+                <span className="text-xs px-2.5 py-1 rounded-full font-medium bg-blue-100 text-blue-700 flex items-center gap-1">
+                  <ShieldCheckIcon className="h-3 w-3" /> IP Agreement
+                </span>
+              ) : null}
             </div>
             <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
               <span className="flex items-center gap-1">
@@ -346,7 +370,13 @@ export default function ProjectDetailPage() {
                 {isOwner ? `Proposals (${project.bids?.length || 0})` : 'Your Proposal'}
               </h2>
               {isSeller && !isOwner && project.status === 'OPEN' && !myBid && (
-                <button onClick={() => setShowBidForm(true)} className="px-4 py-2 bg-primary text-primary-foreground rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors">
+                <button onClick={() => {
+                  if (project.hasIpAgreement) {
+                    setShowIpModal(true);
+                  } else {
+                    setShowBidForm(true);
+                  }
+                }} className="px-4 py-2 bg-primary text-primary-foreground rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors">
                   Place a Bid
                 </button>
               )}
@@ -361,8 +391,14 @@ export default function ProjectDetailPage() {
             {project.bids?.length > 0 ? (
               project.bids.map((bid: any) => {
                 const bidBadge = STATUS_BADGES[bid.status] || STATUS_BADGES.PENDING;
+                const isSealed = bid.proposal === '[Sealed Bid]';
                 return (
-                  <div key={bid.id} className="bg-card border rounded-2xl p-5">
+                  <div key={bid.id} className={`bg-card border rounded-2xl p-5 ${isSealed ? 'relative overflow-hidden' : ''}`}>
+                    {isSealed && (
+                      <div className="absolute top-2 right-2 flex items-center gap-1 text-xs text-purple-600 bg-purple-50 px-2 py-1 rounded-full">
+                        <EyeSlashIcon className="h-3 w-3" /> Sealed
+                      </div>
+                    )}
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex items-start gap-3 flex-1">
                         {bid.sellerAvatar ? (
@@ -372,16 +408,21 @@ export default function ProjectDetailPage() {
                         )}
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
-                            <span className="font-semibold">{bid.sellerDisplayName || `@${bid.sellerUsername}`}</span>
+                            <span className="font-semibold">{isSealed ? 'Anonymous Bidder' : (bid.sellerDisplayName || `@${bid.sellerUsername}`)}</span>
                             <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${bidBadge.className}`}>{bidBadge.label}</span>
+                            {bid.ipAgreedAt && (
+                              <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-blue-100 text-blue-700 flex items-center gap-0.5">
+                                <ShieldCheckIcon className="h-3 w-3" /> IP Signed
+                              </span>
+                            )}
                           </div>
-                          {bid.sellerTitle && <p className="text-xs text-muted-foreground mb-2">{bid.sellerTitle}</p>}
-                          <p className="text-sm text-foreground whitespace-pre-wrap">{bid.proposal}</p>
+                          {!isSealed && bid.sellerTitle && <p className="text-xs text-muted-foreground mb-2">{bid.sellerTitle}</p>}
+                          <p className={`text-sm text-foreground whitespace-pre-wrap ${isSealed ? 'blur-sm select-none' : ''}`}>{isSealed ? 'This bid is sealed and hidden until the project owner reveals it.' : bid.proposal}</p>
                         </div>
                       </div>
                       <div className="text-right shrink-0">
-                        <p className="font-bold text-lg text-primary">R{(bid.amount / 100).toLocaleString()}</p>
-                        <p className="text-xs text-muted-foreground">{bid.deliveryDays} day{bid.deliveryDays !== 1 ? 's' : ''}</p>
+                        <p className={`font-bold text-lg text-primary ${isSealed ? 'blur-sm select-none' : ''}`}>{isSealed ? 'R---' : `R${(bid.amount / 100).toLocaleString()}`}</p>
+                        <p className={`text-xs text-muted-foreground ${isSealed ? 'blur-sm select-none' : ''}`}>{isSealed ? '- days' : `${bid.deliveryDays} day${bid.deliveryDays !== 1 ? 's' : ''}`}</p>
                         {isOwner && project.status === 'OPEN' && bid.status === 'PENDING' && (
                           <button onClick={() => acceptBid.mutate(bid.id)} disabled={acceptBid.isPending} className="mt-2 flex items-center gap-1 px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-medium hover:bg-emerald-700 transition-colors">
                             <CheckCircleIcon className="h-4 w-4" /> Award
@@ -414,7 +455,7 @@ export default function ProjectDetailPage() {
                   {project.isFeatured && <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Active</span>}
                 </div>
                 <p className="text-sm text-muted-foreground mb-3">Your project appears at the top of search results, attracting more freelancers.</p>
-                <p className="font-bold text-lg mb-3">R100</p>
+                <p className="font-bold text-lg mb-3">R50</p>
                 {isOwner && !project.isFeatured && (
                   <button onClick={() => upgradeProject.mutate('FEATURED')} disabled={upgradeProject.isPending} className="w-full py-2 bg-amber-600 text-white rounded-xl text-sm font-medium hover:bg-amber-700 transition-colors">
                     Upgrade to Featured
@@ -436,6 +477,51 @@ export default function ProjectDetailPage() {
                   </button>
                 )}
               </div>
+              {/* Sealed */}
+              <div className={`border rounded-2xl p-5 ${project.isSealed ? 'border-purple-300 bg-purple-50/50' : 'bg-card'}`}>
+                <div className="flex items-center gap-2 mb-2">
+                  <EyeSlashIcon className="h-5 w-5 text-purple-600" />
+                  <h3 className="font-semibold">Sealed Bids</h3>
+                  {project.isSealed ? <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">Active</span> : null}
+                </div>
+                <p className="text-sm text-muted-foreground mb-3">Bids are hidden from other freelancers. Only you can see the bid amounts and proposals.</p>
+                <p className="font-bold text-lg mb-3">R50</p>
+                {isOwner && !project.isSealed && (
+                  <button onClick={() => upgradeProject.mutate('SEALED')} disabled={upgradeProject.isPending} className="w-full py-2 bg-purple-600 text-white rounded-xl text-sm font-medium hover:bg-purple-700 transition-colors">
+                    Upgrade to Sealed
+                  </button>
+                )}
+              </div>
+              {/* Private */}
+              <div className={`border rounded-2xl p-5 ${project.isPrivate ? 'border-gray-400 bg-gray-50/50' : 'bg-card'}`}>
+                <div className="flex items-center gap-2 mb-2">
+                  <LockClosedIcon className="h-5 w-5 text-gray-600" />
+                  <h3 className="font-semibold">Private</h3>
+                  {project.isPrivate ? <span className="text-xs bg-gray-200 text-gray-700 px-2 py-0.5 rounded-full">Active</span> : null}
+                </div>
+                <p className="text-sm text-muted-foreground mb-3">Project is hidden from public listings. Only invited freelancers can view and bid.</p>
+                <p className="font-bold text-lg mb-3">R150</p>
+                {isOwner && !project.isPrivate && (
+                  <button onClick={() => upgradeProject.mutate('PRIVATE')} disabled={upgradeProject.isPending} className="w-full py-2 bg-gray-700 text-white rounded-xl text-sm font-medium hover:bg-gray-800 transition-colors">
+                    Upgrade to Private
+                  </button>
+                )}
+              </div>
+              {/* IP Agreement */}
+              <div className={`border rounded-2xl p-5 sm:col-span-2 ${project.hasIpAgreement ? 'border-blue-300 bg-blue-50/50' : 'bg-card'}`}>
+                <div className="flex items-center gap-2 mb-2">
+                  <ShieldCheckIcon className="h-5 w-5 text-blue-600" />
+                  <h3 className="font-semibold">IP Agreement</h3>
+                  {project.hasIpAgreement ? <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">Active</span> : null}
+                </div>
+                <p className="text-sm text-muted-foreground mb-3">Require freelancers to accept an Intellectual Property transfer agreement before submitting a bid. Protects your ownership of all deliverables.</p>
+                <p className="font-bold text-lg mb-3">R200</p>
+                {isOwner && !project.hasIpAgreement && (
+                  <button onClick={() => upgradeProject.mutate('IP_AGREEMENT')} disabled={upgradeProject.isPending} className="w-full py-2 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors">
+                    Add IP Agreement
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Upgrade History */}
@@ -443,19 +529,21 @@ export default function ProjectDetailPage() {
               <div className="mt-4">
                 <h3 className="text-sm font-semibold mb-2">Upgrade History</h3>
                 <div className="space-y-2">
-                  {project.upgrades.map((u: any) => (
-                    <div key={u.id} className="flex items-center justify-between bg-card border rounded-xl px-4 py-2 text-sm">
-                      <span className="flex items-center gap-2">
-                        {u.type === 'FEATURED' ? <BoltIcon className="h-4 w-4 text-amber-600" /> : <FireIcon className="h-4 w-4 text-red-600" />}
-                        {u.type}
-                      </span>
-                      <span>R{(u.amount / 100).toFixed(2)}</span>
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_BADGES[u.status]?.className || ''}`}>
-                        {u.status}
-                      </span>
-                      <span className="text-muted-foreground">{new Date(u.createdAt).toLocaleDateString()}</span>
-                    </div>
-                  ))}
+                  {project.upgrades.map((u: any) => {
+                    const icon = u.type === 'FEATURED' ? <BoltIcon className="h-4 w-4 text-amber-600" />
+                      : u.type === 'URGENT' ? <FireIcon className="h-4 w-4 text-red-600" />
+                      : u.type === 'SEALED' ? <EyeSlashIcon className="h-4 w-4 text-purple-600" />
+                      : u.type === 'PRIVATE' ? <LockClosedIcon className="h-4 w-4 text-gray-600" />
+                      : <ShieldCheckIcon className="h-4 w-4 text-blue-600" />;
+                    return (
+                      <div key={u.id} className="flex items-center justify-between bg-card border rounded-xl px-4 py-2 text-sm">
+                        <span className="flex items-center gap-2">{icon} {u.type}</span>
+                        <span>R{(u.amount / 100).toFixed(2)}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_BADGES[u.status]?.className || ''}`}>{u.status}</span>
+                        <span className="text-muted-foreground">{new Date(u.createdAt).toLocaleDateString()}</span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -723,6 +811,55 @@ export default function ProjectDetailPage() {
                   {updateProject.isPending ? 'Saving...' : 'Save Changes'}
                 </button>
               </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* IP Agreement Modal */}
+      <AnimatePresence>
+        {showIpModal && (
+          <motion.div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowIpModal(false)}>
+            <motion.div className="bg-card border rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }} onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between p-5 border-b sticky top-0 bg-card z-10">
+                <h2 className="text-lg font-bold flex items-center gap-2">
+                  <ShieldCheckIcon className="h-5 w-5 text-blue-600" />
+                  IP Agreement Required
+                </h2>
+                <button onClick={() => setShowIpModal(false)} className="p-1 hover:bg-muted rounded-lg"><XMarkIcon className="h-5 w-5" /></button>
+              </div>
+              <div className="p-5 space-y-4">
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-900 space-y-3 max-h-60 overflow-y-auto">
+                  <p className="font-bold">INTELLECTUAL PROPERTY TRANSFER AGREEMENT</p>
+                  <p>By accepting this agreement and submitting your bid, you agree to the following terms:</p>
+                  <ol className="list-decimal pl-5 space-y-2">
+                    <li><strong>IP Transfer:</strong> All intellectual property, including but not limited to code, designs, creative works, documentation, and any other deliverables produced during this project shall be the exclusive property of the project owner (buyer) upon completion and payment.</li>
+                    <li><strong>Work for Hire:</strong> All work performed under this project is considered "work for hire." The freelancer retains no rights, title, or interest in any deliverables.</li>
+                    <li><strong>No Reuse:</strong> The freelancer agrees not to reuse, resell, redistribute, or repurpose any part of the deliverables for any other purpose without express written consent from the buyer.</li>
+                    <li><strong>Confidentiality:</strong> The freelancer agrees to keep all project details, requirements, and deliverables confidential and will not disclose them to any third party.</li>
+                    <li><strong>Warranty:</strong> The freelancer warrants that all deliverables are original work and do not infringe upon any third-party intellectual property rights.</li>
+                    <li><strong>Enforcement:</strong> This agreement is binding upon acceptance. Violation of these terms may result in legal action and permanent removal from the Zomieks platform.</li>
+                  </ol>
+                </div>
+                <label className="flex items-start gap-3 p-4 border rounded-xl cursor-pointer hover:bg-muted/50 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={ipAgreed}
+                    onChange={(e) => setIpAgreed(e.target.checked)}
+                    className="mt-0.5 h-5 w-5 accent-blue-600"
+                  />
+                  <span className="text-sm">
+                    I have read and agree to the <strong>Intellectual Property Transfer Agreement</strong>. I understand that all work I produce for this project will become the exclusive property of the buyer.
+                  </span>
+                </label>
+                <button
+                  disabled={!ipAgreed}
+                  onClick={() => { setShowIpModal(false); setShowBidForm(true); }}
+                  className="w-full py-3 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                >
+                  Accept & Continue to Bid
+                </button>
+              </div>
             </motion.div>
           </motion.div>
         )}

@@ -1397,6 +1397,9 @@ export const projects = sqliteTable('projects', {
   bidCount: integer('bid_count').default(0).notNull(),
   isFeatured: integer('is_featured', { mode: 'boolean' }).default(false).notNull(),
   isUrgent: integer('is_urgent', { mode: 'boolean' }).default(false).notNull(),
+  isSealed: integer('is_sealed', { mode: 'boolean' }).default(false).notNull(),
+  isPrivate: integer('is_private', { mode: 'boolean' }).default(false).notNull(),
+  hasIpAgreement: integer('has_ip_agreement', { mode: 'boolean' }).default(false).notNull(),
   completedAt: text('completed_at'),
   awardedSellerId: text('awarded_seller_id').references(() => users.id),
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
@@ -1415,6 +1418,7 @@ export const projectBids = sqliteTable('project_bids', {
   deliveryDays: integer('delivery_days').notNull(),
   proposal: text('proposal').notNull(),
   status: text('status').$type<BidStatus>().default('PENDING').notNull(),
+  ipAgreedAt: text('ip_agreed_at'),
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
   updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => ({
@@ -1425,7 +1429,7 @@ export const projectBids = sqliteTable('project_bids', {
 
 // ============ PROJECT UPGRADES ============
 
-export const upgradeTypes = ['FEATURED', 'URGENT'] as const;
+export const upgradeTypes = ['FEATURED', 'URGENT', 'SEALED', 'PRIVATE', 'IP_AGREEMENT'] as const;
 export type UpgradeType = typeof upgradeTypes[number];
 
 export const upgradeStatuses = ['PENDING', 'PAID', 'EXPIRED'] as const;
