@@ -13,8 +13,8 @@ INSERT INTO users (
   password_hash, 
   first_name, 
   last_name, 
-  role, 
-  is_verified, 
+  is_admin,
+  is_email_verified,
   created_at, 
   updated_at
 ) VALUES (
@@ -24,7 +24,7 @@ INSERT INTO users (
   '$2a$10$oxtmIEo39NZ.SYIjxNiMnO2GUj5ntjLd/Wk54RhUpoWBomUXu7Yha',
   'New',
   'Admin',
-  'admin',
+  1,
   1,
   datetime('now'),
   datetime('now')
