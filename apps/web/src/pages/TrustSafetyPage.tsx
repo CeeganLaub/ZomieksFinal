@@ -57,7 +57,7 @@ export default function TrustSafetyPage() {
               {
                 icon: ShieldCheckIcon,
                 title: 'Secure Payments',
-                desc: 'We partner with PayFast and OZOW — trusted South African payment providers — to process all transactions. Your financial information is never stored on our servers.',
+                desc: 'We partner with OZOW — a trusted South African payment provider — to process all transactions. Your financial information is never stored on our servers.',
               },
               {
                 icon: ExclamationTriangleIcon,

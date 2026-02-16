@@ -21,7 +21,6 @@ ENVIRONMENT = "production"
 APP_URL = "https://www.zomieks.com"
 FRONTEND_URL = "https://www.zomieks.com"
 CDN_URL = ""
-PAYFAST_SANDBOX = "false"
 OZOW_TEST_MODE = "false"
 
 # D1 Database
@@ -103,8 +102,5 @@ new_sqlite_classes = ["ChatRoom", "Presence", "CrmNotifications"]
 # Required secrets:
 # - JWT_SECRET
 # - RESEND_API_KEY
-# - PAYFAST_MERCHANT_ID
-# - PAYFAST_MERCHANT_KEY
-# - PAYFAST_PASSPHRASE
 # - OZOW_SITE_CODE
 # - OZOW_PRIVATE_KEY

@@ -17,7 +17,6 @@ app.use('*', authMiddleware);
 // Schemas
 const createPaymentSchema = z.object({
   orderId: z.string(),
-  provider: z.enum(['PAYFAST', 'OZOW']).default('PAYFAST'),
   returnUrl: z.string().url().optional(),
   cancelUrl: z.string().url().optional(),
 });
@@ -34,38 +33,6 @@ const bankDetailsSchema = z.object({
   branchCode: z.string().min(4).max(6),
   accountHolder: z.string().min(2).max(100),
 });
-
-// Helper: Generate PayFast payment URL
-function generatePayFastUrl(env: Env, data: {
-  merchantId: string;
-  merchantKey: string;
-  orderId: string;
-  amount: number;
-  itemName: string;
-  buyerEmail: string;
-  returnUrl: string;
-  cancelUrl: string;
-  notifyUrl: string;
-}) {
-  const params = new URLSearchParams({
-    merchant_id: data.merchantId,
-    merchant_key: data.merchantKey,
-    return_url: data.returnUrl,
-    cancel_url: data.cancelUrl,
-    notify_url: data.notifyUrl,
-    m_payment_id: data.orderId,
-    amount: (data.amount / 100).toFixed(2),
-    item_name: data.itemName.substring(0, 100),
-    email_address: data.buyerEmail,
-  });
-  
-  const sandbox = env.PAYFAST_SANDBOX === 'true' || env.NODE_ENV !== 'production';
-  const baseUrl = sandbox 
-    ? 'https://sandbox.payfast.co.za/eng/process'
-    : 'https://www.payfast.co.za/eng/process';
-  
-  return `${baseUrl}?${params.toString()}`;
-}
 
 // Helper: Generate Ozow payment URL
 async function generateOzowPaymentRequest(env: Env, data: {
@@ -146,7 +113,7 @@ app.post('/create', requireAuth, validate(createPaymentSchema), async (c) => {
     type: 'PAYMENT',
     grossAmount: chargeAmount,
     amount: chargeAmount, // legacy field
-    gateway: body.provider,
+    gateway: 'OZOW',
     gatewayMethod: 'UNKNOWN',
     currency: 'ZAR',
     status: 'PENDING',
@@ -160,41 +127,25 @@ app.post('/create', requireAuth, validate(createPaymentSchema), async (c) => {
   const baseUrl = env.FRONTEND_URL || 'https://zomieks.com';
   const returnUrl = body.returnUrl || `${baseUrl}/orders/${order.orderNumber}/success`;
   const cancelUrl = body.cancelUrl || `${baseUrl}/orders/${order.orderNumber}/cancel`;
-  const notifyUrl = `${env.API_URL || baseUrl}/api/v1/webhooks/payments/${body.provider.toLowerCase()}`;
+  const notifyUrl = `${env.API_URL || baseUrl}/api/v1/webhooks/payments/ozow`;
   
-  let paymentUrl: string;
-  
-  if (body.provider === 'PAYFAST') {
-    paymentUrl = generatePayFastUrl(env, {
-      merchantId: env.PAYFAST_MERCHANT_ID,
-      merchantKey: env.PAYFAST_MERCHANT_KEY,
-      orderId: order.id,
-      amount: chargeAmount,
-      itemName: (order as any).service?.title || `Order ${order.orderNumber}`,
-      buyerEmail: user.email,
-      returnUrl,
-      cancelUrl,
-      notifyUrl,
-    });
-  } else {
-    paymentUrl = await generateOzowPaymentRequest(env, {
-      transactionId,
-      amount: chargeAmount,
-      bankRef: order.orderNumber,
-      isTest: env.OZOW_TEST_MODE === 'true',
-      successUrl: returnUrl,
-      cancelUrl,
-      errorUrl: cancelUrl,
-      notifyUrl,
-    });
-  }
+  const paymentUrl = await generateOzowPaymentRequest(env, {
+    transactionId,
+    amount: chargeAmount,
+    bankRef: order.orderNumber,
+    isTest: env.OZOW_TEST_MODE === 'true',
+    successUrl: returnUrl,
+    cancelUrl,
+    errorUrl: cancelUrl,
+    notifyUrl,
+  });
   
   return c.json({
     success: true,
     data: {
       transactionId,
       paymentUrl,
-      provider: body.provider,
+      provider: 'OZOW',
     },
   });
 });

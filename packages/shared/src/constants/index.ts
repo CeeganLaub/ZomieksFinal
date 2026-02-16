@@ -48,14 +48,6 @@ export const BILLING_INTERVAL = {
   YEARLY: 'YEARLY',
 } as const;
 
-// PayFast frequency codes
-export const PAYFAST_FREQUENCY = {
-  MONTHLY: 3,
-  QUARTERLY: 4,
-  BIANNUALLY: 5,
-  YEARLY: 6,
-} as const;
-
 // Conversation statuses
 export const CONVERSATION_STATUS = {
   OPEN: 'OPEN',
@@ -104,7 +96,6 @@ export const PRIORITY = {
 
 // Payment gateways
 export const PAYMENT_GATEWAY = {
-  PAYFAST: 'PAYFAST',
   OZOW: 'OZOW',
   CREDIT: 'CREDIT',
 } as const;
@@ -156,7 +147,7 @@ export const SELLER_PLAN = {
   NAME: 'Zomieks Pro',
   AMOUNT: 399,
   CURRENCY: 'ZAR',
-  FREQUENCY: 3, // PAYFAST_FREQUENCY.MONTHLY
+  FREQUENCY: 3, // MONTHLY
   DESCRIPTION: 'Monthly seller subscription - sell services, courses & BioLink access',
 } as const;
 
@@ -172,7 +163,7 @@ export const SELLER_SUBSCRIPTION_STATUS = {
 // Course fee configuration (Udemy-style: baked into price)
 export const COURSE_FEES = {
   PLATFORM_FEE_PERCENT: 20,           // 20% platform cut per sale
-  ESTIMATED_GATEWAY_FEE_PERCENT: 3.5, // ~3.5% covers worst-case PayFast card
+  ESTIMATED_GATEWAY_FEE_PERCENT: 3.5, // ~3.5% covers worst-case EFT gateway fee
   ESTIMATED_GATEWAY_FEE_FIXED: 2,     // R2 fixed gateway cost estimate
   ESCROW_HOLD_HOURS: 24,              // 24h escrow before seller payout
 } as const;

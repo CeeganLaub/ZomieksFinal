@@ -20,6 +20,7 @@ import configRoutes from './routes/config';
 import debugRoutes from './routes/debug';
 import courseRoutes from './routes/courses';
 import sellerSubscriptionRoutes from './routes/seller-subscriptions';
+import projectRoutes from './routes/projects';
 
 // Middleware
 import { devLogger } from './middleware/dev-logger';
@@ -94,6 +95,7 @@ v1.route('/admin/settings', configRoutes);
 v1.route('/courses', courseRoutes);
 v1.route('/seller-subscription', sellerSubscriptionRoutes);
 v1.route('/debug', debugRoutes);
+v1.route('/projects', projectRoutes);
 
 app.route('/api/v1', v1);
 

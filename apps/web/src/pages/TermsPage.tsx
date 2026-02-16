@@ -52,7 +52,7 @@ export default function TermsPage() {
           <section>
             <h2 className="text-2xl font-bold mb-3">5. Payments & Fees</h2>
             <p className="text-muted-foreground leading-relaxed">
-              All payments are processed securely through our payment partners (PayFast and
+              All payments are processed securely through our payment partner (OZOW and
               OZOW). Prices are listed in South African Rand (ZAR). Buyers pay the full listed
               price at checkout. Sellers receive their earnings minus the applicable platform
               commission: 8% on service orders and 20% on course sales. The Zomieks Pro

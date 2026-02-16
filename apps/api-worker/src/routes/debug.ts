@@ -88,10 +88,8 @@ app.get('/env', (c) => {
   return c.json({
     environment: c.env.ENVIRONMENT,
     appUrl: c.env.APP_URL,
-    payfastSandbox: c.env.PAYFAST_SANDBOX,
     ozowTestMode: c.env.OZOW_TEST_MODE,
     hasJwtSecret: !!c.env.JWT_SECRET,
-    hasPayfastCredentials: !!c.env.PAYFAST_MERCHANT_ID,
     hasOzowCredentials: !!c.env.OZOW_SITE_CODE,
   });
 });

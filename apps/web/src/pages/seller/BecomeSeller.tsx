@@ -10,7 +10,7 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Textarea } from '../../components/ui/Textarea';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../components/ui/Card';
-import { CheckIcon, ExclamationTriangleIcon } from '@heroicons/react/24/solid';
+import { CheckIcon } from '@heroicons/react/24/solid';
 import { toast } from 'sonner';
 import {
   SparklesIcon,
@@ -25,7 +25,7 @@ import {
 const becomeSellerSchema = z.object({
   displayName: z.string().min(2, 'Display name is required'),
   professionalTitle: z.string().min(5, 'Professional title is required (min 5 characters)'),
-  description: z.string().min(50, 'Description must be at least 50 characters'),
+  description: z.string().min(100, 'Description must be at least 100 characters'),
   skills: z.string().min(1, 'At least one skill is required'),
   languages: z.string().min(1, 'At least one language is required'),
   idNumber: z.string().min(6, 'SA ID or passport number is required for verification'),
@@ -43,8 +43,6 @@ export default function BecomeSeller() {
   const { refreshUser, user } = useAuthStore();
   const [step, setStep] = useState(1);
   const [selectedPlan, setSelectedPlan] = useState<'free' | 'pro' | null>(null);
-
-  const isSouthAfrican = user?.country?.toUpperCase() === 'ZA';
 
   const { 
     register, 
@@ -95,12 +93,12 @@ export default function BecomeSeller() {
             window.location.href = paymentUrl;
             return;
           }
-          // If no payment URL (e.g. PayFast not configured), mark as pending
+          // If no payment URL (e.g. OZOW not configured), mark as pending
           toast.success('Seller profile created! Pro subscription is pending — you\'ll be redirected to pay shortly.');
-          navigate('/seller');
+          navigate('/seller/biolink');
         } catch {
           toast.success('Seller profile created! You can subscribe to Pro from your dashboard.');
-          navigate('/seller');
+          navigate('/seller/biolink');
         }
       } else {
         toast.success('Welcome to Zomieks! Your free seller account is active.');
@@ -120,41 +118,12 @@ export default function BecomeSeller() {
     'Reach thousands of potential clients',
     'Set your own prices and packages',
     'Offer one-time or subscription services',
-    'Get paid securely through PayFast/OZOW',
+    'Get paid securely through OZOW',
     'Build your reputation with reviews',
     'Manage clients with our built-in CRM',
     'Create & sell video courses',
     'Custom BioLink storefront page',
   ];
-
-  if (!isSouthAfrican) {
-    return (
-      <div className="max-w-2xl mx-auto">
-        <Card>
-          <CardHeader className="text-center">
-            <ExclamationTriangleIcon className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
-            <CardTitle className="text-2xl">South Africa Only (For Now)</CardTitle>
-            <CardDescription>
-              Selling on Zomieks is currently available to South African users only. 
-              We&apos;re working on international support via Stripe Connect.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="bg-muted/50 rounded-lg p-4 text-sm text-muted-foreground">
-              <p>Your account country: <strong>{user?.country || 'Not set'}</strong></p>
-              <p className="mt-2">
-                If you&apos;re in South Africa, please update your country in{' '}
-                <a href="/settings" className="text-primary hover:underline">Settings</a> to &quot;ZA&quot;.
-              </p>
-            </div>
-            <Button variant="outline" className="w-full mt-4" onClick={() => navigate('/dashboard')}>
-              Back to Dashboard
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
 
   if (step === 1) {
     return (
@@ -192,15 +161,6 @@ export default function BecomeSeller() {
                 <p className="text-sm text-muted-foreground mt-2">
                   Upgrade to <strong>Zomieks Pro (R399/month)</strong> to unlock courses, 
                   your BioLink storefront page, and priority search ranking!
-                </p>
-              </div>
-
-              <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                <h4 className="font-medium text-blue-900 mb-2">🇿🇦 South Africa Only</h4>
-                <p className="text-sm text-blue-700">
-                  Selling is currently available to South African users only. 
-                  We process payouts via bank transfer (EFT). 
-                  International support is coming soon via Stripe Connect.
                 </p>
               </div>
 

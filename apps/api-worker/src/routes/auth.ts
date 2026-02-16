@@ -19,6 +19,7 @@ const registerSchema = z.object({
   username: z.string().min(3).max(30).regex(/^[a-zA-Z0-9_]+$/),
   firstName: z.string().min(1).max(50),
   lastName: z.string().min(1).max(50),
+  country: z.string().max(50).optional(),
 });
 
 const loginSchema = z.object({
@@ -128,6 +129,7 @@ function formatUserResponse(user: any, sellerProfile?: any) {
     firstName: user.firstName,
     lastName: user.lastName,
     avatar: user.avatar,
+    country: user.country,
     isSeller: user.isSeller,
     isAdmin: user.isAdmin,
     sellerProfile: sellerProfile ? {
@@ -172,6 +174,7 @@ app.post('/register', authRateLimit, validate(registerSchema), async (c) => {
     passwordHash,
     firstName: body.firstName,
     lastName: body.lastName,
+    country: body.country || null,
   });
   
   // Add buyer role

@@ -19,7 +19,7 @@ const faqSections = [
     faqs: [
       {
         q: 'How do I place an order?',
-        a: 'Browse services, select the package that fits your needs, and click "Order Now". You\'ll be guided through a secure checkout process using PayFast or OZOW. Your payment is held in escrow until you approve the delivery.',
+        a: 'Browse services, select the package that fits your needs, and click "Order Now". You\'ll be guided through a secure checkout process using OZOW. Your payment is held in escrow until you approve the delivery.',
       },
       {
         q: 'Is my payment protected?',
@@ -63,7 +63,7 @@ const faqSections = [
     faqs: [
       {
         q: 'What payment methods are accepted?',
-        a: 'We accept payments via PayFast and OZOW, which support credit/debit cards, EFT, and other South African payment methods.',
+        a: 'We accept payments via OZOW, which supports EFT and other South African payment methods.',
       },
       {
         q: 'What is escrow and how does it work?',

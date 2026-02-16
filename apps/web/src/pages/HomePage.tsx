@@ -582,7 +582,7 @@ export default function HomePage() {
               { 
                 icon: BanknotesIcon, 
                 title: 'Secure Payments', 
-                desc: 'Get paid safely through PayFast and OZOW. Escrow protection on every order.',
+                desc: 'Get paid safely through OZOW. Escrow protection on every order.',
                 badge: 'Instant payouts',
                 color: 'from-green-500/20 to-green-600/5',
                 iconColor: 'text-green-500',
@@ -796,7 +796,7 @@ export default function HomePage() {
               { 
                 step: '2', 
                 title: 'Place your order', 
-                desc: 'Choose a package that fits your budget and timeline. Make a secure payment with PayFast or OZOW.',
+                desc: 'Choose a package that fits your budget and timeline. Make a secure payment with OZOW.',
                 icon: CurrencyDollarIcon,
               },
               { 

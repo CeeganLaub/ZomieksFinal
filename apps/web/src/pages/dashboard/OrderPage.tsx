@@ -38,7 +38,7 @@ export default function OrderPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'payfast' | 'ozow'>('payfast');
+  const [selectedPaymentMethod] = useState<'ozow'>('ozow');
   const [rating, setRating] = useState(5);
   const [communicationRating, setCommunicationRating] = useState(5);
   const [qualityRating, setQualityRating] = useState(5);
@@ -277,36 +277,13 @@ export default function OrderPage() {
 
                 <div className="space-y-3 mb-6">
                   <label
-                    className={`flex items-center gap-3 p-4 border rounded-lg cursor-pointer ${
-                      selectedPaymentMethod === 'payfast' ? 'border-primary bg-primary/5' : ''
-                    }`}
+                    className="flex items-center gap-3 p-4 border rounded-lg cursor-pointer border-primary bg-primary/5"
                   >
                     <input
                       type="radio"
                       name="payment"
-                      checked={selectedPaymentMethod === 'payfast'}
-                      onChange={() => setSelectedPaymentMethod('payfast')}
-                      className="text-primary"
-                    />
-                    <div className="flex-1">
-                      <p className="font-medium">PayFast</p>
-                      <p className="text-sm text-muted-foreground">
-                        Credit/Debit Card, Instant EFT, SnapScan
-                      </p>
-                    </div>
-                    <CreditCardIcon className="h-8 w-8 text-blue-600" />
-                  </label>
-
-                  <label
-                    className={`flex items-center gap-3 p-4 border rounded-lg cursor-pointer ${
-                      selectedPaymentMethod === 'ozow' ? 'border-primary bg-primary/5' : ''
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="payment"
-                      checked={selectedPaymentMethod === 'ozow'}
-                      onChange={() => setSelectedPaymentMethod('ozow')}
+                      checked={true}
+                      readOnly
                       className="text-primary"
                     />
                     <div className="flex-1">

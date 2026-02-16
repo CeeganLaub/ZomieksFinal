@@ -50,6 +50,8 @@ import {
   digitalProductPurchases,
   bioFaqEntries,
   bioLinkEvents,
+  projects,
+  projectBids,
 } from './tables';
 
 // User relations
@@ -584,5 +586,29 @@ export const bioLinkEventsRelations = relations(bioLinkEvents, ({ one }) => ({
   sellerProfile: one(sellerProfiles, {
     fields: [bioLinkEvents.sellerProfileId],
     references: [sellerProfiles.id],
+  }),
+}));
+
+// Project Board relations
+export const projectsRelations = relations(projects, ({ one, many }) => ({
+  buyer: one(users, {
+    fields: [projects.buyerId],
+    references: [users.id],
+  }),
+  category: one(categories, {
+    fields: [projects.categoryId],
+    references: [categories.id],
+  }),
+  bids: many(projectBids),
+}));
+
+export const projectBidsRelations = relations(projectBids, ({ one }) => ({
+  project: one(projects, {
+    fields: [projectBids.projectId],
+    references: [projects.id],
+  }),
+  seller: one(users, {
+    fields: [projectBids.sellerId],
+    references: [users.id],
   }),
 }));

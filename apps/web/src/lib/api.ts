@@ -239,7 +239,7 @@ export const api = new ApiClient(`${API_URL}/api/v1`);
 
 // Auth API
 export const authApi = {
-  register: (data: { email: string; username: string; password: string; firstName?: string; lastName?: string }) =>
+  register: (data: { email: string; username: string; password: string; firstName?: string; lastName?: string; country?: string }) =>
     api.post<ApiResponse<{ user: any; token: string; refreshToken: string }>>('/auth/register', data),
   
   login: (data: { email: string; password: string }) =>
@@ -438,7 +438,7 @@ export const conversationsApi = {
 
 // Payments API
 export const paymentsApi = {
-  initiate: (params: { orderId: string; gateway: 'payfast' | 'ozow' }) =>
+  initiate: (params: { orderId: string; gateway: 'ozow' }) =>
     api.get<ApiResponse<{ paymentUrl: string }>>('/payments/initiate', { params }),
 
   initiateSubscription: (params: { subscriptionId: string }) =>
@@ -595,6 +595,36 @@ export const sellerFeeApi = {
 
   payFee: () =>
     api.post<ApiResponse<{ message: string }>>('/users/seller/pay-fee'),
+};
+
+// Projects API (marketplace project board)
+export const projectsApi = {
+  list: (params?: { category?: string; status?: string; page?: number; limit?: number }) =>
+    api.get<ApiResponse<any[]>>('/projects', { params }),
+
+  mine: () =>
+    api.get<ApiResponse<any[]>>('/projects/mine'),
+
+  get: (id: string) =>
+    api.get<ApiResponse<any>>(`/projects/${id}`),
+
+  create: (data: { title: string; description: string; categoryId?: string; budgetMin?: number; budgetMax?: number; deadline?: string; skills?: string[] }) =>
+    api.post<ApiResponse<{ id: string }>>('/projects', data),
+
+  update: (id: string, data: any) =>
+    api.patch<ApiResponse<null>>(`/projects/${id}`, data),
+
+  cancel: (id: string) =>
+    api.post<ApiResponse<null>>(`/projects/${id}/cancel`),
+
+  placeBid: (projectId: string, data: { amount: number; deliveryDays: number; proposal: string }) =>
+    api.post<ApiResponse<{ id: string }>>(`/projects/${projectId}/bids`, data),
+
+  acceptBid: (projectId: string, bidId: string) =>
+    api.post<ApiResponse<null>>(`/projects/${projectId}/bids/${bidId}/accept`),
+
+  withdrawBid: (projectId: string) =>
+    api.delete<ApiResponse<null>>(`/projects/${projectId}/bids`),
 };
 
 // Admin API

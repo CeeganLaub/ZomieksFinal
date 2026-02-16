@@ -51,6 +51,8 @@ const MessagesPage = lazy(() => import('./pages/dashboard/MessagesPage'));
 const ConversationPage = lazy(() => import('./pages/dashboard/ConversationPage'));
 const SubscriptionsPage = lazy(() => import('./pages/dashboard/SubscriptionsPage'));
 const MyCoursesPage = lazy(() => import('./pages/dashboard/MyCoursesPage'));
+const ProjectsPage = lazy(() => import('./pages/dashboard/ProjectsPage'));
+const ProjectDetailPage = lazy(() => import('./pages/dashboard/ProjectDetailPage'));
 const SettingsPage = lazy(() => import('./pages/dashboard/SettingsPage'));
 
 // Seller pages (lazy loaded)
@@ -91,6 +93,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 const DevPanel = lazy(() => import('./components/DevPanel'));
 const FloatingChatManager = lazy(() => import('./components/chat/FloatingChatManager'));
 
+
 function App() {
   const { initialize, isLoading } = useAuthStore();
   const [hydrated, setHydrated] = useState(false);
@@ -130,6 +133,8 @@ function App() {
           <Route path="/sellers/:username" element={<SellerPage />} />
           <Route path="/courses" element={<CoursesPage />} />
           <Route path="/courses/:slug" element={<CoursePage />} />
+          <Route path="/projects" element={<ProjectsPage />} />
+          <Route path="/projects/:id" element={<ProjectDetailPage />} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="/careers" element={<CareersPage />} />
           <Route path="/press" element={<PressPage />} />
@@ -200,7 +205,7 @@ function App() {
           <Route path="/admin/disputes" element={<AdminDisputesPage />} />
         </Route>
 
-        {/* BioLink standalone page — must be LAST (catch-all for vanity URLs) */}
+        {/* BioLink — must be LAST (catch-all for vanity URLs) */}
         <Route path="/:username" element={<BioLinkPage />} />
       </Routes>
       </Suspense>

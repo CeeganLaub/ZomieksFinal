@@ -10,10 +10,12 @@ import {
   CreditCardIcon,
   Cog6ToothIcon,
   AcademicCapIcon,
+  ClipboardDocumentListIcon,
 } from '@heroicons/react/24/outline';
 
 const buyerNavItems = [
   { href: '/dashboard', label: 'Dashboard', icon: HomeIcon },
+  { href: '/projects', label: 'Projects', icon: ClipboardDocumentListIcon },
   { href: '/orders', label: 'Orders', icon: ShoppingBagIcon },
   { href: '/messages', label: 'Messages', icon: ChatBubbleLeftRightIcon },
   { href: '/my-courses', label: 'My Courses', icon: AcademicCapIcon },

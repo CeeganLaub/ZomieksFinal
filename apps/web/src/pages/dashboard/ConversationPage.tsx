@@ -434,7 +434,7 @@ export default function ConversationPage() {
     }
   };
 
-  const handleAcceptOffer = async (messageId: string, gateway: 'PAYFAST' | 'OZOW') => {
+  const handleAcceptOffer = async (messageId: string, gateway: 'OZOW') => {
     if (!id) return;
     setIsSending(true);
     try {
@@ -446,7 +446,7 @@ export default function ConversationPage() {
       fetchConversation(id);
       setShowGatewayPicker(null);
       if (res.data?.paymentUrl) {
-        // Full page redirect needed: payment URL returns 302 to external gateway (PayFast/Ozow)
+        // Full page redirect needed: payment URL returns 302 to external gateway (Ozow)
         window.location.href = `${window.location.origin}${res.data.paymentUrl}`;
       }
     } catch (err: any) {
@@ -849,7 +849,7 @@ function OfferMessageCard({
   message: Message;
   isOwn: boolean;
   isBuyer: boolean;
-  onAccept: (gateway: 'PAYFAST' | 'OZOW') => void;
+  onAccept: (gateway: 'OZOW') => void;
   onDecline: () => void;
   isSending: boolean;
   showGatewayPicker: boolean;
@@ -944,23 +944,13 @@ function OfferMessageCard({
               <p className="text-xs font-medium text-center text-muted-foreground">Choose payment method:</p>
               <div className="flex gap-2">
                 <button
-                  onClick={() => onAccept('PAYFAST')}
+                  onClick={() => onAccept('OZOW')}
                   disabled={isSending}
-                  className="flex-1 h-10 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+                  className="flex-1 h-10 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
                 >
                   {isSending ? <ArrowPathIcon className="h-4 w-4 animate-spin" /> : <CreditCardIcon className="h-4 w-4" />}
-                  PayFast
+                  Pay with Ozow (EFT)
                 </button>
-                {!isMonthly && (
-                  <button
-                    onClick={() => onAccept('OZOW')}
-                    disabled={isSending}
-                    className="flex-1 h-10 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
-                  >
-                    {isSending ? <ArrowPathIcon className="h-4 w-4 animate-spin" /> : <CreditCardIcon className="h-4 w-4" />}
-                    Ozow (EFT)
-                  </button>
-                )}
               </div>
               <button
                 onClick={onToggleGatewayPicker}

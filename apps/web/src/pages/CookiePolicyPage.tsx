@@ -63,7 +63,7 @@ export default function CookiePolicyPage() {
           <section>
             <h2 className="text-2xl font-bold mb-3">4. Third-Party Cookies</h2>
             <p className="text-muted-foreground leading-relaxed">
-              Our payment partners (PayFast and OZOW) may set their own cookies when you
+              Our payment partner (OZOW) may set their own cookies when you
               make a payment. These cookies are governed by their respective privacy policies.
               We do not control third-party cookies.
             </p>

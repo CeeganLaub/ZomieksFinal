@@ -197,7 +197,7 @@ app.post('/:courseId/enroll', authMiddleware, requireAuth, async (c) => {
     if (creditBalance >= coursePrice) {
       gateway = 'CREDIT';
     } else {
-      gateway = requestedGateway === 'OZOW' ? 'OZOW' : 'PAYFAST';
+      gateway = requestedGateway === 'OZOW' ? 'OZOW' : 'OZOW';
 
       const enrollmentId = createId();
       await db.insert(courseEnrollments).values({

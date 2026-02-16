@@ -327,6 +327,13 @@ export default function SellerDashboardPage() {
                 <LinkIcon className="h-5 w-5 text-muted-foreground" />
                 <span>BioLink Page</span>
               </Link>
+              <Link
+                to="/seller/website"
+                className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted transition-colors bg-primary/5 border border-primary/20"
+              >
+                <LinkIcon className="h-5 w-5 text-primary" />
+                <span className="text-primary font-medium">Website Builder</span>
+              </Link>
             </div>
           </div>
 

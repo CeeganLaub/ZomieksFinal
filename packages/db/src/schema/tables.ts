@@ -1263,3 +1263,149 @@ export const bioLinkEvents = sqliteTable('bio_link_events', {
   sellerEventIdx: index('bio_link_events_seller_event_idx').on(table.sellerProfileId, table.event),
   sellerCreatedIdx: index('bio_link_events_seller_created_idx').on(table.sellerProfileId, table.createdAt),
 }));
+
+// ============ WEBSITE BUILDER MODELS ============
+
+export const sectionTypes = [
+  'hero', 'about', 'services', 'courses', 'portfolio', 'testimonials',
+  'post_project', 'faq', 'contact', 'products', 'features', 'stats',
+  'video', 'text', 'banner', 'newsletter',
+] as const;
+export type SectionType = typeof sectionTypes[number];
+
+export const sectionPaddings = ['compact', 'normal', 'spacious'] as const;
+export type SectionPadding = typeof sectionPaddings[number];
+
+export const projectStatuses = ['NEW', 'REVIEWED', 'CONTACTED', 'ACCEPTED', 'REJECTED'] as const;
+export type ProjectStatus = typeof projectStatuses[number];
+
+export const websites = sqliteTable('websites', {
+  id: text('id').primaryKey().$defaultFn(cuid),
+  sellerProfileId: text('seller_profile_id').notNull().unique().references(() => sellerProfiles.id, { onDelete: 'cascade' }),
+
+  siteName: text('site_name').notNull().default(''),
+  tagline: text('tagline'),
+  logoUrl: text('logo_url'),
+  faviconUrl: text('favicon_url'),
+
+  primaryColor: text('primary_color').notNull().default('#10B981'),
+  secondaryColor: text('secondary_color').notNull().default('#0a0a0a'),
+  textColor: text('text_color').notNull().default('#ffffff'),
+  backgroundColor: text('background_color').notNull().default('#0a0a0a'),
+  accentColor: text('accent_color').notNull().default('#34d399'),
+  fontHeading: text('font_heading').notNull().default('Inter'),
+  fontBody: text('font_body').notNull().default('Inter'),
+  buttonStyle: text('button_style').notNull().default('rounded'),
+
+  navLinks: text('nav_links', { mode: 'json' }).$type<{ label: string; href: string; isExternal?: boolean }[]>(),
+  socialLinks: text('social_links', { mode: 'json' }).$type<Record<string, string>>(),
+  footerText: text('footer_text'),
+
+  metaTitle: text('meta_title'),
+  metaDescription: text('meta_description'),
+  ogImage: text('og_image'),
+
+  isPublished: integer('is_published', { mode: 'boolean' }).default(false).notNull(),
+  publishedAt: text('published_at'),
+  customDomain: text('custom_domain'),
+
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  isPublishedIdx: index('websites_is_published_idx').on(table.isPublished),
+}));
+
+export const websiteSections = sqliteTable('website_sections', {
+  id: text('id').primaryKey().$defaultFn(cuid),
+  websiteId: text('website_id').notNull().references(() => websites.id, { onDelete: 'cascade' }),
+
+  sectionType: text('section_type').$type<SectionType>().notNull(),
+  title: text('title'),
+  subtitle: text('subtitle'),
+
+  sortOrder: integer('sort_order').notNull().default(0),
+
+  content: text('content', { mode: 'json' }),
+
+  isVisible: integer('is_visible', { mode: 'boolean' }).default(true).notNull(),
+
+  backgroundColor: text('background_color'),
+  textColor: text('text_color'),
+  padding: text('padding').$type<SectionPadding>().default('normal').notNull(),
+
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  websiteIdIdx: index('website_sections_website_id_idx').on(table.websiteId),
+  sortOrderIdx: index('website_sections_sort_order_idx').on(table.websiteId, table.sortOrder),
+}));
+
+export const projectSubmissions = sqliteTable('project_submissions', {
+  id: text('id').primaryKey().$defaultFn(cuid),
+  websiteId: text('website_id').notNull().references(() => websites.id, { onDelete: 'cascade' }),
+
+  name: text('name').notNull(),
+  email: text('email').notNull(),
+  phone: text('phone'),
+
+  title: text('title').notNull(),
+  description: text('description').notNull(),
+  budget: text('budget'),
+  timeline: text('timeline'),
+  attachments: text('attachments', { mode: 'json' }).$type<string[]>(),
+
+  status: text('status').$type<ProjectStatus>().default('NEW').notNull(),
+  sellerNotes: text('seller_notes'),
+
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  websiteIdIdx: index('project_submissions_website_id_idx').on(table.websiteId),
+  statusIdx: index('project_submissions_status_idx').on(table.websiteId, table.status),
+}));
+
+// ============ PROJECT BOARD (Marketplace) ============
+
+export const marketplaceProjectStatuses = ['OPEN', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'] as const;
+export type MarketplaceProjectStatus = typeof marketplaceProjectStatuses[number];
+
+export const bidStatuses = ['PENDING', 'ACCEPTED', 'REJECTED', 'WITHDRAWN'] as const;
+export type BidStatus = typeof bidStatuses[number];
+
+export const projects = sqliteTable('projects', {
+  id: text('id').primaryKey().$defaultFn(cuid),
+  buyerId: text('buyer_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  title: text('title').notNull(),
+  description: text('description').notNull(),
+  categoryId: text('category_id').references(() => categories.id),
+  budgetMin: integer('budget_min'),
+  budgetMax: integer('budget_max'),
+  deadline: text('deadline'),
+  attachments: text('attachments', { mode: 'json' }).$type<string[]>().default([]),
+  skills: text('skills', { mode: 'json' }).$type<string[]>().default([]),
+  status: text('status').$type<MarketplaceProjectStatus>().default('OPEN').notNull(),
+  selectedBidId: text('selected_bid_id'),
+  bidCount: integer('bid_count').default(0).notNull(),
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  buyerIdIdx: index('projects_buyer_id_idx').on(table.buyerId),
+  statusIdx: index('projects_status_idx').on(table.status),
+  categoryIdx: index('projects_category_idx').on(table.categoryId),
+}));
+
+export const projectBids = sqliteTable('project_bids', {
+  id: text('id').primaryKey().$defaultFn(cuid),
+  projectId: text('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  sellerId: text('seller_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  amount: integer('amount').notNull(),
+  deliveryDays: integer('delivery_days').notNull(),
+  proposal: text('proposal').notNull(),
+  status: text('status').$type<BidStatus>().default('PENDING').notNull(),
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  projectIdIdx: index('project_bids_project_id_idx').on(table.projectId),
+  sellerIdIdx: index('project_bids_seller_id_idx').on(table.sellerId),
+  uniqueBid: uniqueIndex('project_bids_unique_idx').on(table.projectId, table.sellerId),
+}));

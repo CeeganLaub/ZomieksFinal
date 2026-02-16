@@ -24,9 +24,6 @@ export interface Env {
   // Secrets
   JWT_SECRET: string;
   JWT_REFRESH_SECRET: string;
-  PAYFAST_MERCHANT_ID: string;
-  PAYFAST_MERCHANT_KEY: string;
-  PAYFAST_PASSPHRASE: string;
   OZOW_SITE_CODE: string;
   OZOW_PRIVATE_KEY: string;
   OZOW_API_KEY: string;
@@ -38,7 +35,6 @@ export interface Env {
   NODE_ENV: string;
   
   // Optional payment config
-  PAYFAST_SANDBOX?: string;
   OZOW_TEST_MODE?: string;
   
   // Email (Resend API)

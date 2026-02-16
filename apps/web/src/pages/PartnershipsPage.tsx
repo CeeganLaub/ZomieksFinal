@@ -37,7 +37,7 @@ export default function PartnershipsPage() {
               {
                 icon: CurrencyDollarIcon,
                 title: 'Payment Partners',
-                desc: 'Integrate your payment solution with Zomieks. We work with PayFast and OZOW and are always looking for innovative payment partners to serve the South African market.',
+                desc: 'Integrate your payment solution with Zomieks. We work with OZOW and are always looking for innovative payment partners to serve the South African market.',
               },
               {
                 icon: AcademicCapIcon,

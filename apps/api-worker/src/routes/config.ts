@@ -453,7 +453,7 @@ app.delete('/fees/:id', async (c) => {
 app.post('/fees/preview', async (c) => {
   const body = await c.req.json() as { 
     baseAmount: number; 
-    gateway: 'PAYFAST' | 'OZOW'; 
+    gateway: 'OZOW'; 
     method: 'CARD' | 'EFT';
     policyId?: string;
   };

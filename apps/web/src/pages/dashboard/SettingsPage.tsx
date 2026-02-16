@@ -171,7 +171,7 @@ export default function SettingsPage() {
                 <option value="AE">UAE</option>
                 <option value="IN">India</option>
               </select>
-              <p className="text-xs text-muted-foreground mt-1">Required to become a seller (South Africa only for now)</p>
+              <p className="text-xs text-muted-foreground mt-1">Your country for payout processing</p>
             </div>
 
             <div>

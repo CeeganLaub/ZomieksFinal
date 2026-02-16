@@ -172,7 +172,7 @@ export default function CoursePage() {
     }
   };
 
-  const handleGatewaySelect = (gateway: 'PAYFAST' | 'OZOW') => {
+  const handleGatewaySelect = (gateway: 'OZOW') => {
     setShowGatewaySelect(false);
     enrollMutation.mutate({ courseId: course.id, gateway });
   };
@@ -288,11 +288,8 @@ export default function CoursePage() {
                 ) : showGatewaySelect ? (
                   <div className="space-y-2">
                     <p className="text-sm font-medium text-center">Choose payment method:</p>
-                    <Button className="w-full" size="lg" onClick={() => handleGatewaySelect('PAYFAST')} isLoading={enrollMutation.isPending}>
-                      Pay with PayFast
-                    </Button>
-                    <Button className="w-full" variant="outline" size="lg" onClick={() => handleGatewaySelect('OZOW')} isLoading={enrollMutation.isPending}>
-                      Pay with Ozow
+                    <Button className="w-full" size="lg" onClick={() => handleGatewaySelect('OZOW')} isLoading={enrollMutation.isPending}>
+                      Pay with Ozow (EFT)
                     </Button>
                     <button className="w-full text-sm text-muted-foreground hover:underline" onClick={() => setShowGatewaySelect(false)}>Cancel</button>
                   </div>

@@ -14,7 +14,7 @@
  * Seller Payout = baseAmount - sellerPlatformFee
  */
 
-export type Gateway = 'PAYFAST' | 'OZOW';
+export type Gateway = 'OZOW';
 export type PaymentMethod = 'CARD' | 'EFT' | 'UNKNOWN';
 
 export interface SellerTier {
@@ -102,33 +102,6 @@ function roundCents(amount: number): number {
 }
 
 /**
- * Estimate PayFast gateway fee (conservative, includes VAT)
- * 
- * PayFast fees (ex VAT):
- * - Card: 3.2% + R2 (320 cents)
- * - Instant EFT: 2% (min R2)
- */
-function estimatePayFastFee(grossAmount: number, method: PaymentMethod, vatPct: number, bufferPct: number, bufferFixed: number): number {
-  let feeExVat: number;
-  
-  if (method === 'CARD' || method === 'UNKNOWN') {
-    // Card: 3.2% + R2 (more conservative for UNKNOWN)
-    feeExVat = grossAmount * 0.032 + 200;
-  } else {
-    // EFT: 2% min R2
-    feeExVat = Math.max(grossAmount * 0.02, 200);
-  }
-  
-  // Add VAT
-  let feeInclVat = feeExVat * (1 + vatPct);
-  
-  // Add buffer
-  feeInclVat = feeInclVat * (1 + bufferPct) + bufferFixed;
-  
-  return roundCents(feeInclVat);
-}
-
-/**
  * Estimate Ozow gateway fee (conservative, includes VAT)
  * 
  * Ozow EFT: ~1.5% - 2% + small fixed (varies by bank)
@@ -174,13 +147,9 @@ function calculateBuyerProcessingFee(
   // First, estimate gross amount (will be slightly circular, but close enough)
   const preliminaryGross = baseAmount + buyerPlatformFee + policy.buyerProcessingMin;
   
-  // Estimate gateway fee
+  // Estimate gateway fee (OZOW)
   let estimatedFee: number;
-  if (gateway === 'OZOW') {
-    estimatedFee = estimateOzowFee(preliminaryGross, policy.vatPct, policy.bufferPct, policy.bufferFixed);
-  } else {
-    estimatedFee = estimatePayFastFee(preliminaryGross, method, policy.vatPct, policy.bufferPct, policy.bufferFixed);
-  }
+  estimatedFee = estimateOzowFee(preliminaryGross, policy.vatPct, policy.bufferPct, policy.bufferFixed);
   
   // Processing fee should cover estimated gateway fee
   return Math.max(estimatedFee, policy.buyerProcessingMin);
@@ -228,11 +197,7 @@ export function calculateFees(input: FeeCalcInput): FeeCalcOutput {
   
   // 7. Estimate actual gateway fee (for informational purposes)
   let estimatedGatewayFee: number;
-  if (gateway === 'OZOW') {
-    estimatedGatewayFee = estimateOzowFee(grossAmount, policy.vatPct, 0, 0); // No buffer for estimate display
-  } else {
-    estimatedGatewayFee = estimatePayFastFee(grossAmount, method, policy.vatPct, 0, 0);
-  }
+  estimatedGatewayFee = estimateOzowFee(grossAmount, policy.vatPct, 0, 0); // No buffer for estimate display
   
   const estimatedNetToPlatform = grossAmount - estimatedGatewayFee;
   

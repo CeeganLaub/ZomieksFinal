@@ -17,7 +17,7 @@ app.use('*', authMiddleware);
 // Schemas
 const subscribeSchema = z.object({
   tierId: z.string(),
-  paymentProvider: z.enum(['PAYFAST', 'OZOW']).default('PAYFAST'),
+  paymentProvider: z.enum(['OZOW']).default('OZOW'),
   billingCycle: z.enum(['MONTHLY', 'QUARTERLY', 'YEARLY']).default('MONTHLY'),
 });
 
@@ -185,35 +185,40 @@ app.post('/subscribe', requireAuth, validate(subscribeSchema), async (c) => {
     updatedAt: now.toISOString(),
   });
   
-  // Generate payment URL
+  // Generate payment URL via OZOW
   const baseUrl = env.APP_URL || 'https://zomieks.com';
   const returnUrl = `${baseUrl}/subscription/success`;
   const cancelUrl = `${baseUrl}/subscription/cancel`;
-  const notifyUrl = `${baseUrl}/api/v1/webhooks/subscription/${body.paymentProvider.toLowerCase()}`;
+  const notifyUrl = `${baseUrl}/api/v1/webhooks/payments/ozow`;
   
-  // Use appropriate payment provider
   const itemName = `${tier.name} Subscription (${body.billingCycle.toLowerCase()})`;
   
+  // Build OZOW payment URL
+  const siteCode = env.OZOW_SITE_CODE;
+  const privateKey = env.OZOW_PRIVATE_KEY;
+  
+  const hashString = `${siteCode}ZAR${(amount / 100).toFixed(2)}${transactionId}${itemName}${env.OZOW_TEST_MODE === 'true'}${returnUrl}${cancelUrl}${cancelUrl}${notifyUrl}${privateKey}`;
+  const hashBuffer = await crypto.subtle.digest('SHA-512', new TextEncoder().encode(hashString.toLowerCase()));
+  const hashCheck = Array.from(new Uint8Array(hashBuffer))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+  
   const params = new URLSearchParams({
-    merchant_id: env.PAYFAST_MERCHANT_ID,
-    merchant_key: env.PAYFAST_MERCHANT_KEY,
-    return_url: returnUrl,
-    cancel_url: cancelUrl,
-    notify_url: notifyUrl,
-    m_payment_id: transactionId,
-    amount: (amount / 100).toFixed(2),
-    item_name: itemName,
-    email_address: user.email,
-    subscription_type: '1',
-    recurring_amount: (amount / 100).toFixed(2),
-    frequency: body.billingCycle === 'MONTHLY' ? '3' : body.billingCycle === 'QUARTERLY' ? '4' : '6',
-    cycles: '0',
+    SiteCode: siteCode,
+    CountryCode: 'ZA',
+    CurrencyCode: 'ZAR',
+    Amount: (amount / 100).toFixed(2),
+    TransactionReference: transactionId,
+    BankReference: itemName,
+    IsTest: String(env.OZOW_TEST_MODE === 'true'),
+    SuccessUrl: returnUrl,
+    CancelUrl: cancelUrl,
+    ErrorUrl: cancelUrl,
+    NotifyUrl: notifyUrl,
+    HashCheck: hashCheck,
   });
   
-  const sandbox = env.PAYFAST_SANDBOX === 'true';
-  const paymentUrl = sandbox
-    ? `https://sandbox.payfast.co.za/eng/process?${params.toString()}`
-    : `https://www.payfast.co.za/eng/process?${params.toString()}`;
+  const paymentUrl = `https://pay.ozow.com/?${params.toString()}`;
   
   return c.json({
     success: true,

@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { eq, and, desc } from 'drizzle-orm';
-import { users, sellerProfiles, services, favorites, userRoles } from '@zomieks/db';
+import { users, sellerProfiles, services, favorites, userRoles, bankDetails } from '@zomieks/db';
 import { createId } from '@paralleldrive/cuid2';
 import type { Env } from '../types';
 import { authMiddleware, requireAuth } from '../middleware/auth';
@@ -15,6 +15,7 @@ app.use('*', authMiddleware);
 const updateProfileSchema = z.object({
   firstName: z.string().min(1).max(50).optional(),
   lastName: z.string().min(1).max(50).optional(),
+  username: z.string().min(3).max(30).regex(/^[a-zA-Z0-9_-]+$/).optional(),
   bio: z.string().max(1000).optional(),
   country: z.string().max(50).optional(),
   timezone: z.string().max(50).optional(),
@@ -30,6 +31,14 @@ const sellerOnboardingSchema = z.object({
     language: z.string(),
     proficiency: z.enum(['BASIC', 'CONVERSATIONAL', 'FLUENT', 'NATIVE']),
   })).min(1).max(5),
+  idNumber: z.string().min(6).max(20).optional(),
+  bankDetails: z.object({
+    bankName: z.string().min(1),
+    accountNumber: z.string().min(5),
+    branchCode: z.string().min(1),
+    accountType: z.enum(['SAVINGS', 'CURRENT', 'TRANSMISSION']),
+    accountHolder: z.string().min(2),
+  }).optional(),
 });
 
 // Helper: Format public user profile
@@ -127,6 +136,7 @@ app.patch('/profile', requireAuth, validate(updateProfileSchema), async (c) => {
   
   if (body.firstName) updates.firstName = body.firstName;
   if (body.lastName) updates.lastName = body.lastName;
+  if (body.username) updates.username = body.username;
   if (body.bio !== undefined) updates.bio = body.bio;
   if (body.country !== undefined) updates.country = body.country;
   if (body.timezone !== undefined) updates.timezone = body.timezone;
@@ -173,7 +183,22 @@ app.post('/become-seller', requireAuth, validate(sellerOnboardingSchema), async 
     description: body.description,
     skills: body.skills,
     languages: body.languages,
+    idNumber: body.idNumber || null,
+    kycStatus: body.idNumber ? 'PENDING' : 'PENDING',
   });
+  
+  // Save bank details if provided
+  if (body.bankDetails) {
+    await db.insert(bankDetails).values({
+      userId: user.id,
+      bankName: body.bankDetails.bankName,
+      accountNumber: body.bankDetails.accountNumber,
+      branchCode: body.bankDetails.branchCode,
+      accountType: body.bankDetails.accountType,
+      accountHolder: body.bankDetails.accountHolder,
+      isDefault: true,
+    });
+  }
   
   // Update user
   await db.update(users)

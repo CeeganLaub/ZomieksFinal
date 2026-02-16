@@ -53,7 +53,7 @@ export default function PrivacyPolicyPage() {
             </p>
             <ul className="list-disc list-inside space-y-2 text-muted-foreground">
               <li><strong>Other users:</strong> Your public profile, service listings, and reviews are visible to other users.</li>
-              <li><strong>Payment providers:</strong> PayFast and OZOW to process payments securely.</li>
+              <li><strong>Payment providers:</strong> OZOW to process payments securely.</li>
               <li><strong>Service providers:</strong> Hosting, analytics, and email services that help us operate the Platform.</li>
               <li><strong>Law enforcement:</strong> When required by law or to protect the safety of our users and Platform.</li>
             </ul>

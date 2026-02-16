@@ -51,7 +51,7 @@ export default function PressPage() {
                   { label: 'Industry', value: 'Freelance Marketplace / Technology' },
                   { label: 'Platform', value: 'Web-based (zomieks.com)' },
                   { label: 'Services', value: 'Freelance services, online courses, BioLink storefronts' },
-                  { label: 'Payments', value: 'PayFast & OZOW with escrow protection' },
+                  { label: 'Payments', value: 'OZOW with escrow protection' },
                 ].map((fact, i) => (
                   <li key={i} className="flex items-start gap-3">
                     <SparklesIcon className="h-5 w-5 text-primary mt-0.5 shrink-0" />

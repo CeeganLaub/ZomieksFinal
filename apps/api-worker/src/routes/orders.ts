@@ -15,7 +15,7 @@ app.use('*', authMiddleware);
 // Schemas
 const quoteSchema = z.object({
   baseAmount: z.number().min(5000, 'Minimum order is R50'),
-  gateway: z.enum(['PAYFAST', 'OZOW']),
+  gateway: z.enum(['OZOW']),
   method: z.enum(['CARD', 'EFT', 'UNKNOWN']).default('UNKNOWN'),
 });
 
@@ -23,7 +23,7 @@ const createOrderSchema = z.object({
   serviceId: z.string(),
   packageId: z.string(),
   requirements: z.string().optional(),
-  gateway: z.enum(['PAYFAST', 'OZOW']).default('PAYFAST'),
+  gateway: z.enum(['OZOW']).default('OZOW'),
   method: z.enum(['CARD', 'EFT', 'UNKNOWN']).default('UNKNOWN'),
 });
 

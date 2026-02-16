@@ -417,7 +417,7 @@ export default function BioLinkBuilderPage() {
         }`}
       >
         <div className={`w-2.5 h-2.5 rounded-full animate-pulse ${bioEnabled ? 'bg-emerald-500' : 'bg-amber-500'}`} />
-        {bioEnabled ? 'Your BioLink is live and visible to everyone' : 'Your BioLink is currently hidden'}
+        {bioEnabled ? 'Your BioLink is live and visible to everyone' : 'Your BioLink is currently hidden — toggle "Enable BioLink" above to make it visible to the public'}
       </div>
 
       {/* Section tabs */}

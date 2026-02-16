@@ -36,16 +36,6 @@ const CATEGORY_DEFINITIONS: Record<string, { name: string; description: string; 
       { key: 'from_name', label: 'From Name', isSecret: false, description: 'Default sender name' },
     ],
   },
-  payfast: {
-    name: 'PayFast',
-    description: 'PayFast payment gateway credentials',
-    fields: [
-      { key: 'merchant_id', label: 'Merchant ID', isSecret: false, description: 'PayFast Merchant ID' },
-      { key: 'merchant_key', label: 'Merchant Key', isSecret: true, description: 'PayFast Merchant Key' },
-      { key: 'passphrase', label: 'Passphrase', isSecret: true, description: 'ITN Passphrase for signature validation' },
-      { key: 'sandbox', label: 'Sandbox Mode', isSecret: false, description: 'true for testing, false for production' },
-    ],
-  },
   ozow: {
     name: 'Ozow',
     description: 'Ozow instant EFT payment gateway credentials',

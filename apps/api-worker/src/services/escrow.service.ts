@@ -242,7 +242,7 @@ export async function processRefund(
     userId: order.buyerId,
     type: 'REFUND',
     status: 'COMPLETED', // Manual refund - admin processes in gateway dashboard
-    gateway: (order.gateway as 'PAYFAST' | 'OZOW') ?? 'PAYFAST',
+    gateway: (order.gateway as 'OZOW') ?? 'OZOW',
     gatewayMethod: (order.gatewayMethod as 'CARD' | 'EFT' | 'UNKNOWN') ?? 'UNKNOWN',
     grossAmount: order.grossAmount ?? order.totalAmount ?? 0,
     baseAmount: order.baseAmount,

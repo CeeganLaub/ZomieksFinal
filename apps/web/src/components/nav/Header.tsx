@@ -19,6 +19,7 @@ import {
   ArrowRightOnRectangleIcon,
   AcademicCapIcon,
   RocketLaunchIcon,
+  ClipboardDocumentListIcon,
 } from '@heroicons/react/24/outline';
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -65,6 +66,7 @@ export default function Header({ showSearch = true, variant = 'default' }: Heade
     { to: '/explore', label: 'Explore', icon: RocketLaunchIcon },
     { to: '/services', label: 'Services', icon: ShoppingBagIcon },
     { to: '/courses', label: 'Courses', icon: AcademicCapIcon },
+    { to: '/projects', label: 'Projects', icon: ClipboardDocumentListIcon },
   ];
 
   return (

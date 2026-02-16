@@ -1,12 +1,50 @@
 import { Hono } from 'hono';
 import { eq, desc } from 'drizzle-orm';
-import { sellerProfiles, sellerSubscriptions, sellerSubscriptionPayments } from '@zomieks/db';
+import { sellerProfiles, sellerSubscriptions, sellerSubscriptionPayments, transactions } from '@zomieks/db';
 import { createId } from '@paralleldrive/cuid2';
 import { SELLER_PLAN } from '@zomieks/shared';
 import type { Env } from '../types';
 import { authMiddleware, requireSeller } from '../middleware/auth';
 
 const app = new Hono<{ Bindings: Env }>();
+
+// Helper: Generate Ozow payment URL for subscriptions
+async function generateOzowSubscriptionPayment(env: Env, data: {
+  transactionId: string;
+  amount: number;
+  bankRef: string;
+  isTest: boolean;
+  successUrl: string;
+  cancelUrl: string;
+  errorUrl: string;
+  notifyUrl: string;
+}): Promise<string> {
+  const siteCode = env.OZOW_SITE_CODE;
+  const privateKey = env.OZOW_PRIVATE_KEY;
+  
+  const hashString = `${siteCode}ZAR${(data.amount / 100).toFixed(2)}${data.transactionId}${data.bankRef}${data.isTest}${data.successUrl}${data.cancelUrl}${data.errorUrl}${data.notifyUrl}${privateKey}`;
+  const hashBuffer = await crypto.subtle.digest('SHA-512', new TextEncoder().encode(hashString.toLowerCase()));
+  const hashCheck = Array.from(new Uint8Array(hashBuffer))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+  
+  const params = new URLSearchParams({
+    SiteCode: siteCode,
+    CountryCode: 'ZA',
+    CurrencyCode: 'ZAR',
+    Amount: (data.amount / 100).toFixed(2),
+    TransactionReference: data.transactionId,
+    BankReference: data.bankRef,
+    IsTest: String(data.isTest),
+    SuccessUrl: data.successUrl,
+    CancelUrl: data.cancelUrl,
+    ErrorUrl: data.errorUrl,
+    NotifyUrl: data.notifyUrl,
+    HashCheck: hashCheck,
+  });
+  
+  return `https://pay.ozow.com/?${params.toString()}`;
+}
 
 // GET /status — Get seller subscription status
 app.get('/status', authMiddleware, requireSeller, async (c) => {
@@ -105,8 +143,39 @@ app.post('/subscribe', authMiddleware, requireSeller, async (c) => {
     });
   }
 
-  // TODO: Generate actual PayFast subscription payment URL
-  const paymentUrl = `${c.env.FRONTEND_URL}/seller?subscription=pending&subscriptionId=${subscriptionId}`;
+  // Create a transaction for the subscription payment
+  const transactionId = createId();
+  const amountCents = SELLER_PLAN.AMOUNT * 100; // R399 = 39900 cents
+
+  await db.insert(transactions).values({
+    id: transactionId,
+    userId: user.id,
+    type: 'PAYMENT',
+    grossAmount: amountCents,
+    amount: amountCents,
+    gateway: 'OZOW',
+    gatewayMethod: 'UNKNOWN',
+    currency: 'ZAR',
+    status: 'PENDING',
+    rawPayload: {
+      subscriptionId,
+      sellerProfileId: profile.id,
+      type: 'SELLER_SUBSCRIPTION',
+    },
+  });
+
+  // Generate real OZOW payment URL
+  const baseUrl = c.env.FRONTEND_URL || 'https://zomieks.com';
+  const paymentUrl = await generateOzowSubscriptionPayment(c.env, {
+    transactionId,
+    amount: amountCents,
+    bankRef: `ZPRO-${subscriptionId.slice(-8).toUpperCase()}`,
+    isTest: c.env.OZOW_TEST_MODE === 'true',
+    successUrl: `${baseUrl}/seller?subscription=success`,
+    cancelUrl: `${baseUrl}/seller?subscription=cancelled`,
+    errorUrl: `${baseUrl}/seller?subscription=error`,
+    notifyUrl: `${c.env.API_URL || baseUrl}/api/v1/webhooks/payments/ozow-subscription`,
+  });
 
   return c.json({
     success: true,

@@ -57,7 +57,7 @@ export default function FeesPage() {
   
   // Preview calculator
   const [previewAmount, setPreviewAmount] = useState(10000); // R100 in cents
-  const [previewGateway, setPreviewGateway] = useState<'PAYFAST' | 'OZOW'>('PAYFAST');
+  const [previewGateway, setPreviewGateway] = useState<'OZOW'>('OZOW');
   const [previewMethod, setPreviewMethod] = useState<'CARD' | 'EFT'>('CARD');
   const [previewResult, setPreviewResult] = useState<FeePreview | null>(null);
   const [calculating, setCalculating] = useState(false);
@@ -254,10 +254,9 @@ export default function FeesPage() {
             <label className="block text-sm font-medium mb-1">Gateway</label>
             <select
               value={previewGateway}
-              onChange={(e) => setPreviewGateway(e.target.value as 'PAYFAST' | 'OZOW')}
+              onChange={(e) => setPreviewGateway(e.target.value as 'OZOW')}
               className="w-full px-3 py-2 border rounded-lg bg-background"
             >
-              <option value="PAYFAST">PayFast</option>
               <option value="OZOW">Ozow</option>
             </select>
           </div>

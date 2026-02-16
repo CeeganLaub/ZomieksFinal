@@ -121,7 +121,7 @@ export const createOrderSchema = z.object({
   packageTier: z.enum([PACKAGE_TIER.BASIC, PACKAGE_TIER.STANDARD, PACKAGE_TIER.PREMIUM]).optional(),
   subscriptionTierId: z.string().optional(),
   requirements: z.string().optional(),
-  paymentGateway: z.enum([PAYMENT_GATEWAY.PAYFAST, PAYMENT_GATEWAY.OZOW]),
+  paymentGateway: z.enum([PAYMENT_GATEWAY.OZOW]),
 });
 
 export const orderDeliverySchema = z.object({
@@ -219,14 +219,14 @@ export const createCustomOfferSchema = z.object({
 });
 
 export const acceptOfferSchema = z.object({
-  paymentGateway: z.enum([PAYMENT_GATEWAY.PAYFAST, PAYMENT_GATEWAY.OZOW]),
+  paymentGateway: z.enum([PAYMENT_GATEWAY.OZOW]),
 });
 
 // ============ Payment Schemas ============
 
 export const initiatePaymentSchema = z.object({
   orderId: z.string(),
-  gateway: z.enum([PAYMENT_GATEWAY.PAYFAST, PAYMENT_GATEWAY.OZOW]),
+  gateway: z.enum([PAYMENT_GATEWAY.OZOW]),
 });
 
 export const withdrawRequestSchema = z.object({

@@ -19,7 +19,7 @@ export default function ServicePage() {
   const [showSubscription, setShowSubscription] = useState(false);
   const [showRequirementsModal, setShowRequirementsModal] = useState(false);
   const [requirements, setRequirements] = useState('');
-  const [selectedGateway, setSelectedGateway] = useState<'PAYFAST' | 'OZOW'>('PAYFAST');
+  const [selectedGateway] = useState<'OZOW'>('OZOW');
 
   const { data, isLoading } = useQuery({
     queryKey: ['service', username, slug],
@@ -480,7 +480,7 @@ export default function ServicePage() {
               </div>
               <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg flex items-center gap-2">
                 <CreditCardIcon className="h-5 w-5 text-blue-500 shrink-0" />
-                <span className="text-xs text-blue-500 font-medium">PayFast & Ozow accepted</span>
+                <span className="text-xs text-blue-500 font-medium">Ozow (EFT) accepted</span>
               </div>
             </div>
           </div>
@@ -559,30 +559,13 @@ export default function ServicePage() {
                 </div>
               </div>
 
-              {/* Payment method selection */}
+              {/* Payment method */}
               <div className="border-t pt-4">
                 <label className="block text-sm font-medium mb-2">Payment Method</label>
                 <div className="flex gap-3">
                   <button
                     type="button"
-                    onClick={() => setSelectedGateway('PAYFAST')}
-                    className={`flex-1 p-3 border rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
-                      selectedGateway === 'PAYFAST'
-                        ? 'border-primary bg-primary/5 text-primary'
-                        : 'hover:bg-muted'
-                    }`}
-                  >
-                    <CreditCardIcon className="h-4 w-4" />
-                    PayFast
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedGateway('OZOW')}
-                    className={`flex-1 p-3 border rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
-                      selectedGateway === 'OZOW'
-                        ? 'border-primary bg-primary/5 text-primary'
-                        : 'hover:bg-muted'
-                    }`}
+                    className="flex-1 p-3 border rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 border-primary bg-primary/5 text-primary"
                   >
                     <CreditCardIcon className="h-4 w-4" />
                     Ozow (EFT)
