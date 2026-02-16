@@ -3,7 +3,7 @@ import { useParams, Link, useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useChatStore } from '../../stores/chat.store';
 import { useAuthStore } from '../../stores/auth.store';
-import { api } from '../../lib/api';
+import { api, projectsApi } from '../../lib/api';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '../../lib/utils';
 import {
@@ -23,6 +23,7 @@ import {
   PlusIcon,
   TrashIcon,
   DocumentTextIcon,
+  BriefcaseIcon,
 } from '@heroicons/react/24/outline';
 import { toast } from 'sonner';
 
@@ -327,6 +328,9 @@ export default function ConversationPage() {
   const [pendingAttachments, setPendingAttachments] = useState<Array<{ url: string; name: string; type: string }>>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [showCrmSidebar, setShowCrmSidebar] = useState(false);
+  const [showAwardModal, setShowAwardModal] = useState(false);
+  const [awardData, setAwardData] = useState({ projectId: '', amount: '', deliveryDays: '' });
+  const [isAwarding, setIsAwarding] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -492,6 +496,38 @@ export default function ConversationPage() {
   const otherUser = isBuyer ? activeConversation.seller : activeConversation.buyer;
   const backPath = isSellerRoute ? '/seller/inbox' : '/messages';
 
+  // Fetch buyer's open projects for award-from-chat
+  const { data: myProjects } = useQuery({
+    queryKey: ['my-projects-open'],
+    queryFn: async () => {
+      const res = await projectsApi.mine();
+      return (res.data || []).filter((p: any) => p.status === 'OPEN');
+    },
+    enabled: isBuyer && showAwardModal,
+  });
+
+  const handleAwardProject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!awardData.projectId) { toast.error('Select a project'); return; }
+    const amount = parseFloat(awardData.amount);
+    const deliveryDays = parseInt(awardData.deliveryDays);
+    if (isNaN(amount) || amount < 50) { toast.error('Minimum amount is R50'); return; }
+    if (isNaN(deliveryDays) || deliveryDays < 1) { toast.error('Delivery days required'); return; }
+    const sellerId = activeConversation.sellerId;
+    if (!sellerId) { toast.error('No seller found'); return; }
+    setIsAwarding(true);
+    try {
+      await projectsApi.award(awardData.projectId, { sellerId, amount, deliveryDays });
+      toast.success('Project awarded!');
+      setShowAwardModal(false);
+      setAwardData({ projectId: '', amount: '', deliveryDays: '' });
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to award project');
+    } finally {
+      setIsAwarding(false);
+    }
+  };
+
   return (
     <div className={cn('mx-auto flex', showCrmSidebar ? 'max-w-6xl' : 'max-w-4xl')} style={{ height: 'calc(100vh - 140px)' }}>
       {/* Main chat column */}
@@ -524,6 +560,15 @@ export default function ConversationPage() {
             )}
           </div>
         </div>
+        {isBuyer && (
+          <button
+            onClick={() => setShowAwardModal(true)}
+            className="p-2 rounded-lg hover:bg-muted text-muted-foreground transition-colors"
+            title="Award project to this seller"
+          >
+            <BriefcaseIcon className="h-5 w-5" />
+          </button>
+        )}
         {isSellerRoute && (
           <button
             onClick={() => setShowCrmSidebar(!showCrmSidebar)}
@@ -831,6 +876,83 @@ export default function ConversationPage() {
       {/* CRM Sidebar (seller only) */}
       {isSellerRoute && showCrmSidebar && id && (
         <CrmSidebar conversationId={id} onClose={() => setShowCrmSidebar(false)} />
+      )}
+
+      {/* Award Project Modal (buyer only) */}
+      {showAwardModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowAwardModal(false)}>
+          <div className="bg-card rounded-xl w-full max-w-md p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold flex items-center gap-2">
+                <BriefcaseIcon className="h-5 w-5 text-primary" />
+                Award Project to {otherUser?.firstName || otherUser?.username}
+              </h3>
+              <button onClick={() => setShowAwardModal(false)} className="p-1 hover:bg-muted rounded">
+                <XMarkIcon className="h-5 w-5" />
+              </button>
+            </div>
+
+            {!myProjects || myProjects.length === 0 ? (
+              <div className="text-center py-6">
+                <BriefcaseIcon className="h-10 w-10 text-muted-foreground mx-auto mb-2" />
+                <p className="text-sm text-muted-foreground">You have no open projects.</p>
+                <Link to="/projects" className="text-sm text-primary hover:underline mt-1 inline-block">Post a project first →</Link>
+              </div>
+            ) : (
+              <form onSubmit={handleAwardProject} className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium block mb-1.5">Select Project</label>
+                  <select
+                    value={awardData.projectId}
+                    onChange={(e) => setAwardData(p => ({ ...p, projectId: e.target.value }))}
+                    className="w-full h-10 px-3 border rounded-lg text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    required
+                  >
+                    <option value="">Choose a project...</option>
+                    {myProjects.map((p: any) => (
+                      <option key={p.id} value={p.id}>{p.title} (R{(p.budgetMin / 100).toFixed(0)} - R{(p.budgetMax / 100).toFixed(0)})</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-sm font-medium block mb-1.5">Amount (ZAR)</label>
+                    <input
+                      type="number"
+                      min="50"
+                      step="0.01"
+                      value={awardData.amount}
+                      onChange={(e) => setAwardData(p => ({ ...p, amount: e.target.value }))}
+                      placeholder="R50+"
+                      className="w-full h-10 px-3 border rounded-lg text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/20"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium block mb-1.5">Delivery (days)</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="90"
+                      value={awardData.deliveryDays}
+                      onChange={(e) => setAwardData(p => ({ ...p, deliveryDays: e.target.value }))}
+                      placeholder="1-90"
+                      className="w-full h-10 px-3 border rounded-lg text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/20"
+                      required
+                    />
+                  </div>
+                </div>
+                <button
+                  type="submit"
+                  disabled={isAwarding}
+                  className="w-full h-10 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+                >
+                  {isAwarding ? 'Awarding...' : 'Award Project'}
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

@@ -608,15 +608,22 @@ export const projectsApi = {
   get: (id: string) =>
     api.get<ApiResponse<any>>(`/projects/${id}`),
 
-  create: (data: { title: string; description: string; categoryId?: string; budgetMin?: number; budgetMax?: number; deadline?: string; skills?: string[] }) =>
+  create: (data: { title: string; description: string; categoryId?: string; budgetMin?: number; budgetMax?: number; deadline?: string; skills?: string[]; upgrades?: string[] }) =>
     api.post<ApiResponse<{ id: string }>>('/projects', data),
 
   update: (id: string, data: any) =>
     api.patch<ApiResponse<null>>(`/projects/${id}`, data),
 
+  delete: (id: string) =>
+    api.delete<ApiResponse<null>>(`/projects/${id}`),
+
   cancel: (id: string) =>
     api.post<ApiResponse<null>>(`/projects/${id}/cancel`),
 
+  complete: (id: string) =>
+    api.post<ApiResponse<null>>(`/projects/${id}/complete`),
+
+  // Bids
   placeBid: (projectId: string, data: { amount: number; deliveryDays: number; proposal: string }) =>
     api.post<ApiResponse<{ id: string }>>(`/projects/${projectId}/bids`, data),
 
@@ -625,6 +632,41 @@ export const projectsApi = {
 
   withdrawBid: (projectId: string) =>
     api.delete<ApiResponse<null>>(`/projects/${projectId}/bids`),
+
+  // Award (from chat or direct)
+  award: (projectId: string, data: { sellerId: string; amount: number; deliveryDays: number }) =>
+    api.post<ApiResponse<{ bidId: string }>>(`/projects/${projectId}/award`, data),
+
+  // Upgrades
+  upgrade: (projectId: string, type: 'FEATURED' | 'URGENT') =>
+    api.post<ApiResponse<{ id: string; amount: number }>>(`/projects/${projectId}/upgrade`, { type }),
+
+  // Files
+  uploadFile: (projectId: string, data: { fileName: string; fileUrl: string; fileSize: number; fileType?: string }) =>
+    api.post<ApiResponse<{ id: string }>>(`/projects/${projectId}/files`, data),
+
+  listFiles: (projectId: string) =>
+    api.get<ApiResponse<any[]>>(`/projects/${projectId}/files`),
+
+  deleteFile: (projectId: string, fileId: string) =>
+    api.delete<ApiResponse<null>>(`/projects/${projectId}/files/${fileId}`),
+
+  // Payments
+  createPayment: (projectId: string, data: { amount: number; milestoneLabel?: string }) =>
+    api.post<ApiResponse<{ id: string; amount: number; platformFee: number }>>(`/projects/${projectId}/payments`, data),
+
+  releasePayment: (projectId: string, paymentId: string) =>
+    api.post<ApiResponse<null>>(`/projects/${projectId}/payments/${paymentId}/release`),
+
+  listPayments: (projectId: string) =>
+    api.get<ApiResponse<any[]>>(`/projects/${projectId}/payments`),
+
+  // Reviews
+  createReview: (projectId: string, data: { revieweeId: string; rating: number; comment?: string }) =>
+    api.post<ApiResponse<{ id: string }>>(`/projects/${projectId}/reviews`, data),
+
+  listReviews: (projectId: string) =>
+    api.get<ApiResponse<any[]>>(`/projects/${projectId}/reviews`),
 };
 
 // Admin API

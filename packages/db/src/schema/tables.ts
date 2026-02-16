@@ -1386,6 +1386,10 @@ export const projects = sqliteTable('projects', {
   status: text('status').$type<MarketplaceProjectStatus>().default('OPEN').notNull(),
   selectedBidId: text('selected_bid_id'),
   bidCount: integer('bid_count').default(0).notNull(),
+  isFeatured: integer('is_featured', { mode: 'boolean' }).default(false).notNull(),
+  isUrgent: integer('is_urgent', { mode: 'boolean' }).default(false).notNull(),
+  completedAt: text('completed_at'),
+  awardedSellerId: text('awarded_seller_id').references(() => users.id),
   createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
   updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
 }, (table) => ({
@@ -1408,4 +1412,79 @@ export const projectBids = sqliteTable('project_bids', {
   projectIdIdx: index('project_bids_project_id_idx').on(table.projectId),
   sellerIdIdx: index('project_bids_seller_id_idx').on(table.sellerId),
   uniqueBid: uniqueIndex('project_bids_unique_idx').on(table.projectId, table.sellerId),
+}));
+
+// ============ PROJECT UPGRADES ============
+
+export const upgradeTypes = ['FEATURED', 'URGENT'] as const;
+export type UpgradeType = typeof upgradeTypes[number];
+
+export const upgradeStatuses = ['PENDING', 'PAID', 'EXPIRED'] as const;
+export type UpgradeStatus = typeof upgradeStatuses[number];
+
+export const projectUpgrades = sqliteTable('project_upgrades', {
+  id: text('id').primaryKey().$defaultFn(cuid),
+  projectId: text('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  type: text('type').$type<UpgradeType>().notNull(),
+  amount: integer('amount').notNull(), // in cents
+  status: text('status').$type<UpgradeStatus>().default('PENDING').notNull(),
+  paymentRef: text('payment_ref'),
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  projectIdIdx: index('project_upgrades_project_id_idx').on(table.projectId),
+}));
+
+// ============ PROJECT FILES ============
+
+export const projectFiles = sqliteTable('project_files', {
+  id: text('id').primaryKey().$defaultFn(cuid),
+  projectId: text('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  uploadedBy: text('uploaded_by').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  fileName: text('file_name').notNull(),
+  fileUrl: text('file_url').notNull(),
+  fileSize: integer('file_size').notNull().default(0),
+  fileType: text('file_type'),
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  projectIdIdx: index('project_files_project_id_idx').on(table.projectId),
+}));
+
+// ============ PROJECT PAYMENTS ============
+
+export const projectPaymentStatuses = ['PENDING', 'HELD', 'RELEASED', 'REFUNDED'] as const;
+export type ProjectPaymentStatus = typeof projectPaymentStatuses[number];
+
+export const projectPayments = sqliteTable('project_payments', {
+  id: text('id').primaryKey().$defaultFn(cuid),
+  projectId: text('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  bidId: text('bid_id').references(() => projectBids.id),
+  payerId: text('payer_id').notNull().references(() => users.id),
+  payeeId: text('payee_id').notNull().references(() => users.id),
+  amount: integer('amount').notNull(),
+  platformFee: integer('platform_fee').notNull().default(0),
+  status: text('status').$type<ProjectPaymentStatus>().default('PENDING').notNull(),
+  milestoneLabel: text('milestone_label'),
+  paymentRef: text('payment_ref'),
+  releasedAt: text('released_at'),
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  projectIdIdx: index('project_payments_project_id_idx').on(table.projectId),
+  payerIdIdx: index('project_payments_payer_id_idx').on(table.payerId),
+}));
+
+// ============ PROJECT REVIEWS ============
+
+export const projectReviews = sqliteTable('project_reviews', {
+  id: text('id').primaryKey().$defaultFn(cuid),
+  projectId: text('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  reviewerId: text('reviewer_id').notNull().references(() => users.id),
+  revieweeId: text('reviewee_id').notNull().references(() => users.id),
+  rating: integer('rating').notNull(),
+  comment: text('comment'),
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (table) => ({
+  projectIdIdx: index('project_reviews_project_id_idx').on(table.projectId),
+  uniqueReview: uniqueIndex('project_reviews_unique_idx').on(table.projectId, table.reviewerId),
 }));

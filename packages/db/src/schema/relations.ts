@@ -52,6 +52,10 @@ import {
   bioLinkEvents,
   projects,
   projectBids,
+  projectUpgrades,
+  projectFiles,
+  projectPayments,
+  projectReviews,
 } from './tables';
 
 // User relations
@@ -595,11 +599,19 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
     fields: [projects.buyerId],
     references: [users.id],
   }),
+  awardedSeller: one(users, {
+    fields: [projects.awardedSellerId],
+    references: [users.id],
+  }),
   category: one(categories, {
     fields: [projects.categoryId],
     references: [categories.id],
   }),
   bids: many(projectBids),
+  upgrades: many(projectUpgrades),
+  files: many(projectFiles),
+  payments: many(projectPayments),
+  reviews: many(projectReviews),
 }));
 
 export const projectBidsRelations = relations(projectBids, ({ one }) => ({
@@ -609,6 +621,58 @@ export const projectBidsRelations = relations(projectBids, ({ one }) => ({
   }),
   seller: one(users, {
     fields: [projectBids.sellerId],
+    references: [users.id],
+  }),
+}));
+
+export const projectUpgradesRelations = relations(projectUpgrades, ({ one }) => ({
+  project: one(projects, {
+    fields: [projectUpgrades.projectId],
+    references: [projects.id],
+  }),
+}));
+
+export const projectFilesRelations = relations(projectFiles, ({ one }) => ({
+  project: one(projects, {
+    fields: [projectFiles.projectId],
+    references: [projects.id],
+  }),
+  uploader: one(users, {
+    fields: [projectFiles.uploadedBy],
+    references: [users.id],
+  }),
+}));
+
+export const projectPaymentsRelations = relations(projectPayments, ({ one }) => ({
+  project: one(projects, {
+    fields: [projectPayments.projectId],
+    references: [projects.id],
+  }),
+  bid: one(projectBids, {
+    fields: [projectPayments.bidId],
+    references: [projectBids.id],
+  }),
+  payer: one(users, {
+    fields: [projectPayments.payerId],
+    references: [users.id],
+  }),
+  payee: one(users, {
+    fields: [projectPayments.payeeId],
+    references: [users.id],
+  }),
+}));
+
+export const projectReviewsRelations = relations(projectReviews, ({ one }) => ({
+  project: one(projects, {
+    fields: [projectReviews.projectId],
+    references: [projects.id],
+  }),
+  reviewer: one(users, {
+    fields: [projectReviews.reviewerId],
+    references: [users.id],
+  }),
+  reviewee: one(users, {
+    fields: [projectReviews.revieweeId],
     references: [users.id],
   }),
 }));

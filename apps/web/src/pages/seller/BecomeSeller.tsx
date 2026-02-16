@@ -23,7 +23,7 @@ import {
 } from '@heroicons/react/24/outline';
 
 const becomeSellerSchema = z.object({
-  displayName: z.string().min(2, 'Display name is required'),
+  displayName: z.string().min(3, 'Display name must be at least 3 characters'),
   professionalTitle: z.string().min(5, 'Professional title is required (min 5 characters)'),
   description: z.string().min(100, 'Description must be at least 100 characters'),
   skills: z.string().min(1, 'At least one skill is required'),
@@ -487,7 +487,7 @@ export default function BecomeSeller() {
 
                   <Textarea
                     id="description"
-                    label="About You (min 50 characters)"
+                    label="About You (min 100 characters)"
                     placeholder="Tell buyers about your experience, skills, and what makes you unique..."
                     rows={4}
                     error={errors.description?.message}

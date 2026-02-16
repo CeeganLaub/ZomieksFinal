@@ -81,9 +81,7 @@ export const DEFAULT_FEE_POLICY: FeePolicy = {
   buyerProcessingMin: 1500,      // R15
   
   sellerTiers: [
-    { upTo: 50000, pct: 0.12, min: 1500 },   // <= R500: 12% min R15
-    { upTo: 200000, pct: 0.10, min: 2000 },  // <= R2000: 10% min R20
-    { upTo: Infinity, pct: 0.08, min: 3000 }, // > R2000: 8% min R30
+    { upTo: Infinity, pct: 0.08, min: 1500 }, // Flat 8% min R15
   ],
   
   bufferPct: 0.002,              // 0.2%

@@ -12,6 +12,8 @@ import {
   CurrencyDollarIcon,
   ChatBubbleLeftIcon,
   FunnelIcon,
+  BoltIcon,
+  FireIcon,
 } from '@heroicons/react/24/outline';
 
 const STATUS_BADGES: Record<string, { label: string; className: string }> = {
@@ -73,6 +75,7 @@ export default function ProjectsPage() {
   const [deadline, setDeadline] = useState('');
   const [skillInput, setSkillInput] = useState('');
   const [skills, setSkills] = useState<string[]>([]);
+  const [upgrades, setUpgrades] = useState<string[]>([]);
 
   const createMutation = useMutation({
     mutationFn: () => projectsApi.create({
@@ -83,12 +86,13 @@ export default function ProjectsPage() {
       budgetMax: budgetMax ? parseFloat(budgetMax) : undefined,
       deadline: deadline || undefined,
       skills: skills.length > 0 ? skills : undefined,
+      upgrades: upgrades.length > 0 ? upgrades : undefined,
     }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
       toast.success('Project posted!');
       setShowCreate(false);
-      setTitle(''); setDescription(''); setCategoryId(''); setBudgetMin(''); setBudgetMax(''); setDeadline(''); setSkills([]);
+      setTitle(''); setDescription(''); setCategoryId(''); setBudgetMin(''); setBudgetMax(''); setDeadline(''); setSkills([]); setUpgrades([]);
     },
     onError: (e: any) => toast.error(e?.error?.message || 'Failed to post project'),
   });
@@ -165,13 +169,23 @@ export default function ProjectsPage() {
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <h3 className="font-semibold text-lg group-hover:text-primary transition-colors truncate">
                         {p.title}
                       </h3>
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${badge.className}`}>
                         {badge.label}
                       </span>
+                      {p.isFeatured && (
+                        <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-amber-100 text-amber-700 flex items-center gap-0.5">
+                          <BoltIcon className="h-3 w-3" /> Featured
+                        </span>
+                      )}
+                      {p.isUrgent && (
+                        <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-red-100 text-red-700 flex items-center gap-0.5">
+                          <FireIcon className="h-3 w-3" /> Urgent
+                        </span>
+                      )}
                     </div>
                     <p className="text-muted-foreground text-sm line-clamp-2 mb-3">{p.description}</p>
                     <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
@@ -329,12 +343,52 @@ export default function ProjectsPage() {
                     </div>
                   )}
                 </div>
+                {/* Upgrades */}
+                <div>
+                  <label className="text-sm font-medium">Boost Your Project (optional)</label>
+                  <div className="grid grid-cols-2 gap-3 mt-2">
+                    <label className={`flex items-start gap-3 p-3 border rounded-xl cursor-pointer transition-colors ${
+                      upgrades.includes('FEATURED') ? 'border-amber-400 bg-amber-50/50' : 'hover:border-muted-foreground/30'
+                    }`}>
+                      <input
+                        type="checkbox"
+                        checked={upgrades.includes('FEATURED')}
+                        onChange={(e) => setUpgrades(e.target.checked ? [...upgrades, 'FEATURED'] : upgrades.filter(u => u !== 'FEATURED'))}
+                        className="mt-0.5"
+                      />
+                      <div>
+                        <div className="flex items-center gap-1 font-medium text-sm">
+                          <BoltIcon className="h-4 w-4 text-amber-600" /> Featured
+                        </div>
+                        <p className="text-xs text-muted-foreground">Top of results</p>
+                        <p className="text-xs font-semibold text-amber-700 mt-0.5">R100</p>
+                      </div>
+                    </label>
+                    <label className={`flex items-start gap-3 p-3 border rounded-xl cursor-pointer transition-colors ${
+                      upgrades.includes('URGENT') ? 'border-red-400 bg-red-50/50' : 'hover:border-muted-foreground/30'
+                    }`}>
+                      <input
+                        type="checkbox"
+                        checked={upgrades.includes('URGENT')}
+                        onChange={(e) => setUpgrades(e.target.checked ? [...upgrades, 'URGENT'] : upgrades.filter(u => u !== 'URGENT'))}
+                        className="mt-0.5"
+                      />
+                      <div>
+                        <div className="flex items-center gap-1 font-medium text-sm">
+                          <FireIcon className="h-4 w-4 text-red-600" /> Urgent
+                        </div>
+                        <p className="text-xs text-muted-foreground">Priority listing</p>
+                        <p className="text-xs font-semibold text-red-700 mt-0.5">R100</p>
+                      </div>
+                    </label>
+                  </div>
+                </div>
                 <button
                   type="submit"
                   disabled={createMutation.isPending}
                   className="w-full py-2.5 bg-primary text-primary-foreground rounded-xl text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
                 >
-                  {createMutation.isPending ? 'Posting...' : 'Post Project'}
+                  {createMutation.isPending ? 'Posting...' : `Post Project${upgrades.length > 0 ? ` (+R${upgrades.length * 100} upgrades)` : ''}`}
                 </button>
               </form>
             </motion.div>
