@@ -88,6 +88,17 @@ const CATEGORY_DEFINITIONS: Record<string, { name: string; description: string; 
       { key: 'swift_code', label: 'SWIFT Code', isSecret: false, description: 'SWIFT/BIC code for international' },
     ],
   },
+  payouts: {
+    name: 'Payout Settings',
+    description: 'Configure how seller payouts are processed — manual bank transfer or automated via Ozow',
+    fields: [
+      { key: 'ozow_auto_enabled', label: 'Enable Ozow Auto-Payouts', isSecret: false, description: "Set to 'true' to enable automated Ozow payouts. When disabled, payouts are processed manually via bank EFT." },
+      { key: 'ozow_payout_api_key', label: 'Ozow Payout API Key', isSecret: true, description: 'API key for Ozow Payouts API' },
+      { key: 'ozow_payout_site_code', label: 'Ozow Payout Site Code', isSecret: false, description: 'Site code for Ozow Payouts (may differ from payment site code)' },
+      { key: 'min_payout_amount', label: 'Minimum Payout (cents)', isSecret: false, description: 'Minimum payout amount in cents. Default: 10000 (R100)' },
+      { key: 'payout_schedule', label: 'Payout Schedule', isSecret: false, description: 'Batch frequency: daily, weekly, or manual' },
+    ],
+  },
 };
 
 export default function ConfigurationPage() {

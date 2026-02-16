@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { adminApi } from '@/lib/api';
 import { cn } from '@/lib/utils';
@@ -9,6 +10,10 @@ import {
   CheckCircleIcon,
   XCircleIcon,
   ArrowPathIcon,
+  DocumentArrowDownIcon,
+  BoltIcon,
+  Cog6ToothIcon,
+  InformationCircleIcon,
 } from '@heroicons/react/24/outline';
 
 interface BankDetails {
@@ -47,6 +52,17 @@ export default function AdminPayoutsPage() {
   const [rejectModal, setRejectModal] = useState<Payout | null>(null);
   const [bankReference, setBankReference] = useState('');
   const [rejectReason, setRejectReason] = useState('');
+  const [batchResult, setBatchResult] = useState<{ batchId: string; totalAmount: number; payoutCount: number; mode: string; ozowResult?: { successCount: number; failCount: number } } | null>(null);
+
+  // Get payout mode
+  const { data: modeData } = useQuery({
+    queryKey: ['payout-mode'],
+    queryFn: async () => {
+      const res = await adminApi.payoutMode();
+      return (res as any).data?.mode || 'manual';
+    },
+  });
+  const payoutMode = modeData || 'manual';
 
   const { data, isLoading, isFetching } = useQuery<{
     payouts: Payout[];
@@ -57,7 +73,7 @@ export default function AdminPayoutsPage() {
       const params: Record<string, any> = { page, limit: 20 };
       if (statusFilter !== 'ALL') params.status = statusFilter;
       const res = await adminApi.payouts(params);
-      return { payouts: (res as any).data?.payouts || [], meta: (res as any).meta || { page: 1, total: 0, totalPages: 1 } };
+      return { payouts: (res as any).data || [], meta: (res as any).meta || { page: 1, total: 0, totalPages: 1 } };
     },
   });
 
@@ -91,6 +107,26 @@ export default function AdminPayoutsPage() {
     },
   });
 
+  const createBatchMutation = useMutation({
+    mutationFn: async () => {
+      const res = await adminApi.createPayoutBatch();
+      return (res as any).data;
+    },
+    onSuccess: (data) => {
+      setBatchResult(data);
+      if (data.mode === 'ozow' && data.ozowResult) {
+        toast.success(`Ozow batch sent: ${data.ozowResult.successCount} succeeded, ${data.ozowResult.failCount} failed`);
+      } else {
+        toast.success(`Batch created: ${data.payoutCount} payouts (R${Number(data.totalAmount).toFixed(2)})`);
+      }
+      queryClient.invalidateQueries({ queryKey: ['admin-payouts'] });
+    },
+    onError: (error: any) => {
+      const message = error?.response?.data?.error?.message || error.message || 'Failed to create batch';
+      toast.error(message);
+    },
+  });
+
   const handleProcess = () => {
     if (!bankReference.trim()) {
       toast.error('Bank reference is required');
@@ -107,6 +143,23 @@ export default function AdminPayoutsPage() {
     }
   };
 
+  const handleDownloadCSV = async (batchId: string) => {
+    try {
+      const res = await adminApi.downloadBatchCSV(batchId);
+      const csvData = typeof res === 'string' ? res : (res as any)?.data || '';
+      const blob = new Blob([csvData], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `payout-batch-${batchId}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success('CSV downloaded');
+    } catch {
+      toast.error('Failed to download CSV');
+    }
+  };
+
   const statusTabs: { value: StatusFilter; label: string; color: string }[] = [
     { value: 'ALL', label: 'All', color: '' },
     { value: 'PENDING', label: 'Pending', color: 'text-yellow-600' },
@@ -119,6 +172,7 @@ export default function AdminPayoutsPage() {
     PENDING: { label: 'Pending', color: 'text-yellow-600 bg-yellow-500/10' },
     PROCESSING: { label: 'Processing', color: 'text-blue-600 bg-blue-500/10' },
     COMPLETED: { label: 'Completed', color: 'text-green-600 bg-green-500/10' },
+    PAID: { label: 'Paid', color: 'text-green-600 bg-green-500/10' },
     FAILED: { label: 'Failed', color: 'text-red-600 bg-red-500/10' },
   };
 
@@ -134,8 +188,101 @@ export default function AdminPayoutsPage() {
             Review and process seller withdrawal requests ({meta.total} total)
           </p>
         </div>
-        {isFetching && <ArrowPathIcon className="h-5 w-5 animate-spin text-muted-foreground" />}
+        <div className="flex items-center gap-3">
+          {isFetching && <ArrowPathIcon className="h-5 w-5 animate-spin text-muted-foreground" />}
+          <Button
+            onClick={() => createBatchMutation.mutate()}
+            disabled={createBatchMutation.isPending}
+          >
+            {createBatchMutation.isPending ? (
+              <ArrowPathIcon className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <BoltIcon className="h-4 w-4 mr-2" />
+            )}
+            Create Batch
+          </Button>
+        </div>
       </div>
+
+      {/* Payout Mode Banner */}
+      <div className={cn(
+        'flex items-center justify-between p-4 rounded-lg border mb-6',
+        payoutMode === 'ozow'
+          ? 'bg-green-50 border-green-200'
+          : 'bg-amber-50 border-amber-200'
+      )}>
+        <div className="flex items-center gap-3">
+          <InformationCircleIcon className={cn(
+            'h-5 w-5',
+            payoutMode === 'ozow' ? 'text-green-600' : 'text-amber-600'
+          )} />
+          <div>
+            <p className={cn(
+              'text-sm font-medium',
+              payoutMode === 'ozow' ? 'text-green-800' : 'text-amber-800'
+            )}>
+              Payout Mode: {payoutMode === 'ozow' ? 'Ozow Auto-Payout' : 'Manual Bank Transfer'}
+            </p>
+            <p className={cn(
+              'text-xs',
+              payoutMode === 'ozow' ? 'text-green-600' : 'text-amber-600'
+            )}>
+              {payoutMode === 'ozow'
+                ? 'Batches are automatically sent to Ozow for EFT processing.'
+                : 'Create batches, download CSV, and process bank transfers manually.'}
+            </p>
+          </div>
+        </div>
+        <Link
+          to="/admin/configuration"
+          className={cn(
+            'flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors',
+            payoutMode === 'ozow'
+              ? 'text-green-700 hover:bg-green-100'
+              : 'text-amber-700 hover:bg-amber-100'
+          )}
+        >
+          <Cog6ToothIcon className="h-4 w-4" />
+          Configure
+        </Link>
+      </div>
+
+      {/* Batch Result Banner */}
+      {batchResult && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-blue-800">
+                Batch Created: {batchResult.batchId}
+              </p>
+              <p className="text-xs text-blue-600">
+                {batchResult.payoutCount} payouts — R{Number(batchResult.totalAmount).toFixed(2)} total
+                {batchResult.mode === 'ozow' && batchResult.ozowResult && (
+                  <> — Ozow: {batchResult.ozowResult.successCount} sent, {batchResult.ozowResult.failCount} failed</>
+                )}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              {batchResult.mode === 'manual' && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleDownloadCSV(batchResult.batchId)}
+                >
+                  <DocumentArrowDownIcon className="h-4 w-4 mr-1" />
+                  Download CSV
+                </Button>
+              )}
+              <button
+                onClick={() => setBatchResult(null)}
+                className="text-blue-500 hover:text-blue-700 text-sm"
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Status Filter Tabs */}
       <div className="flex gap-1 mb-6 border-b">

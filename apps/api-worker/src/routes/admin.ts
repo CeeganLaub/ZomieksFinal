@@ -18,6 +18,7 @@ import {
   getBatchStatus,
   generateBatchCSV,
 } from '../services/payout-batch.service';
+import { getPayoutMode, processOzowBatch } from '../services/ozow-payout.service';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -739,11 +740,19 @@ app.post('/payouts/:id/action', validate(payoutActionSchema), async (c) => {
   });
 });
 
+// Get current payout mode (manual or ozow)
+app.get('/payouts/mode', async (c) => {
+  const db = c.get('db');
+  const mode = await getPayoutMode(db);
+  return c.json({ success: true, data: { mode } });
+});
+
 // Batch Payout Management
 
 // Create a new payout batch from eligible payouts
 app.post('/payouts/batches/create', async (c) => {
   const db = c.get('db');
+  const env = c.env;
   
   const batch = await createPayoutBatch(db);
   
@@ -754,6 +763,22 @@ app.post('/payouts/batches/create', async (c) => {
     }, 404);
   }
   
+  // Check payout mode — if Ozow enabled, auto-process the batch
+  const mode = await getPayoutMode(db);
+  let ozowResult = null;
+  
+  if (mode === 'ozow') {
+    ozowResult = await processOzowBatch(db, env, batch.items.map(item => ({
+      payoutId: item.payoutId,
+      amount: item.amount,
+      bankName: item.bankName,
+      accountNumber: item.accountNumberFull,
+      branchCode: item.branchCode,
+      accountHolder: item.accountHolder,
+      accountType: item.accountType,
+    })));
+  }
+  
   return c.json({
     success: true,
     data: {
@@ -761,6 +786,11 @@ app.post('/payouts/batches/create', async (c) => {
       createdAt: batch.createdAt,
       totalAmount: batch.totalAmountRands,
       payoutCount: batch.payoutCount,
+      mode,
+      ozowResult: ozowResult ? {
+        successCount: ozowResult.successCount,
+        failCount: ozowResult.failCount,
+      } : undefined,
       items: batch.items.map(item => ({
         payoutId: item.payoutId,
         sellerId: item.sellerId,

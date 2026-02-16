@@ -2,7 +2,8 @@ import { Hono } from 'hono';
 import { eq, sql } from 'drizzle-orm';
 import { 
   transactions, orders, escrowHolds,
-  sellerProfiles, sellerSubscriptions, sellerSubscriptionPayments
+  sellerProfiles, sellerSubscriptions, sellerSubscriptionPayments,
+  sellerPayouts
 } from '@zomieks/db';
 import { createId } from '@paralleldrive/cuid2';
 import type { Env } from '../types';
@@ -292,6 +293,93 @@ app.post('/payments/ozow-subscription', async (c) => {
         updatedAt: nowIso,
       })
       .where(eq(transactions.id, transactionRef));
+  }
+  
+  return c.json({ success: true });
+});
+
+// Ozow Payout Webhook Handler
+// Called by Ozow when a payout status changes (Complete, Error, Cancelled)
+app.post('/payments/ozow-payout', async (c) => {
+  const db = c.get('db');
+  const env = c.env;
+  
+  const data = await c.req.json();
+  
+  // Verify hash
+  const hashString = `${data.SiteCode}${data.TransactionId}${data.PayoutReference}${data.Amount}${data.Status}${env.OZOW_PRIVATE_KEY}`;
+  const hashBuffer = await crypto.subtle.digest('SHA-512', new TextEncoder().encode(hashString.toLowerCase()));
+  const expectedHash = Array.from(new Uint8Array(hashBuffer))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+  
+  if (data.Hash && data.Hash.toLowerCase() !== expectedHash) {
+    console.error('Ozow payout hash mismatch');
+    return c.json({ error: 'Invalid hash' }, 400);
+  }
+  
+  const payoutId = data.PayoutReference;
+  const ozowTxId = data.TransactionId;
+  const status = data.Status;
+  const now = new Date().toISOString();
+  
+  if (!payoutId) {
+    console.error('Ozow payout webhook: missing PayoutReference');
+    return c.json({ error: 'Missing reference' }, 400);
+  }
+  
+  const payout = await db.query.sellerPayouts.findFirst({
+    where: eq(sellerPayouts.id, payoutId),
+  });
+  
+  if (!payout) {
+    console.error('Payout not found:', payoutId);
+    return c.json({ error: 'Payout not found' }, 404);
+  }
+  
+  // Idempotency: already completed
+  if (payout.status === 'COMPLETED') {
+    return c.json({ success: true });
+  }
+  
+  if (status === 'Complete' || status === 'COMPLETE') {
+    // Mark payout as completed
+    await db.update(sellerPayouts)
+      .set({
+        status: 'COMPLETED',
+        externalRef: ozowTxId,
+        processedAt: now,
+        updatedAt: now,
+      })
+      .where(eq(sellerPayouts.id, payoutId));
+    
+    // Update seller balance
+    await db.update(sellerProfiles)
+      .set({
+        pendingBalance: sql`GREATEST(0, pending_balance - ${payout.amount})`,
+      })
+      .where(eq(sellerProfiles.userId, payout.sellerId));
+    
+    console.log(`Payout ${payoutId} completed via Ozow: ${ozowTxId}`);
+  } else if (status === 'Error' || status === 'Cancelled' || status === 'Failed') {
+    // Mark as failed — funds return to available balance
+    await db.update(sellerPayouts)
+      .set({
+        status: 'FAILED',
+        failedReason: `Ozow payout ${status.toLowerCase()}: ${data.StatusMessage || ''}`,
+        updatedAt: now,
+      })
+      .where(eq(sellerPayouts.id, payoutId));
+    
+    // Return funds to available balance
+    await db.update(sellerProfiles)
+      .set({
+        balance: sql`balance + ${payout.amount}`,
+        pendingBalance: sql`GREATEST(0, pending_balance - ${payout.amount})`,
+      })
+      .where(eq(sellerProfiles.userId, payout.sellerId));
+    
+    console.error(`Payout ${payoutId} failed via Ozow: ${data.StatusMessage || status}`);
   }
   
   return c.json({ success: true });

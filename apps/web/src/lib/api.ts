@@ -726,9 +726,21 @@ export const adminApi = {
   payouts: (params?: { status?: string; page?: number; limit?: number }) =>
     api.get<ApiResponse<{ payouts: unknown[] }>>('/admin/payouts', { params }),
   processPayout: (payoutId: string, bankReference: string) =>
-    api.post<ApiResponse<{ payout: unknown }>>(`/admin/payouts/${payoutId}/process`, { bankReference }),
+    api.post<ApiResponse<{ payout: unknown }>>(`/admin/payouts/${payoutId}/action`, { action: 'process', reference: bankReference }),
   rejectPayout: (payoutId: string, reason?: string) =>
-    api.post<ApiResponse<{ payout: unknown }>>(`/admin/payouts/${payoutId}/reject`, { reason }),
+    api.post<ApiResponse<{ payout: unknown }>>(`/admin/payouts/${payoutId}/action`, { action: 'reject', reason }),
+  payoutMode: () =>
+    api.get<ApiResponse<{ mode: 'manual' | 'ozow' }>>('/admin/payouts/mode'),
+  createPayoutBatch: () =>
+    api.post<ApiResponse<{ batchId: string; totalAmount: number; payoutCount: number; mode: string; ozowResult?: { successCount: number; failCount: number }; items: unknown[] }>>('/admin/payouts/batches/create'),
+  getBatchStatus: (batchId: string) =>
+    api.get<ApiResponse<{ batchId: string; status: string; totalCount: number; paidCount: number; failedCount: number; processingCount: number }>>(`/admin/payouts/batches/${batchId}`),
+  downloadBatchCSV: (batchId: string) =>
+    api.get<string>(`/admin/payouts/batches/${batchId}/csv`),
+  confirmBatch: (batchId: string, confirmations: Array<{ payoutId: string; externalRef: string }>) =>
+    api.post<ApiResponse<{ confirmedCount: number; failedCount: number; errors: string[] }>>(`/admin/payouts/batches/${batchId}/confirm`, { confirmations }),
+  failBatch: (batchId: string, reason: string, payoutIds?: string[]) =>
+    api.post<ApiResponse<{ failedCount: number }>>(`/admin/payouts/batches/${batchId}/fail`, { reason, payoutIds }),
 
   // KYC
   pendingKYC: () =>
