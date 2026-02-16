@@ -1,7 +1,10 @@
 -- Seed new admin user
 -- Email: newadmin@zomieks.co.za
--- Password: AdminSecure2026
--- Bcrypt hash generated: $2a$10$MQQC2a0Dha/utF6kC/2qeewohC.duJ4qpV5dFdt1NLY80KxCTau/O
+-- Password: AdminPass2026
+-- Bcrypt hash verified: $2a$10$oxtmIEo39NZ.SYIjxNiMnO2GUj5ntjLd/Wk54RhUpoWBomUXu7Yha
+
+-- Delete existing user with this email if it exists
+DELETE FROM users WHERE email = 'newadmin@zomieks.co.za';
 
 INSERT INTO users (
   id, 
@@ -18,7 +21,7 @@ INSERT INTO users (
   lower(hex(randomblob(16))),
   'newadmin@zomieks.co.za',
   'newadmin',
-  '$2a$10$MQQC2a0Dha/utF6kC/2qeewohC.duJ4qpV5dFdt1NLY80KxCTau/O',
+  '$2a$10$oxtmIEo39NZ.SYIjxNiMnO2GUj5ntjLd/Wk54RhUpoWBomUXu7Yha',
   'New',
   'Admin',
   'admin',
@@ -29,4 +32,4 @@ INSERT INTO users (
 
 SELECT 'New admin user created successfully!' as message;
 SELECT 'Email: newadmin@zomieks.co.za' as credentials;
-SELECT 'Password: AdminSecure2026' as credentials;
+SELECT 'Password: AdminPass2026' as credentials;
