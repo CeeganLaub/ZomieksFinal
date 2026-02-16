@@ -8,7 +8,7 @@
   ],
   "scripts": {
     "dev": "turbo run dev",
-    "build": "turbo run build",
+    "build": "turbo run build --filter=@zomieks/web",
     "lint": "turbo run lint",
     "test": "turbo run test",
     "dev:web": "npm run dev --workspace=@zomieks/web",
