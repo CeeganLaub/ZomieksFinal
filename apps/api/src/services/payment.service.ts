@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import { env } from '@/config/env.js';
-import { calculateOrderFees, PAYFAST_FREQUENCY } from '@zomieks/shared';
+import { calculateOrderFees } from '@zomieks/shared';
 
 interface PayFastPaymentParams {
   paymentId: string;
