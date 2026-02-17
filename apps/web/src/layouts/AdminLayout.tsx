@@ -35,7 +35,7 @@ export default function AdminLayout() {
     { href: '/admin/payouts', label: 'Payouts', icon: BanknotesIcon },
     { href: '/admin/analytics', label: 'Analytics', icon: ChartBarIcon },
     { divider: true },
-    { href: '/admin/fees', label: 'Fees & Calculations', icon: BanknotesIcon },
+    { href: '/admin/fees', label: 'Income & Expenses', icon: BanknotesIcon },
     { href: '/admin/configuration', label: 'Configuration', icon: WrenchScrewdriverIcon },
     { href: '/admin/settings', label: 'Settings', icon: Cog6ToothIcon },
   ];

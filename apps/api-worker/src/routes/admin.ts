@@ -5,6 +5,7 @@ import {
   users, orders, services, sellerProfiles, transactions,
   disputes, refunds, sellerPayouts, subscriptions, categories, bankDetails,
   courses, userRoles, conversations, messages, courseEnrollments,
+  subscriptionPayments, escrowHolds,
 } from '@zomieks/db';
 import { createId } from '@paralleldrive/cuid2';
 import type { Env } from '../types';
@@ -1241,6 +1242,287 @@ app.post('/sellers/:id/verify-kyc', async (c) => {
     success: true,
     data: { profile: { ...profile, kycStatus: status, isVerified: status === 'VERIFIED' } },
     message: `Seller KYC ${status.toLowerCase()}`,
+  });
+});
+
+// ============ FINANCE / INCOME & EXPENSES ============
+app.get('/finance', async (c) => {
+  const db = c.get('db');
+  const now = new Date();
+
+  // --- INCOME: Orders ---
+  const [orderIncome] = await db
+    .select({
+      totalGMV: sql<number>`COALESCE(SUM(${orders.grossAmount}), 0)`,
+      totalBaseAmount: sql<number>`COALESCE(SUM(${orders.baseAmount}), 0)`,
+      totalBuyerPlatformFees: sql<number>`COALESCE(SUM(${orders.buyerPlatformFee}), 0)`,
+      totalBuyerProcessingFees: sql<number>`COALESCE(SUM(${orders.buyerProcessingFee}), 0)`,
+      totalSellerFees: sql<number>`COALESCE(SUM(${orders.sellerPlatformFee}), 0)`,
+      totalPlatformRevenue: sql<number>`COALESCE(SUM(${orders.platformRevenue}), 0)`,
+      totalSellerPayoutAmount: sql<number>`COALESCE(SUM(${orders.sellerPayoutAmount}), 0)`,
+      orderCount: count(),
+    })
+    .from(orders)
+    .where(sql`${orders.status} IN ('COMPLETED', 'IN_PROGRESS', 'DELIVERED')`);
+
+  // --- INCOME: Course Sales ---
+  const [courseIncome] = await db
+    .select({
+      totalCourseSales: sql<number>`COALESCE(SUM(${courseEnrollments.amountPaid}), 0)`,
+      courseRefunds: sql<number>`COALESCE(SUM(${courseEnrollments.refundedAmount}), 0)`,
+      enrollmentCount: count(),
+    })
+    .from(courseEnrollments);
+
+  // --- INCOME: Subscription Payments ---
+  const [subIncome] = await db
+    .select({
+      totalSubscriptionIncome: sql<number>`COALESCE(SUM(${subscriptionPayments.platformRevenue}), 0)`,
+      totalSubscriptionGross: sql<number>`COALESCE(SUM(${subscriptionPayments.totalAmount}), 0)`,
+      subPaymentCount: count(),
+    })
+    .from(subscriptionPayments);
+
+  // --- EXPENSES: Seller Payouts ---
+  const [payoutExpenses] = await db
+    .select({
+      completedPayouts: sql<number>`COALESCE(SUM(CASE WHEN ${sellerPayouts.status} = 'COMPLETED' THEN ${sellerPayouts.amount} ELSE 0 END), 0)`,
+      pendingPayouts: sql<number>`COALESCE(SUM(CASE WHEN ${sellerPayouts.status} = 'PENDING' THEN ${sellerPayouts.amount} ELSE 0 END), 0)`,
+      failedPayouts: sql<number>`COALESCE(SUM(CASE WHEN ${sellerPayouts.status} = 'FAILED' THEN ${sellerPayouts.amount} ELSE 0 END), 0)`,
+      completedCount: sql<number>`SUM(CASE WHEN ${sellerPayouts.status} = 'COMPLETED' THEN 1 ELSE 0 END)`,
+      pendingCount: sql<number>`SUM(CASE WHEN ${sellerPayouts.status} = 'PENDING' THEN 1 ELSE 0 END)`,
+    })
+    .from(sellerPayouts);
+
+  // --- EXPENSES: Refunds ---
+  const [refundExpenses] = await db
+    .select({
+      totalRefunds: sql<number>`COALESCE(SUM(CASE WHEN ${refunds.status} IN ('COMPLETED', 'PENDING') THEN ${refunds.amount} ELSE 0 END), 0)`,
+      refundCount: sql<number>`SUM(CASE WHEN ${refunds.status} IN ('COMPLETED', 'PENDING') THEN 1 ELSE 0 END)`,
+      processingFees: sql<number>`COALESCE(SUM(${refunds.processingFee}), 0)`,
+    })
+    .from(refunds);
+
+  // --- EXPENSES: Gateway Fees ---
+  const [gatewayExpenses] = await db
+    .select({
+      totalGatewayFees: sql<number>`COALESCE(SUM(${transactions.gatewayFee}), 0)`,
+      txCount: count(),
+    })
+    .from(transactions)
+    .where(eq(transactions.status, 'COMPLETED'));
+
+  // --- Escrow Status ---
+  const [escrowStats] = await db
+    .select({
+      heldAmount: sql<number>`COALESCE(SUM(CASE WHEN ${escrowHolds.status} = 'HELD' THEN ${escrowHolds.grossAmount} ELSE 0 END), 0)`,
+      releasedAmount: sql<number>`COALESCE(SUM(CASE WHEN ${escrowHolds.status} = 'RELEASED' THEN ${escrowHolds.grossAmount} ELSE 0 END), 0)`,
+      refundedAmount: sql<number>`COALESCE(SUM(CASE WHEN ${escrowHolds.status} = 'REFUNDED' THEN ${escrowHolds.grossAmount} ELSE 0 END), 0)`,
+      heldCount: sql<number>`SUM(CASE WHEN ${escrowHolds.status} = 'HELD' THEN 1 ELSE 0 END)`,
+    })
+    .from(escrowHolds);
+
+  // --- Monthly Breakdown (12 months) ---
+  const monthlyData = [];
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const monthStart = d.toISOString().slice(0, 10);
+    const nextMonth = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+    const monthEnd = nextMonth.toISOString().slice(0, 10);
+    const monthLabel = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+
+    const [mOrders] = await db
+      .select({
+        income: sql<number>`COALESCE(SUM(${orders.platformRevenue}), 0)`,
+        gmv: sql<number>`COALESCE(SUM(${orders.grossAmount}), 0)`,
+        buyerFees: sql<number>`COALESCE(SUM(${orders.buyerPlatformFee} + ${orders.buyerProcessingFee}), 0)`,
+        sellerFees: sql<number>`COALESCE(SUM(${orders.sellerPlatformFee}), 0)`,
+        orderCount: count(),
+      })
+      .from(orders)
+      .where(and(
+        gte(orders.createdAt, monthStart),
+        lte(orders.createdAt, monthEnd),
+        sql`${orders.status} IN ('COMPLETED', 'IN_PROGRESS', 'DELIVERED')`,
+      ));
+
+    const [mPayouts] = await db
+      .select({
+        payouts: sql<number>`COALESCE(SUM(${sellerPayouts.amount}), 0)`,
+      })
+      .from(sellerPayouts)
+      .where(and(
+        eq(sellerPayouts.status, 'COMPLETED'),
+        gte(sellerPayouts.processedAt, monthStart),
+        lte(sellerPayouts.processedAt, monthEnd),
+      ));
+
+    const [mRefunds] = await db
+      .select({
+        refunds: sql<number>`COALESCE(SUM(${refunds.amount}), 0)`,
+      })
+      .from(refunds)
+      .where(and(
+        sql`${refunds.status} IN ('COMPLETED', 'PENDING')`,
+        gte(refunds.createdAt, monthStart),
+        lte(refunds.createdAt, monthEnd),
+      ));
+
+    const [mCourses] = await db
+      .select({
+        courseSales: sql<number>`COALESCE(SUM(${courseEnrollments.amountPaid}), 0)`,
+      })
+      .from(courseEnrollments)
+      .where(and(
+        gte(courseEnrollments.createdAt, monthStart),
+        lte(courseEnrollments.createdAt, monthEnd),
+      ));
+
+    const income = Number(mOrders.income) + Number(mCourses.courseSales);
+    const expenses = Number(mPayouts.payouts) + Number(mRefunds.refunds);
+
+    monthlyData.push({
+      month: monthLabel,
+      income: income / 100,
+      gmv: Number(mOrders.gmv) / 100,
+      buyerFees: Number(mOrders.buyerFees) / 100,
+      sellerFees: Number(mOrders.sellerFees) / 100,
+      courseSales: Number(mCourses.courseSales) / 100,
+      payouts: Number(mPayouts.payouts) / 100,
+      refunds: Number(mRefunds.refunds) / 100,
+      expenses: expenses / 100,
+      netProfit: (income - expenses) / 100,
+      orders: Number(mOrders.orderCount),
+      isPartial: i === 0,
+    });
+  }
+
+  // --- Recent Transactions (latest 25) ---
+  const recentTx = await db.query.transactions.findMany({
+    orderBy: desc(transactions.createdAt),
+    limit: 25,
+    columns: {
+      id: true, type: true, status: true, grossAmount: true, gatewayFee: true,
+      netAmount: true, platformRevenue: true, gateway: true, gatewayMethod: true,
+      createdAt: true, paidAt: true,
+    },
+    with: {
+      order: { columns: { orderNumber: true, buyerId: true, sellerId: true } },
+    },
+  });
+
+  // --- Recent Payouts (latest 10) ---
+  const recentPayouts = await db.query.sellerPayouts.findMany({
+    orderBy: desc(sellerPayouts.createdAt),
+    limit: 10,
+    columns: {
+      id: true, amount: true, fee: true, netAmount: true, status: true,
+      currency: true, processedAt: true, createdAt: true,
+    },
+    with: {
+      seller: { columns: { username: true, email: true } },
+    },
+  });
+
+  // --- Recent Refunds (latest 10) ---
+  const recentRefunds = await db.query.refunds.findMany({
+    orderBy: desc(refunds.createdAt),
+    limit: 10,
+    columns: {
+      id: true, amount: true, processingFee: true, reason: true, status: true,
+      refundType: true, createdAt: true,
+    },
+  });
+
+  // VAT estimate (15% of platform revenue)
+  const vatPct = 15;
+  const totalPlatformRev = Number(orderIncome.totalPlatformRevenue) / 100;
+  const estimatedVAT = totalPlatformRev * (vatPct / (100 + vatPct)); // VAT inclusive extraction
+
+  return c.json({
+    success: true,
+    data: {
+      summary: {
+        // Income
+        totalGMV: Number(orderIncome.totalGMV) / 100,
+        totalPlatformRevenue: Number(orderIncome.totalPlatformRevenue) / 100,
+        totalBuyerPlatformFees: Number(orderIncome.totalBuyerPlatformFees) / 100,
+        totalBuyerProcessingFees: Number(orderIncome.totalBuyerProcessingFees) / 100,
+        totalSellerFees: Number(orderIncome.totalSellerFees) / 100,
+        totalCourseSales: Number(courseIncome.totalCourseSales) / 100,
+        totalCourseRefunds: Number(courseIncome.courseRefunds) / 100,
+        totalSubscriptionIncome: Number(subIncome.totalSubscriptionIncome) / 100,
+        totalSubscriptionGross: Number(subIncome.totalSubscriptionGross) / 100,
+        orderCount: Number(orderIncome.orderCount),
+        enrollmentCount: Number(courseIncome.enrollmentCount),
+        subPaymentCount: Number(subIncome.subPaymentCount),
+        // Expenses
+        completedPayouts: Number(payoutExpenses.completedPayouts) / 100,
+        pendingPayouts: Number(payoutExpenses.pendingPayouts) / 100,
+        failedPayouts: Number(payoutExpenses.failedPayouts) / 100,
+        completedPayoutCount: Number(payoutExpenses.completedCount),
+        pendingPayoutCount: Number(payoutExpenses.pendingCount),
+        totalRefunds: Number(refundExpenses.totalRefunds) / 100,
+        refundCount: Number(refundExpenses.refundCount),
+        refundProcessingFees: Number(refundExpenses.processingFees) / 100,
+        totalGatewayFees: Number(gatewayExpenses.totalGatewayFees) / 100,
+        gatewayTxCount: Number(gatewayExpenses.txCount),
+        // VAT
+        estimatedVAT: Math.round(estimatedVAT * 100) / 100,
+        vatPct,
+        // Escrow
+        escrowHeld: Number(escrowStats.heldAmount) / 100,
+        escrowReleased: Number(escrowStats.releasedAmount) / 100,
+        escrowRefunded: Number(escrowStats.refundedAmount) / 100,
+        escrowHeldCount: Number(escrowStats.heldCount),
+        // Net
+        netPlatformIncome: (
+          Number(orderIncome.totalPlatformRevenue) +
+          Number(courseIncome.totalCourseSales) +
+          Number(subIncome.totalSubscriptionIncome) -
+          Number(courseIncome.courseRefunds) -
+          Number(payoutExpenses.completedPayouts) -
+          Number(refundExpenses.totalRefunds) -
+          Number(gatewayExpenses.totalGatewayFees)
+        ) / 100,
+      },
+      monthlyData,
+      recentTransactions: recentTx.map((tx) => ({
+        id: tx.id,
+        type: tx.type,
+        status: tx.status,
+        grossAmount: (tx.grossAmount || 0) / 100,
+        gatewayFee: (tx.gatewayFee || 0) / 100,
+        netAmount: (tx.netAmount || 0) / 100,
+        platformRevenue: (tx.platformRevenue || 0) / 100,
+        gateway: tx.gateway,
+        method: tx.gatewayMethod,
+        orderNumber: tx.order?.orderNumber || null,
+        createdAt: tx.createdAt,
+        paidAt: tx.paidAt,
+      })),
+      recentPayouts: recentPayouts.map((p) => ({
+        id: p.id,
+        seller: p.seller?.username || 'Unknown',
+        sellerEmail: p.seller?.email || '',
+        amount: (p.amount || 0) / 100,
+        fee: (p.fee || 0) / 100,
+        netAmount: (p.netAmount || 0) / 100,
+        status: p.status,
+        currency: p.currency,
+        processedAt: p.processedAt,
+        createdAt: p.createdAt,
+      })),
+      recentRefunds: recentRefunds.map((r) => ({
+        id: r.id,
+        amount: (r.amount || 0) / 100,
+        processingFee: (r.processingFee || 0) / 100,
+        reason: r.reason,
+        status: r.status,
+        type: r.refundType,
+        createdAt: r.createdAt,
+      })),
+    },
   });
 });
 
