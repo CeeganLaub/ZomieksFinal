@@ -413,24 +413,40 @@ app.get('/services', async (c) => {
   const page = parseInt(c.req.query('page') || '1');
   const limit = parseInt(c.req.query('limit') || '20');
   const status = c.req.query('status');
+  const search = c.req.query('search');
   const offset = (page - 1) * limit;
   
   let whereConditions: any[] = [];
   
   if (status) {
-    whereConditions.push(eq(services.status, status));
+    whereConditions.push(eq(services.status, status.toUpperCase()));
   }
   
+  if (search) {
+    whereConditions.push(like(services.title, `%${search}%`));
+  }
+  
+  const whereClause = whereConditions.length > 0 ? and(...whereConditions) : undefined;
+  
   const serviceList = await db.query.services.findMany({
-    where: whereConditions.length > 0 ? and(...whereConditions) : undefined,
+    where: whereClause,
     with: {
-      seller: { columns: { username: true, email: true } },
+      seller: {
+        columns: { id: true, username: true, firstName: true, lastName: true, email: true },
+        with: { sellerProfile: { columns: { displayName: true } } },
+      },
       category: { columns: { name: true } },
+      packages: { columns: { tier: true, price: true } },
     },
     orderBy: desc(services.createdAt),
     limit,
     offset,
   });
+  
+  const [{ total }] = await db
+    .select({ total: count() })
+    .from(services)
+    .where(whereClause);
   
   return c.json({
     success: true,
@@ -441,11 +457,15 @@ app.get('/services', async (c) => {
       status: s.status,
       isActive: s.isActive,
       isFeatured: s.isFeatured,
+      rating: s.rating / 100,
+      reviewCount: s.reviewCount,
+      orderCount: s.orderCount,
       seller: s.seller,
       category: s.category,
+      packages: s.packages,
       createdAt: s.createdAt,
     })),
-    meta: { page, limit },
+    meta: { page, limit, total: Number(total) },
   });
 });
 
@@ -528,10 +548,15 @@ app.get('/disputes', async (c) => {
     offset,
   });
   
+  const [{ total: disputeTotal }] = await db
+    .select({ total: count() })
+    .from(disputes)
+    .where(eq(disputes.status, status));
+  
   return c.json({
     success: true,
     data: disputeList,
-    meta: { page, limit },
+    meta: { page, limit, total: Number(disputeTotal) },
   });
 });
 
@@ -585,7 +610,7 @@ app.post('/disputes/:id/resolve', validate(disputeResolutionSchema), async (c) =
     }, 404);
   }
   
-  if (dispute.status !== 'OPEN' && dispute.status !== 'IN_REVIEW') {
+  if (dispute.status !== 'OPEN' && dispute.status !== 'UNDER_REVIEW') {
     return c.json({
       success: false,
       error: { message: 'Dispute already resolved' },
@@ -594,14 +619,22 @@ app.post('/disputes/:id/resolve', validate(disputeResolutionSchema), async (c) =
   
   const now = new Date().toISOString();
   
+  // Map resolution to proper dispute status
+  const statusMap: Record<string, string> = {
+    BUYER_FAVOR: 'RESOLVED_BUYER',
+    SELLER_FAVOR: 'RESOLVED_SELLER',
+    SPLIT: 'RESOLVED_SPLIT',
+    DISMISSED: 'CLOSED',
+  };
+  const newStatus = statusMap[body.resolution] || 'CLOSED';
+  
   // Update dispute
   await db.update(disputes)
     .set({
-      status: 'RESOLVED',
+      status: newStatus,
       resolution: body.resolution,
       resolvedBy: admin.id,
       resolvedAt: now,
-      adminNotes: body.notes || null,
       updatedAt: now,
     })
     .where(eq(disputes.id, id));
@@ -1094,6 +1127,13 @@ app.get('/courses', async (c) => {
   
   const courseList = await db.query.courses.findMany({
     where: whereConditions.length > 0 ? and(...whereConditions) : undefined,
+    with: {
+      seller: {
+        columns: { id: true, displayName: true },
+        with: { user: { columns: { username: true } } },
+      },
+      category: { columns: { name: true } },
+    },
     orderBy: desc(courses.createdAt),
     limit,
     offset,
@@ -1135,13 +1175,56 @@ app.get('/sellers/pending-kyc', async (c) => {
   const sellers = await db.query.sellerProfiles.findMany({
     where: eq(sellerProfiles.kycStatus, 'SUBMITTED'),
     with: {
-      user: { columns: { username: true, email: true, firstName: true, lastName: true } },
+      user: {
+        columns: { id: true, username: true, email: true, firstName: true, lastName: true, country: true },
+        with: { bankDetails: true },
+      },
     },
   });
   
   return c.json({
     success: true,
     data: { sellers },
+  });
+});
+
+// Verify KYC
+app.post('/sellers/:id/verify-kyc', async (c) => {
+  const { id } = c.req.param();
+  const db = c.get('db');
+  const { status } = await c.req.json<{ status: 'VERIFIED' | 'REJECTED' }>();
+  
+  if (!status || !['VERIFIED', 'REJECTED'].includes(status)) {
+    return c.json({
+      success: false,
+      error: { message: 'Status must be VERIFIED or REJECTED' },
+    }, 400);
+  }
+  
+  const profile = await db.query.sellerProfiles.findFirst({
+    where: eq(sellerProfiles.userId, id),
+  });
+  
+  if (!profile) {
+    return c.json({
+      success: false,
+      error: { message: 'Seller profile not found' },
+    }, 404);
+  }
+  
+  const now = new Date().toISOString();
+  await db.update(sellerProfiles)
+    .set({
+      kycStatus: status,
+      isVerified: status === 'VERIFIED',
+      updatedAt: now,
+    })
+    .where(eq(sellerProfiles.userId, id));
+  
+  return c.json({
+    success: true,
+    data: { profile: { ...profile, kycStatus: status, isVerified: status === 'VERIFIED' } },
+    message: `Seller KYC ${status.toLowerCase()}`,
   });
 });
 

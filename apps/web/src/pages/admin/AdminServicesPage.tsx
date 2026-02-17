@@ -113,7 +113,7 @@ export default function AdminServicesPage() {
         </form>
 
         <div className="flex gap-2">
-          {['', 'active', 'inactive', 'pending_review'].map((filter) => (
+          {['', 'ACTIVE', 'PENDING_REVIEW', 'REJECTED', 'PAUSED'].map((filter) => (
             <button
               key={filter}
               onClick={() => { setStatusFilter(filter); setPage(1); }}
@@ -121,7 +121,7 @@ export default function AdminServicesPage() {
                 statusFilter === filter ? 'bg-primary text-white border-primary' : 'hover:bg-muted'
               }`}
             >
-              {filter === '' ? 'All' : filter === 'active' ? 'Active' : filter === 'inactive' ? 'Inactive' : 'Pending Review'}
+              {filter === '' ? 'All' : filter === 'ACTIVE' ? 'Active' : filter === 'PENDING_REVIEW' ? 'Pending Review' : filter === 'REJECTED' ? 'Rejected' : 'Paused'}
             </button>
           ))}
         </div>

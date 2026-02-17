@@ -67,7 +67,9 @@ export default function AdminUsersPage() {
       );
       setUsers(res.data as unknown as AdminUser[]);
       setTotal(res.meta?.total || 0);
-    } catch {
+    } catch (err: any) {
+      console.error('Failed to load users:', err);
+      toast.error(err?.message || 'Failed to load users');
       setUsers([]);
     } finally {
       setLoading(false);

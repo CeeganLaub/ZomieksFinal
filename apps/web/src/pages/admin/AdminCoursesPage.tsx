@@ -168,7 +168,7 @@ export default function AdminCoursesPage() {
                         {Number(c.price) === 0 ? (
                           <span className="text-green-600 font-medium">Free</span>
                         ) : (
-                          <span>R{Number(c.price).toFixed(0)}</span>
+                          <span>R{(Number(c.price) / 100).toFixed(0)}</span>
                         )}
                       </td>
                       <td className="px-4 py-3">{c.enrollCount || 0}</td>
