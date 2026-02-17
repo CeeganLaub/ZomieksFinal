@@ -5,7 +5,7 @@ import { SignJWT } from 'jose';
 import { 
   users, orders, services, sellerProfiles, transactions,
   disputes, refunds, sellerPayouts, subscriptions, categories, bankDetails,
-  courses, userRoles, conversations, messages, courseEnrollments,
+  courses, userRoles, conversations, messages, courseEnrollments, courseSections, courseLessons, courseReviews,
   subscriptionPayments, escrowHolds,
   sellerMetrics, sellerSubscriptions, reviews, servicePackages, pipelineStages,
 } from '@zomieks/db';
@@ -1380,7 +1380,8 @@ app.get('/finance', async (c) => {
       courseRefunds: sql<number>`COALESCE(SUM(${courseEnrollments.refundedAmount}), 0)`,
       enrollmentCount: count(),
     })
-    .from(courseEnrollments);
+    .from(courseEnrollments)
+    .where(sql`(is_admin_created = 0 OR is_admin_created IS NULL)`);
 
   // --- INCOME: Subscription Payments ---
   const [subIncome] = await db
@@ -2259,12 +2260,33 @@ app.get('/sellers/managed/:id', async (c) => {
     limit: 30,
   });
 
+  // Courses (via sellerProfile)
+  const sellerCourses = seller.sellerProfile?.id
+    ? await db.query.courses.findMany({
+        where: eq(courses.sellerId, seller.sellerProfile.id),
+        orderBy: desc(courses.createdAt),
+        with: {
+          sections: { with: { lessons: true } },
+        },
+      })
+    : [];
+
+  // Enrollment counts per course
+  const courseIds = sellerCourses.map((c: any) => c.id);
+  const enrollmentCounts: Record<string, number> = {};
+  for (const cid of courseIds) {
+    const [ec] = await db.select({ cnt: count() }).from(courseEnrollments).where(eq(courseEnrollments.courseId, cid));
+    enrollmentCounts[cid] = Number(ec.cnt);
+  }
+  const coursesWithCounts = sellerCourses.map((c: any) => ({ ...c, enrollmentCount: enrollmentCounts[c.id] || 0 }));
+
   const fullSeller = {
     ...seller,
     services: servicesWithCounts,
     sellerOrders,
     sellerConversations: convsWithMessages,
     receivedReviews: sellerReviews,
+    courses: coursesWithCounts,
   };
 
   return c.json({ success: true, data: { seller: fullSeller, metrics } });
@@ -2424,6 +2446,8 @@ const metricsSchema = z.object({
   lateDeliveries: z.number().int().optional(),
   reviewsReceived: z.number().int().optional(),
   avgRating: z.number().optional(),
+  courseEnrollments: z.number().int().optional(),
+  courseRevenue: z.number().optional(),
 });
 
 app.post('/sellers/managed/:id/metrics', validate(metricsSchema), async (c) => {
@@ -2459,6 +2483,8 @@ app.post('/sellers/managed/:id/metrics', validate(metricsSchema), async (c) => {
   if (body.lateDeliveries !== undefined) { values.lateDeliveries = body.lateDeliveries; updateSet.lateDeliveries = body.lateDeliveries; }
   if (body.reviewsReceived !== undefined) { values.reviewsReceived = body.reviewsReceived; updateSet.reviewsReceived = body.reviewsReceived; }
   if (body.avgRating !== undefined) { const v = Math.round(body.avgRating * 100); values.avgRating = v; updateSet.avgRating = v; }
+  if (body.courseEnrollments !== undefined) { values.courseEnrollmentsCount = body.courseEnrollments; updateSet.courseEnrollmentsCount = body.courseEnrollments; }
+  if (body.courseRevenue !== undefined) { const v = Math.round(body.courseRevenue * 100); values.courseRevenue = v; updateSet.courseRevenue = v; }
 
   await db.insert(sellerMetrics).values(values).onConflictDoUpdate({
     target: [sellerMetrics.userId, sellerMetrics.date],
@@ -3107,7 +3133,10 @@ app.post('/sellers/managed/:id/generate', validate(generateDataSchema), async (c
       const clicks = rand(Math.floor(views * 0.1), Math.floor(views * 0.4));
       const impressions = rand(views, views * 3);
 
-      await db.run(sql`INSERT OR IGNORE INTO seller_metrics (id, user_id, date, profile_views, service_views, total_impressions, click_count, conversion_rate, response_rate, response_time_avg, created_at, updated_at) VALUES (${metricsId}, ${id}, ${date}, ${rand(5, 50)}, ${views}, ${impressions}, ${clicks}, ${rand(5, 25)}, ${rand(70, 100)}, ${rand(300, 3600)}, ${now}, ${now})`);
+      const courseEnrollsDay = rand(0, 5);
+      const courseRevenueDay = courseEnrollsDay * rand(5000, 30000); // cents
+
+      await db.run(sql`INSERT OR IGNORE INTO seller_metrics (id, user_id, date, profile_views, service_views, total_impressions, click_count, conversion_rate, response_rate, response_time_avg, course_enrollments, course_revenue, created_at, updated_at) VALUES (${metricsId}, ${id}, ${date}, ${rand(5, 50)}, ${views}, ${impressions}, ${clicks}, ${rand(5, 25)}, ${rand(70, 100)}, ${rand(300, 3600)}, ${courseEnrollsDay}, ${courseRevenueDay}, ${now}, ${now})`);
       generated.metrics++;
     }
   }
@@ -3137,6 +3166,164 @@ app.post('/sellers/managed/:id/generate', validate(generateDataSchema), async (c
   }
 
   return c.json({ success: true, data: { generated } });
+});
+
+// ============ ADMIN COURSE MANAGEMENT ============
+
+const createCourseSchema = z.object({
+  title: z.string().min(3),
+  description: z.string().min(10),
+  price: z.number().min(0),
+  level: z.enum(['BEGINNER', 'INTERMEDIATE', 'ADVANCED', 'ALL_LEVELS']).optional(),
+  status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']).optional(),
+  sections: z.array(z.object({
+    title: z.string(),
+    lessons: z.array(z.object({
+      title: z.string(),
+      duration: z.number().int().optional(),
+    })).optional(),
+  })).optional(),
+});
+
+app.post('/sellers/managed/:id/courses', validate(createCourseSchema), async (c) => {
+  const { id } = c.req.param();
+  const body = getValidatedBody<z.infer<typeof createCourseSchema>>(c);
+  const db = c.get('db');
+  const now = new Date().toISOString();
+
+  // Look up seller profile (courses.sellerId -> sellerProfiles.id)
+  const profile = await db.query.sellerProfiles.findFirst({
+    where: eq(sellerProfiles.userId, id),
+  });
+  if (!profile) {
+    return c.json({ success: false, error: { code: 'NOT_FOUND', message: 'Seller profile not found' } }, 404);
+  }
+
+  const slug = body.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') + '-' + createId().slice(0, 6);
+  const courseId = createId();
+  const priceInCents = Math.round(body.price * 100);
+
+  await db.insert(courses).values({
+    id: courseId,
+    sellerId: profile.id,
+    title: body.title,
+    slug,
+    description: body.description,
+    price: priceInCents,
+    level: body.level || 'ALL_LEVELS',
+    status: body.status || 'PUBLISHED',
+    publishedAt: (body.status || 'PUBLISHED') === 'PUBLISHED' ? now : null,
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  // Create sections + lessons
+  const sectionsInput = body.sections?.length ? body.sections : [{ title: 'Getting Started', lessons: [{ title: 'Introduction', duration: 300 }] }];
+  for (let i = 0; i < sectionsInput.length; i++) {
+    const sec = sectionsInput[i];
+    const sectionId = createId();
+    await db.insert(courseSections).values({
+      id: sectionId,
+      courseId,
+      title: sec.title,
+      order: i + 1,
+      createdAt: now,
+      updatedAt: now,
+    });
+    const lessonsInput = sec.lessons?.length ? sec.lessons : [{ title: 'Lesson 1', duration: 300 }];
+    for (let j = 0; j < lessonsInput.length; j++) {
+      await db.insert(courseLessons).values({
+        id: createId(),
+        sectionId,
+        title: lessonsInput[j].title,
+        order: j + 1,
+        duration: lessonsInput[j].duration || 300,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+  }
+
+  const course = await db.query.courses.findFirst({
+    where: eq(courses.id, courseId),
+    with: { sections: { with: { lessons: true } } },
+  });
+
+  return c.json({ success: true, data: { course } });
+});
+
+// Simulate course enrollments
+const simulateEnrollmentsSchema = z.object({
+  count: z.number().int().min(1).max(50),
+  minAmount: z.number().optional(),
+  maxAmount: z.number().optional(),
+});
+
+app.post('/sellers/managed/:id/courses/:courseId/enroll', validate(simulateEnrollmentsSchema), async (c) => {
+  const { id, courseId } = c.req.param();
+  const body = getValidatedBody<z.infer<typeof simulateEnrollmentsSchema>>(c);
+  const db = c.get('db');
+  const now = new Date().toISOString();
+
+  const course = await db.query.courses.findFirst({ where: eq(courses.id, courseId) });
+  if (!course) {
+    return c.json({ success: false, error: { code: 'NOT_FOUND', message: 'Course not found' } }, 404);
+  }
+
+  // Get managed users to enroll
+  const managed = await db.select({ id: users.id }).from(users)
+    .where(and(eq(users.isAdminCreated, true), eq(users.isSeller, false)));
+
+  if (managed.length === 0) {
+    return c.json({ success: false, error: { code: 'BAD_REQUEST', message: 'No managed users available. Create users first.' } }, 400);
+  }
+
+  // Get already enrolled user IDs for this course
+  const existing = await db.select({ userId: courseEnrollments.userId })
+    .from(courseEnrollments).where(eq(courseEnrollments.courseId, courseId));
+  const enrolledSet = new Set(existing.map(e => e.userId));
+  const available = managed.filter(u => !enrolledSet.has(u.id));
+
+  const toEnroll = Math.min(body.count, available.length);
+  if (toEnroll === 0) {
+    return c.json({ success: false, error: { code: 'BAD_REQUEST', message: 'All managed users already enrolled in this course.' } }, 400);
+  }
+
+  const rand = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
+  let enrolled = 0;
+  let totalRevenue = 0;
+
+  for (let i = 0; i < toEnroll; i++) {
+    const userId = available[i].id;
+    const amountPaid = body.minAmount && body.maxAmount
+      ? rand(Math.round(body.minAmount * 100), Math.round(body.maxAmount * 100))
+      : course.price;
+    const progress = rand(0, 100);
+    const enrollId = createId();
+
+    await db.insert(courseEnrollments).values({
+      id: enrollId,
+      userId,
+      courseId,
+      amountPaid,
+      gateway: 'CREDIT',
+      paidAt: now,
+      progressPercent: progress,
+      completedAt: progress === 100 ? now : null,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await db.run(sql`UPDATE course_enrollments SET is_admin_created = 1 WHERE id = ${enrollId}`);
+
+    enrolled++;
+    totalRevenue += amountPaid;
+  }
+
+  // Update course enroll count
+  const [ec] = await db.select({ cnt: count() }).from(courseEnrollments).where(eq(courseEnrollments.courseId, courseId));
+  await db.update(courses).set({ enrollCount: Number(ec.cnt), updatedAt: now }).where(eq(courses.id, courseId));
+
+  return c.json({ success: true, data: { enrolled, totalRevenue, available: available.length - toEnroll } });
 });
 
 export default app;

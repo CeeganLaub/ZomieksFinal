@@ -13,6 +13,7 @@ import {
   UserGroupIcon,
   PencilIcon,
   XCircleIcon,
+  AcademicCapIcon,
 } from '@heroicons/react/24/outline';
 import { StarIcon as StarSolid } from '@heroicons/react/24/solid';
 
@@ -54,6 +55,7 @@ interface SellerDetails {
     sellerOrders: any[];
     sellerConversations: any[];
     receivedReviews: any[];
+    courses: any[];
     bankDetails: any;
   };
   metrics: any[];
@@ -82,7 +84,7 @@ export default function AdminSellerManagementPage() {
   const [managedUsers, setManagedUsers] = useState<ManagedUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'orders' | 'conversations' | 'services' | 'reviews' | 'analytics' | 'users'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'orders' | 'conversations' | 'services' | 'reviews' | 'analytics' | 'courses' | 'users'>('overview');
   const [showCreateSeller, setShowCreateSeller] = useState(false);
   const [showCreateUser, setShowCreateUser] = useState(false);
   const [showCreateReview, setShowCreateReview] = useState(false);
@@ -332,6 +334,7 @@ export default function AdminSellerManagementPage() {
                   { key: 'services', label: 'Services', icon: DocumentTextIcon },
                   { key: 'reviews', label: 'Reviews', icon: StarIcon },
                   { key: 'analytics', label: 'Analytics', icon: ChartBarIcon },
+                  { key: 'courses', label: 'Courses', icon: AcademicCapIcon },
                   { key: 'users', label: 'Users', icon: UserGroupIcon },
                 ].map((tab) => (
                   <button
@@ -374,6 +377,13 @@ export default function AdminSellerManagementPage() {
                   sellerId={selectedSeller.seller.id}
                   showEditMetrics={showEditMetrics}
                   setShowEditMetrics={setShowEditMetrics}
+                  onUpdate={() => loadSellerDetails(selectedSeller.seller.id)}
+                />
+              )}
+              {activeTab === 'courses' && (
+                <CoursesTab
+                  courses={selectedSeller.seller.courses || []}
+                  sellerId={selectedSeller.seller.id}
                   onUpdate={() => loadSellerDetails(selectedSeller.seller.id)}
                 />
               )}
@@ -473,12 +483,16 @@ function PlanSwitcher({ sellerId, currentPlan, onUpdate }: { sellerId: string; c
 
 function OverviewTab({ seller }: { seller: SellerDetails }) {
   const profile = seller.seller.sellerProfile;
+  const courseCount = seller.seller.courses?.length || 0;
+  const totalEnrollments = seller.seller.courses?.reduce((sum: number, c: any) => sum + (c.enrollmentCount || 0), 0) || 0;
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
       <StatCard label="Completed Orders" value={profile?.completedOrders || 0} />
       <StatCard label="Rating" value={`${Number(profile?.rating || 0).toFixed(1)} / 5.0`} />
       <StatCard label="Reviews" value={profile?.reviewCount || 0} />
       <StatCard label="Services" value={seller.seller.services?.length || 0} />
+      <StatCard label="Courses" value={courseCount} />
+      <StatCard label="Enrollments" value={totalEnrollments} />
       <StatCard label="Level" value={profile?.level || 1} />
       <StatCard label="On-Time Rate" value={`${Number(profile?.onTimeDeliveryRate || 100).toFixed(0)}%`} />
 
@@ -788,6 +802,8 @@ function AnalyticsTab({ metrics, sellerId, showEditMetrics, setShowEditMetrics, 
                 <th className="text-left px-4 py-3 font-medium">Gross Revenue</th>
                 <th className="text-left px-4 py-3 font-medium">Net Revenue</th>
                 <th className="text-left px-4 py-3 font-medium">Avg Rating</th>
+                <th className="text-left px-4 py-3 font-medium">Course Enrolls</th>
+                <th className="text-left px-4 py-3 font-medium">Course Revenue</th>
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -799,6 +815,8 @@ function AnalyticsTab({ metrics, sellerId, showEditMetrics, setShowEditMetrics, 
                   <td className="px-4 py-3">R{Number(m.grossRevenue).toFixed(2)}</td>
                   <td className="px-4 py-3">R{Number(m.netRevenue).toFixed(2)}</td>
                   <td className="px-4 py-3">{m.avgRating ? Number(m.avgRating).toFixed(1) : '-'}</td>
+                  <td className="px-4 py-3">{m.courseEnrollmentsCount || 0}</td>
+                  <td className="px-4 py-3">R{(Number(m.courseRevenue || 0) / 100).toFixed(2)}</td>
                 </tr>
               ))}
             </tbody>
@@ -1425,6 +1443,8 @@ function EditMetricsModal({ sellerId, onClose, onSaved }: { sellerId: string; on
     lateDeliveries: '0',
     reviewsReceived: '3',
     avgRating: '4.8',
+    courseEnrollments: '2',
+    courseRevenue: '500',
   });
   const [submitting, setSubmitting] = useState(false);
 
@@ -1457,6 +1477,8 @@ function EditMetricsModal({ sellerId, onClose, onSaved }: { sellerId: string; on
         lateDeliveries: parseInt(form.lateDeliveries),
         reviewsReceived: parseInt(form.reviewsReceived),
         avgRating: parseFloat(form.avgRating),
+        courseEnrollments: parseInt(form.courseEnrollments),
+        courseRevenue: parseFloat(form.courseRevenue),
       });
       toast.success('Metrics saved');
       onSaved();
@@ -1487,6 +1509,10 @@ function EditMetricsModal({ sellerId, onClose, onSaved }: { sellerId: string; on
           <FormField label="On-Time Deliveries" value={form.onTimeDeliveries} onChange={(v) => setForm({ ...form, onTimeDeliveries: v })} type="number" />
           <FormField label="Reviews Received" value={form.reviewsReceived} onChange={(v) => setForm({ ...form, reviewsReceived: v })} type="number" />
           <FormField label="Avg Rating" value={form.avgRating} onChange={(v) => setForm({ ...form, avgRating: v })} type="number" />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <FormField label="Course Enrollments" value={form.courseEnrollments} onChange={(v) => setForm({ ...form, courseEnrollments: v })} type="number" />
+          <FormField label="Course Revenue (R)" value={form.courseRevenue} onChange={(v) => setForm({ ...form, courseRevenue: v })} type="number" />
         </div>
         <div className="flex justify-end gap-2 pt-2">
           <button type="button" onClick={onClose} className="px-4 py-2 text-sm border rounded-lg hover:bg-muted">Cancel</button>
@@ -1555,6 +1581,191 @@ function RatingSelect({ label, value, onChange }: { label: string; value: number
         ))}
       </select>
     </div>
+  );
+}
+
+// ============ COURSES TAB ============
+
+function CoursesTab({ courses, sellerId, onUpdate }: { courses: any[]; sellerId: string; onUpdate: () => void }) {
+  const [showCreate, setShowCreate] = useState(false);
+  const [enrollCourseId, setEnrollCourseId] = useState<string | null>(null);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold">Courses ({courses.length})</h3>
+        <button
+          onClick={() => setShowCreate(true)}
+          className="flex items-center gap-1 px-3 py-1.5 text-xs bg-primary text-primary-foreground rounded-lg hover:bg-primary/90"
+        >
+          <PlusIcon className="h-3.5 w-3.5" /> Create Course
+        </button>
+      </div>
+
+      {courses.length === 0 ? (
+        <EmptyState message="No courses yet. Create a course to get started." />
+      ) : (
+        <div className="bg-background border rounded-lg overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50 border-b">
+              <tr>
+                <th className="text-left px-4 py-3 font-medium">Title</th>
+                <th className="text-left px-4 py-3 font-medium">Price</th>
+                <th className="text-left px-4 py-3 font-medium">Status</th>
+                <th className="text-left px-4 py-3 font-medium">Enrollments</th>
+                <th className="text-left px-4 py-3 font-medium">Sections</th>
+                <th className="text-left px-4 py-3 font-medium">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {courses.map((c: any) => (
+                <tr key={c.id} className="hover:bg-muted/30">
+                  <td className="px-4 py-3">
+                    <div>
+                      <p className="font-medium">{c.title}</p>
+                      <p className="text-xs text-muted-foreground">{c.level}</p>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">R{(Number(c.price) / 100).toFixed(2)}</td>
+                  <td className="px-4 py-3"><StatusBadge status={c.status} /></td>
+                  <td className="px-4 py-3">{c.enrollmentCount || 0}</td>
+                  <td className="px-4 py-3">{c.sections?.length || 0}</td>
+                  <td className="px-4 py-3">
+                    <button
+                      onClick={() => setEnrollCourseId(c.id)}
+                      className="px-2 py-1 text-xs bg-blue-50 text-blue-700 rounded hover:bg-blue-100"
+                    >
+                      Simulate Enrollments
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {showCreate && (
+        <CreateCourseModal
+          sellerId={sellerId}
+          onClose={() => setShowCreate(false)}
+          onCreated={() => { onUpdate(); setShowCreate(false); }}
+        />
+      )}
+      {enrollCourseId && (
+        <SimulateEnrollmentsModal
+          sellerId={sellerId}
+          courseId={enrollCourseId}
+          onClose={() => setEnrollCourseId(null)}
+          onDone={() => { onUpdate(); setEnrollCourseId(null); }}
+        />
+      )}
+    </div>
+  );
+}
+
+function CreateCourseModal({ sellerId, onClose, onCreated }: { sellerId: string; onClose: () => void; onCreated: () => void }) {
+  const [form, setForm] = useState({
+    title: '', description: '', price: '299', level: 'ALL_LEVELS',
+    sectionTitle: 'Getting Started', lessonTitle: 'Introduction',
+  });
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      setSubmitting(true);
+      await adminApi.createCourse(sellerId, {
+        title: form.title,
+        description: form.description,
+        price: parseFloat(form.price),
+        level: form.level,
+        status: 'PUBLISHED',
+        sections: [{ title: form.sectionTitle, lessons: [{ title: form.lessonTitle, duration: 600 }] }],
+      });
+      toast.success('Course created');
+      onCreated();
+    } catch {
+      toast.error('Failed to create course');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <ModalWrapper title="Create Course" onClose={onClose}>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <FormField label="Title" value={form.title} onChange={(v) => setForm({ ...form, title: v })} required />
+        <div>
+          <label className="block text-sm font-medium mb-1">Description</label>
+          <textarea
+            value={form.description}
+            onChange={(e) => setForm({ ...form, description: e.target.value })}
+            required
+            rows={3}
+            className="w-full px-3 py-2 rounded-lg border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <FormField label="Price (R)" value={form.price} onChange={(v) => setForm({ ...form, price: v })} type="number" />
+          <div>
+            <label className="block text-sm font-medium mb-1">Level</label>
+            <select
+              value={form.level}
+              onChange={(e) => setForm({ ...form, level: e.target.value })}
+              className="w-full h-10 px-3 rounded-lg border bg-background text-sm"
+            >
+              <option value="ALL_LEVELS">All Levels</option>
+              <option value="BEGINNER">Beginner</option>
+              <option value="INTERMEDIATE">Intermediate</option>
+              <option value="ADVANCED">Advanced</option>
+            </select>
+          </div>
+        </div>
+        <FormField label="First Section Title" value={form.sectionTitle} onChange={(v) => setForm({ ...form, sectionTitle: v })} />
+        <FormField label="First Lesson Title" value={form.lessonTitle} onChange={(v) => setForm({ ...form, lessonTitle: v })} />
+        <div className="flex justify-end gap-2 pt-2">
+          <button type="button" onClick={onClose} className="px-4 py-2 text-sm border rounded-lg hover:bg-muted">Cancel</button>
+          <button type="submit" disabled={submitting} className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50">
+            {submitting ? 'Creating...' : 'Create Course'}
+          </button>
+        </div>
+      </form>
+    </ModalWrapper>
+  );
+}
+
+function SimulateEnrollmentsModal({ sellerId, courseId, onClose, onDone }: { sellerId: string; courseId: string; onClose: () => void; onDone: () => void }) {
+  const [count, setCount] = useState('5');
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      setSubmitting(true);
+      const res = await adminApi.simulateEnrollments(sellerId, courseId, { count: parseInt(count) });
+      toast.success(`Enrolled ${(res.data as any)?.enrolled || parseInt(count)} users`);
+      onDone();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error?.message || 'Failed to simulate enrollments');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <ModalWrapper title="Simulate Enrollments" onClose={onClose}>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <p className="text-xs text-muted-foreground">Enroll admin-created users into this course. Make sure you have created users first via the Users tab.</p>
+        <FormField label="Number of Enrollments" value={count} onChange={setCount} type="number" />
+        <div className="flex justify-end gap-2 pt-2">
+          <button type="button" onClick={onClose} className="px-4 py-2 text-sm border rounded-lg hover:bg-muted">Cancel</button>
+          <button type="submit" disabled={submitting} className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50">
+            {submitting ? 'Enrolling...' : 'Simulate'}
+          </button>
+        </div>
+      </form>
+    </ModalWrapper>
   );
 }
 

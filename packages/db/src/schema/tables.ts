@@ -968,6 +968,9 @@ export const sellerMetrics = sqliteTable('seller_metrics', {
 
   reviewsReceived: integer('reviews_received').default(0).notNull(),
   avgRating: integer('avg_rating'), // *100
+
+  courseEnrollmentsCount: integer('course_enrollments').default(0).notNull(),
+  courseRevenue: integer('course_revenue').default(0).notNull(), // cents
 }, (table) => ({
   userDateUnique: uniqueIndex('seller_metrics_user_date_unique').on(table.userId, table.date),
   userDateIdx: index('seller_metrics_user_date_idx').on(table.userId, table.date),

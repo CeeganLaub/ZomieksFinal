@@ -301,6 +301,11 @@ jobs:
           run_sql "ALTER TABLE messages ADD COLUMN is_admin_created INTEGER DEFAULT 0;"
           run_sql "ALTER TABLE services ADD COLUMN is_admin_created INTEGER DEFAULT 0;"
 
+          echo "=== Course metrics + enrollment isolation ==="
+          run_sql "ALTER TABLE seller_metrics ADD COLUMN course_enrollments INTEGER DEFAULT 0;"
+          run_sql "ALTER TABLE seller_metrics ADD COLUMN course_revenue INTEGER DEFAULT 0;"
+          run_sql "ALTER TABLE course_enrollments ADD COLUMN is_admin_created INTEGER DEFAULT 0;"
+
           echo "Schema fixes complete"
 
       - name: Apply D1 Migrations

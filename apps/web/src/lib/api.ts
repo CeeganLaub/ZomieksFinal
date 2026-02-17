@@ -795,6 +795,13 @@ export const adminApi = {
   // Bulk data generation
   generateData: (sellerId: string, config: { reviews?: { count: number; minRating?: number; maxRating?: number }; orders?: { count: number; minAmount?: number; maxAmount?: number }; conversations?: { count: number; messagesPerConversation?: number }; metrics?: { days: number } }) =>
     api.post<ApiResponse<{ generated: { orders: number; reviews: number; conversations: number; messages: number; metrics: number } }>>(`/admin/sellers/managed/${sellerId}/generate`, config),
+
+  // Course management
+  createCourse: (sellerId: string, data: { title: string; description: string; price: number; level?: string; status?: string; sections?: { title: string; lessons?: { title: string; duration?: number }[] }[] }) =>
+    api.post<ApiResponse<{ course: unknown }>>(`/admin/sellers/managed/${sellerId}/courses`, data),
+
+  simulateEnrollments: (sellerId: string, courseId: string, data: { count: number; minAmount?: number; maxAmount?: number }) =>
+    api.post<ApiResponse<{ enrolled: number; totalRevenue: number; available: number }>>(`/admin/sellers/managed/${sellerId}/courses/${courseId}/enroll`, data),
 };
 
 export { setAuthToken, getAuthToken };
