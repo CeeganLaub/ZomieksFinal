@@ -138,6 +138,22 @@ export default function AdminKYCPage() {
                   <div className="text-sm">
                     <span className="text-muted-foreground">Country:</span>{' '}
                     <span className="font-medium">{seller.user.country || 'N/A'}</span>
+                    {(() => {
+                      const c = (seller.user.country || '').trim().toLowerCase();
+                      const isSA = ['za', 'south africa', 'sa', 'rsa'].includes(c);
+                      if (!isSA) {
+                        return (
+                          <span className="ml-2 inline-flex items-center gap-1 text-xs font-medium text-red-700 bg-red-100 px-1.5 py-0.5 rounded-full">
+                            Non-SA — Cannot verify
+                          </span>
+                        );
+                      }
+                      return (
+                        <span className="ml-2 inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-100 px-1.5 py-0.5 rounded-full">
+                          SA ✓
+                        </span>
+                      );
+                    })()}
                   </div>
                   <div className="text-sm">
                     <span className="text-muted-foreground">Registered:</span>{' '}

@@ -733,6 +733,10 @@ export const conversations = sqliteTable('conversations', {
   probability: integer('probability'),
   expectedClose: text('expected_close'),
 
+  // Admin moderation
+  adminFlagged: integer('admin_flagged', { mode: 'boolean' }).default(false).notNull(),
+  adminNotes: text('admin_notes'),
+
   // These columns exist in the DB as is_starred / is_archived
   isStarred: integer('is_starred', { mode: 'boolean' }).default(false).notNull(),
   isArchived: integer('is_archived', { mode: 'boolean' }).default(false).notNull(),

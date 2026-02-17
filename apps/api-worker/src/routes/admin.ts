@@ -1,10 +1,10 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { eq, and, desc, sql, count, gte, lte, like, or } from 'drizzle-orm';
+import { eq, and, desc, sql, count, gte, lte, like, or, sum } from 'drizzle-orm';
 import { 
   users, orders, services, sellerProfiles, transactions,
   disputes, refunds, sellerPayouts, subscriptions, categories, bankDetails,
-  courses, userRoles,
+  courses, userRoles, conversations, messages, courseEnrollments,
 } from '@zomieks/db';
 import { createId } from '@paralleldrive/cuid2';
 import type { Env } from '../types';
@@ -1211,6 +1211,22 @@ app.post('/sellers/:id/verify-kyc', async (c) => {
       error: { message: 'Seller profile not found' },
     }, 404);
   }
+
+  // South Africa check: only SA sellers can be verified for payouts
+  if (status === 'VERIFIED') {
+    const user = await db.query.users.findFirst({
+      where: eq(users.id, id),
+      columns: { country: true },
+    });
+    const country = (user?.country || '').trim().toLowerCase();
+    const validCountries = ['za', 'south africa', 'sa', 'rsa'];
+    if (!validCountries.includes(country)) {
+      return c.json({
+        success: false,
+        error: { message: `Only South African sellers can be verified for payouts. This seller's country is listed as "${user?.country || 'Not set'}".` },
+      }, 400);
+    }
+  }
   
   const now = new Date().toISOString();
   await db.update(sellerProfiles)
@@ -1226,6 +1242,344 @@ app.post('/sellers/:id/verify-kyc', async (c) => {
     data: { profile: { ...profile, kycStatus: status, isVerified: status === 'VERIFIED' } },
     message: `Seller KYC ${status.toLowerCase()}`,
   });
+});
+
+// ============ ANALYTICS ============
+app.get('/analytics', async (c) => {
+  const db = c.get('db');
+  const now = new Date();
+
+  // Overview aggregates
+  const [userStats] = await db
+    .select({
+      total: count(),
+      sellers: sql<number>`SUM(CASE WHEN ${users.isSeller} = 1 THEN 1 ELSE 0 END)`,
+    })
+    .from(users);
+
+  const [orderStats] = await db
+    .select({
+      total: count(),
+      gmv: sql<number>`COALESCE(SUM(${orders.grossAmount}), 0)`,
+      platformRevenue: sql<number>`COALESCE(SUM(CASE WHEN ${orders.status} = 'COMPLETED' THEN ${orders.platformRevenue} ELSE 0 END), 0)`,
+    })
+    .from(orders);
+
+  const [payoutStats] = await db
+    .select({
+      total: sql<number>`COALESCE(SUM(${sellerPayouts.amount}), 0)`,
+    })
+    .from(sellerPayouts)
+    .where(eq(sellerPayouts.status, 'COMPLETED'));
+
+  const [serviceStats] = await db.select({ total: count() }).from(services);
+  const [courseStats] = await db.select({ total: count() }).from(courses);
+  const [enrollmentStats] = await db.select({ total: count() }).from(courseEnrollments);
+  const [conversationStats] = await db.select({ total: count() }).from(conversations);
+
+  const totalOrders = Number(orderStats.total);
+  const totalConversations = Number(conversationStats.total);
+  const platformConversionRate = totalConversations > 0
+    ? Math.round((totalOrders / totalConversations) * 100)
+    : 0;
+
+  // Monthly data (last 6 months)
+  const monthlyData = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const monthStart = d.toISOString().slice(0, 10);
+    const nextMonth = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+    const monthEnd = nextMonth.toISOString().slice(0, 10);
+    const monthLabel = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+
+    const [mOrders] = await db
+      .select({
+        revenue: sql<number>`COALESCE(SUM(CASE WHEN ${orders.status} = 'COMPLETED' THEN ${orders.platformRevenue} ELSE 0 END), 0)`,
+        orderCount: count(),
+      })
+      .from(orders)
+      .where(and(gte(orders.createdAt, monthStart), lte(orders.createdAt, monthEnd)));
+
+    const [mUsers] = await db
+      .select({ userCount: count() })
+      .from(users)
+      .where(and(gte(users.createdAt, monthStart), lte(users.createdAt, monthEnd)));
+
+    monthlyData.push({
+      month: monthLabel,
+      revenue: Number(mOrders.revenue) / 100,
+      orders: Number(mOrders.orderCount),
+      users: Number(mUsers.userCount),
+      isPartial: i === 0,
+    });
+  }
+
+  // Orders by status
+  const statusRows = await db
+    .select({
+      status: orders.status,
+      cnt: count(),
+      totalAmount: sql<number>`COALESCE(SUM(${orders.grossAmount}), 0)`,
+    })
+    .from(orders)
+    .groupBy(orders.status);
+
+  const ordersByStatus = statusRows.map((r) => ({
+    status: r.status,
+    count: Number(r.cnt),
+    totalAmount: Number(r.totalAmount) / 100,
+  }));
+
+  // Top services (by order count)
+  const topServiceRows = await db.query.services.findMany({
+    orderBy: desc(services.orderCount),
+    limit: 10,
+    with: {
+      seller: {
+        columns: { username: true },
+        with: { sellerProfile: { columns: { displayName: true } } },
+      },
+      packages: { columns: { price: true } },
+    },
+  });
+
+  const topServices = topServiceRows.map((s) => ({
+    id: s.id,
+    title: s.title,
+    seller: s.seller?.sellerProfile?.displayName || s.seller?.username || 'Unknown',
+    orderCount: s.orderCount,
+    viewCount: s.viewCount,
+    rating: s.rating / 100,
+    reviewCount: s.reviewCount,
+    startingPrice: s.packages?.length
+      ? Math.min(...s.packages.map((p) => p.price)) / 100
+      : 0,
+  }));
+
+  // Top courses (by enroll count)
+  const topCourseRows = await db.query.courses.findMany({
+    orderBy: desc(courses.enrollCount),
+    limit: 10,
+    with: {
+      seller: {
+        columns: { displayName: true },
+      },
+    },
+  });
+
+  const topCourses = topCourseRows.map((cr) => ({
+    id: cr.id,
+    title: cr.title,
+    instructor: cr.seller?.displayName || 'Unknown',
+    enrollCount: cr.enrollCount,
+    rating: cr.rating / 100,
+    reviewCount: cr.reviewCount,
+    price: cr.price / 100,
+  }));
+
+  return c.json({
+    success: true,
+    data: {
+      overview: {
+        totalUsers: Number(userStats.total),
+        totalSellers: Number(userStats.sellers),
+        totalOrders,
+        totalGMV: Number(orderStats.gmv) / 100,
+        totalPlatformRevenue: Number(orderStats.platformRevenue) / 100,
+        totalSellerPayouts: Number(payoutStats.total) / 100,
+        totalServices: Number(serviceStats.total),
+        totalCourses: Number(courseStats.total),
+        totalEnrollments: Number(enrollmentStats.total),
+        totalConversations,
+        platformConversionRate,
+      },
+      monthlyData,
+      ordersByStatus,
+      topServices,
+      topCourses,
+    },
+  });
+});
+
+// ============ ADMIN INBOX / CONVERSATIONS ============
+
+// List conversations
+app.get('/conversations', async (c) => {
+  const db = c.get('db');
+  const page = parseInt(c.req.query('page') || '1');
+  const limit = parseInt(c.req.query('limit') || '20');
+  const search = c.req.query('search');
+  const flagged = c.req.query('flagged');
+  const offset = (page - 1) * limit;
+
+  let whereConditions: any[] = [];
+
+  if (flagged === 'true') {
+    whereConditions.push(eq(conversations.adminFlagged, true));
+  }
+
+  const whereClause = whereConditions.length > 0 ? and(...whereConditions) : undefined;
+
+  // Get conversations
+  const convList = await db.query.conversations.findMany({
+    where: whereClause,
+    with: {
+      buyer: { columns: { id: true, username: true, email: true, firstName: true, avatar: true } },
+      seller: { columns: { id: true, username: true, email: true, firstName: true, avatar: true } },
+      order: { columns: { id: true, orderNumber: true, status: true, totalAmount: true } },
+      messages: {
+        orderBy: desc(messages.createdAt),
+        limit: 1,
+        columns: { id: true, content: true, type: true, senderId: true, createdAt: true },
+      },
+    },
+    orderBy: desc(conversations.lastMessageAt),
+    limit,
+    offset,
+  });
+
+  // Apply search filter in-memory (searches buyer/seller username/email)
+  let filtered = convList;
+  if (search) {
+    const s = search.toLowerCase();
+    filtered = convList.filter((conv) =>
+      conv.buyer?.username?.toLowerCase().includes(s) ||
+      conv.buyer?.email?.toLowerCase().includes(s) ||
+      conv.seller?.username?.toLowerCase().includes(s) ||
+      conv.seller?.email?.toLowerCase().includes(s)
+    );
+  }
+
+  const [{ total }] = await db
+    .select({ total: count() })
+    .from(conversations)
+    .where(whereClause);
+
+  return c.json({
+    success: true,
+    data: {
+      conversations: filtered.map((conv) => ({
+        id: conv.id,
+        buyerId: conv.buyerId,
+        sellerId: conv.sellerId,
+        status: conv.status,
+        adminFlagged: conv.adminFlagged,
+        adminNotes: conv.adminNotes,
+        lastMessageAt: conv.lastMessageAt,
+        createdAt: conv.createdAt,
+        buyer: conv.buyer,
+        seller: conv.seller,
+        order: conv.order ? {
+          id: conv.order.id,
+          orderNumber: conv.order.orderNumber,
+          status: conv.order.status,
+          totalAmount: (conv.order.totalAmount || 0) / 100,
+        } : null,
+        messages: conv.messages || [],
+        _count: { messages: conv.messageCount },
+      })),
+    },
+    meta: { page, limit, total: Number(total) },
+  });
+});
+
+// Get conversation detail
+app.get('/conversations/:id', async (c) => {
+  const { id } = c.req.param();
+  const db = c.get('db');
+
+  const conv = await db.query.conversations.findFirst({
+    where: eq(conversations.id, id),
+    with: {
+      buyer: { columns: { id: true, username: true, email: true, firstName: true, avatar: true } },
+      seller: { columns: { id: true, username: true, email: true, firstName: true, avatar: true } },
+      order: { columns: { id: true, orderNumber: true, status: true, totalAmount: true } },
+      messages: {
+        orderBy: messages.createdAt,
+        with: {
+          sender: { columns: { id: true, username: true, firstName: true, avatar: true } },
+        },
+      },
+    },
+  });
+
+  if (!conv) {
+    return c.json({ success: false, error: { message: 'Conversation not found' } }, 404);
+  }
+
+  return c.json({
+    success: true,
+    data: {
+      conversation: {
+        id: conv.id,
+        buyerId: conv.buyerId,
+        sellerId: conv.sellerId,
+        adminFlagged: conv.adminFlagged,
+        adminNotes: conv.adminNotes,
+        buyer: conv.buyer,
+        seller: conv.seller,
+        order: conv.order ? {
+          id: conv.order.id,
+          orderNumber: conv.order.orderNumber,
+          status: conv.order.status,
+          totalAmount: (conv.order.totalAmount || 0) / 100,
+        } : null,
+        messages: conv.messages.map((m) => ({
+          id: m.id,
+          content: m.content,
+          type: m.type,
+          senderId: m.senderId,
+          createdAt: m.createdAt,
+          sender: m.sender,
+        })),
+      },
+    },
+  });
+});
+
+// Flag conversation
+app.post('/conversations/:id/flag', async (c) => {
+  const { id } = c.req.param();
+  const db = c.get('db');
+  const { reason } = await c.req.json<{ reason?: string }>();
+
+  const conv = await db.query.conversations.findFirst({
+    where: eq(conversations.id, id),
+    columns: { id: true },
+  });
+
+  if (!conv) {
+    return c.json({ success: false, error: { message: 'Conversation not found' } }, 404);
+  }
+
+  const now = new Date().toISOString();
+  await db.update(conversations)
+    .set({ adminFlagged: true, adminNotes: reason || 'Flagged by admin', updatedAt: now })
+    .where(eq(conversations.id, id));
+
+  return c.json({ success: true, message: 'Conversation flagged' });
+});
+
+// Unflag conversation
+app.post('/conversations/:id/unflag', async (c) => {
+  const { id } = c.req.param();
+  const db = c.get('db');
+
+  const conv = await db.query.conversations.findFirst({
+    where: eq(conversations.id, id),
+    columns: { id: true },
+  });
+
+  if (!conv) {
+    return c.json({ success: false, error: { message: 'Conversation not found' } }, 404);
+  }
+
+  const now = new Date().toISOString();
+  await db.update(conversations)
+    .set({ adminFlagged: false, adminNotes: null, updatedAt: now })
+    .where(eq(conversations.id, id));
+
+  return c.json({ success: true, message: 'Conversation unflagged' });
 });
 
 // Send test email (admin only)
