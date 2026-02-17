@@ -89,6 +89,7 @@ export default function AdminSellerManagementPage() {
   const [showEditStats, setShowEditStats] = useState(false);
   const [showEditMetrics, setShowEditMetrics] = useState(false);
   const [showCreateService, setShowCreateService] = useState(false);
+  const [showGenerateData, setShowGenerateData] = useState(false);
   const [search, setSearch] = useState('');
 
   const loadSellers = useCallback(async () => {
@@ -272,6 +273,41 @@ export default function AdminSellerManagementPage() {
                       onUpdate={() => loadSellerDetails(selectedSeller.seller.id)}
                     />
                     <button
+                      onClick={async () => {
+                        try {
+                          const res = await adminApi.loginAsSeller(selectedSeller.seller.id);
+                          const data = res.data as any;
+                          // Store impersonation data for the new tab
+                          const authData = JSON.stringify({
+                            state: {
+                              user: data.user,
+                              token: data.accessToken,
+                              isAuthenticated: true,
+                            },
+                            version: 0,
+                          });
+                          // Open seller dashboard in new tab with impersonated session
+                          const w = window.open('about:blank', '_blank');
+                          if (w) {
+                            w.localStorage.setItem('auth-storage', authData);
+                            w.location.href = window.location.origin + '/seller/dashboard';
+                          }
+                          toast.success('Opened seller dashboard in new tab');
+                        } catch {
+                          toast.error('Failed to login as seller');
+                        }
+                      }}
+                      className="flex items-center gap-1 px-3 py-1.5 text-xs bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100"
+                    >
+                      Login As
+                    </button>
+                    <button
+                      onClick={() => setShowGenerateData(true)}
+                      className="flex items-center gap-1 px-3 py-1.5 text-xs bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100"
+                    >
+                      Generate Data
+                    </button>
+                    <button
                       onClick={() => setShowEditStats(true)}
                       className="flex items-center gap-1 px-3 py-1.5 text-xs border rounded-lg hover:bg-muted"
                     >
@@ -386,6 +422,13 @@ export default function AdminSellerManagementPage() {
           sellerId={selectedSeller.seller.id}
           onClose={() => setShowCreateService(false)}
           onCreated={() => { loadSellerDetails(selectedSeller.seller.id); setShowCreateService(false); }}
+        />
+      )}
+      {showGenerateData && selectedSeller && (
+        <GenerateDataModal
+          sellerId={selectedSeller.seller.id}
+          onClose={() => setShowGenerateData(false)}
+          onGenerated={() => { loadSellerDetails(selectedSeller.seller.id); setShowGenerateData(false); }}
         />
       )}
     </div>
@@ -867,6 +910,7 @@ function CreateSellerModal({ onClose, onCreated }: { onClose: () => void; onCrea
     plan: 'pro' as 'free' | 'pro', country: 'South Africa',
   });
   const [submitting, setSubmitting] = useState(false);
+  const [createdCredentials, setCreatedCredentials] = useState<{ email: string; password: string; username: string } | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -876,6 +920,7 @@ function CreateSellerModal({ onClose, onCreated }: { onClose: () => void; onCrea
         ...form,
         skills: form.skills.split(',').map(s => s.trim()).filter(Boolean),
       });
+      setCreatedCredentials({ email: form.email, password: form.password, username: form.username });
       toast.success('Seller created successfully');
       onCreated();
     } catch (err: any) {
@@ -884,6 +929,37 @@ function CreateSellerModal({ onClose, onCreated }: { onClose: () => void; onCrea
       setSubmitting(false);
     }
   };
+
+  const copyCredentials = () => {
+    if (!createdCredentials) return;
+    navigator.clipboard.writeText(`Email: ${createdCredentials.email}\nPassword: ${createdCredentials.password}\nUsername: ${createdCredentials.username}`);
+    toast.success('Credentials copied to clipboard');
+  };
+
+  if (createdCredentials) {
+    return (
+      <ModalWrapper title="Seller Created!" onClose={onClose}>
+        <div className="space-y-4">
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4 space-y-2">
+            <p className="text-sm font-medium text-green-800">Account created successfully</p>
+            <div className="space-y-1 text-sm">
+              <p><span className="font-medium">Email:</span> {createdCredentials.email}</p>
+              <p><span className="font-medium">Password:</span> {createdCredentials.password}</p>
+              <p><span className="font-medium">Username:</span> @{createdCredentials.username}</p>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <button onClick={copyCredentials} className="px-4 py-2 text-sm border rounded-lg hover:bg-muted">
+              Copy Credentials
+            </button>
+            <button onClick={onClose} className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90">
+              Done
+            </button>
+          </div>
+        </div>
+      </ModalWrapper>
+    );
+  }
 
   return (
     <ModalWrapper title="Create Seller Account" onClose={onClose}>
@@ -1479,5 +1555,116 @@ function RatingSelect({ label, value, onChange }: { label: string; value: number
         ))}
       </select>
     </div>
+  );
+}
+
+// ============ GENERATE DATA MODAL ============
+
+function GenerateDataModal({ sellerId, onClose, onGenerated }: { sellerId: string; onClose: () => void; onGenerated: () => void }) {
+  const [config, setConfig] = useState({
+    reviews: { count: 10, minRating: 4, maxRating: 5 },
+    orders: { count: 15, minAmount: 200, maxAmount: 2000 },
+    conversations: { count: 8, messagesPerConversation: 3 },
+    metrics: { days: 30 },
+  });
+  const [generating, setGenerating] = useState(false);
+  const [result, setResult] = useState<{ orders: number; reviews: number; conversations: number; messages: number; metrics: number } | null>(null);
+
+  const handleGenerate = async () => {
+    try {
+      setGenerating(true);
+      const res = await adminApi.generateData(sellerId, config);
+      const data = res.data as any;
+      setResult(data.generated);
+      toast.success('Data generated successfully!');
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to generate data');
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  if (result) {
+    return (
+      <ModalWrapper title="Generation Complete" onClose={() => { onGenerated(); }}>
+        <div className="space-y-4">
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+            <p className="text-sm font-medium text-green-800 mb-2">Successfully generated:</p>
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <div className="flex justify-between"><span>Orders:</span><span className="font-medium">{result.orders}</span></div>
+              <div className="flex justify-between"><span>Reviews:</span><span className="font-medium">{result.reviews}</span></div>
+              <div className="flex justify-between"><span>Conversations:</span><span className="font-medium">{result.conversations}</span></div>
+              <div className="flex justify-between"><span>Messages:</span><span className="font-medium">{result.messages}</span></div>
+              <div className="flex justify-between"><span>Metric Days:</span><span className="font-medium">{result.metrics}</span></div>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">This data is visible on public pages for social proof but excluded from admin analytics and income reports.</p>
+          <div className="flex justify-end">
+            <button onClick={() => onGenerated()} className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90">
+              Done
+            </button>
+          </div>
+        </div>
+      </ModalWrapper>
+    );
+  }
+
+  return (
+    <ModalWrapper title="Generate Fake Data" onClose={onClose}>
+      <div className="space-y-4">
+        <p className="text-xs text-muted-foreground">Generate bulk fake data for this seller. Data shows on public pages but is excluded from admin metrics.</p>
+
+        <div className="space-y-3">
+          <div className="border rounded-lg p-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium">Reviews</span>
+              <input type="number" min={0} max={50} value={config.reviews.count} onChange={(e) => setConfig({ ...config, reviews: { ...config.reviews, count: parseInt(e.target.value) || 0 } })} className="w-16 px-2 py-1 text-sm border rounded" />
+            </div>
+            <div className="flex gap-2 text-xs">
+              <label className="flex items-center gap-1">Min Rating: <select value={config.reviews.minRating} onChange={(e) => setConfig({ ...config, reviews: { ...config.reviews, minRating: parseInt(e.target.value) } })} className="border rounded px-1 py-0.5">{[1,2,3,4,5].map(n => <option key={n} value={n}>{n}</option>)}</select></label>
+              <label className="flex items-center gap-1">Max Rating: <select value={config.reviews.maxRating} onChange={(e) => setConfig({ ...config, reviews: { ...config.reviews, maxRating: parseInt(e.target.value) } })} className="border rounded px-1 py-0.5">{[1,2,3,4,5].map(n => <option key={n} value={n}>{n}</option>)}</select></label>
+            </div>
+          </div>
+
+          <div className="border rounded-lg p-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium">Orders</span>
+              <input type="number" min={0} max={50} value={config.orders.count} onChange={(e) => setConfig({ ...config, orders: { ...config.orders, count: parseInt(e.target.value) || 0 } })} className="w-16 px-2 py-1 text-sm border rounded" />
+            </div>
+            <div className="flex gap-2 text-xs">
+              <label className="flex items-center gap-1">Min R: <input type="number" value={config.orders.minAmount} onChange={(e) => setConfig({ ...config, orders: { ...config.orders, minAmount: parseInt(e.target.value) || 50 } })} className="w-20 border rounded px-1 py-0.5" /></label>
+              <label className="flex items-center gap-1">Max R: <input type="number" value={config.orders.maxAmount} onChange={(e) => setConfig({ ...config, orders: { ...config.orders, maxAmount: parseInt(e.target.value) || 5000 } })} className="w-20 border rounded px-1 py-0.5" /></label>
+            </div>
+          </div>
+
+          <div className="border rounded-lg p-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium">Conversations</span>
+              <input type="number" min={0} max={30} value={config.conversations.count} onChange={(e) => setConfig({ ...config, conversations: { ...config.conversations, count: parseInt(e.target.value) || 0 } })} className="w-16 px-2 py-1 text-sm border rounded" />
+            </div>
+            <div className="text-xs">
+              <label className="flex items-center gap-1">Messages each: <input type="number" min={1} max={10} value={config.conversations.messagesPerConversation} onChange={(e) => setConfig({ ...config, conversations: { ...config.conversations, messagesPerConversation: parseInt(e.target.value) || 1 } })} className="w-14 border rounded px-1 py-0.5" /></label>
+            </div>
+          </div>
+
+          <div className="border rounded-lg p-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium">Daily Analytics</span>
+              <div className="flex items-center gap-1 text-xs">
+                <input type="number" min={7} max={90} value={config.metrics.days} onChange={(e) => setConfig({ ...config, metrics: { days: parseInt(e.target.value) || 7 } })} className="w-14 px-2 py-1 text-sm border rounded" />
+                <span>days</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 pt-2">
+          <button onClick={onClose} className="px-4 py-2 text-sm border rounded-lg hover:bg-muted">Cancel</button>
+          <button onClick={handleGenerate} disabled={generating} className="px-4 py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50">
+            {generating ? 'Generating...' : 'Generate All'}
+          </button>
+        </div>
+      </div>
+    </ModalWrapper>
   );
 }

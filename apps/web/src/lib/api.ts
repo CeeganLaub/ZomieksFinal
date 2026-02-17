@@ -787,6 +787,14 @@ export const adminApi = {
     api.post<ApiResponse<{ conversation: unknown }>>(`/admin/conversations/${id}/flag`, { reason }),
   unflagConversation: (id: string) =>
     api.post<ApiResponse<{ conversation: unknown }>>(`/admin/conversations/${id}/unflag`),
+
+  // Login as seller
+  loginAsSeller: (sellerId: string) =>
+    api.post<ApiResponse<{ accessToken: string; refreshToken: string; user: { id: string; email: string; username: string; role: string } }>>(`/admin/sellers/managed/${sellerId}/login-as`),
+
+  // Bulk data generation
+  generateData: (sellerId: string, config: { reviews?: { count: number; minRating?: number; maxRating?: number }; orders?: { count: number; minAmount?: number; maxAmount?: number }; conversations?: { count: number; messagesPerConversation?: number }; metrics?: { days: number } }) =>
+    api.post<ApiResponse<{ generated: { orders: number; reviews: number; conversations: number; messages: number; metrics: number } }>>(`/admin/sellers/managed/${sellerId}/generate`, config),
 };
 
 export { setAuthToken, getAuthToken };

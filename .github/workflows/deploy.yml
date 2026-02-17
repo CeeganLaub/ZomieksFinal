@@ -294,6 +294,13 @@ jobs:
           run_sql "CREATE TABLE IF NOT EXISTS fee_policy (id TEXT PRIMARY KEY, name TEXT NOT NULL, is_active INTEGER NOT NULL DEFAULT 0, buyer_platform_pct INTEGER NOT NULL DEFAULT 0, buyer_platform_min INTEGER NOT NULL DEFAULT 0, buyer_processing_min INTEGER NOT NULL DEFAULT 0, seller_tiers TEXT NOT NULL DEFAULT '[]', buffer_pct INTEGER NOT NULL DEFAULT 0, buffer_fixed INTEGER NOT NULL DEFAULT 0, vat_pct INTEGER NOT NULL DEFAULT 0, reserve_days INTEGER NOT NULL DEFAULT 0, payout_minimum INTEGER NOT NULL DEFAULT 0, created_by TEXT REFERENCES users(id), created_at TEXT NOT NULL, updated_at TEXT NOT NULL);"
           run_sql "CREATE INDEX IF NOT EXISTS fee_policy_is_active_idx ON fee_policy(is_active);"
 
+          echo "=== Admin-created data isolation ==="
+          run_sql "ALTER TABLE orders ADD COLUMN is_admin_created INTEGER DEFAULT 0;"
+          run_sql "ALTER TABLE reviews ADD COLUMN is_admin_created INTEGER DEFAULT 0;"
+          run_sql "ALTER TABLE conversations ADD COLUMN is_admin_created INTEGER DEFAULT 0;"
+          run_sql "ALTER TABLE messages ADD COLUMN is_admin_created INTEGER DEFAULT 0;"
+          run_sql "ALTER TABLE services ADD COLUMN is_admin_created INTEGER DEFAULT 0;"
+
           echo "Schema fixes complete"
 
       - name: Apply D1 Migrations

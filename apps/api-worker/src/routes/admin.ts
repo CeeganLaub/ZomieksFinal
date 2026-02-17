@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { eq, and, desc, sql, count, gte, lte, like, or, sum } from 'drizzle-orm';
+import { SignJWT } from 'jose';
 import { 
   users, orders, services, sellerProfiles, transactions,
   disputes, refunds, sellerPayouts, subscriptions, categories, bankDetails,
@@ -70,16 +71,17 @@ app.get('/dashboard', async (c) => {
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
   const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
   
-  // User stats
+  // User stats (exclude admin-created)
   const [userStats] = await db
     .select({
       total: count(),
       sellers: sql<number>`SUM(CASE WHEN ${users.isSeller} = true THEN 1 ELSE 0 END)`,
       newThisMonth: sql<number>`SUM(CASE WHEN ${users.createdAt} >= ${thirtyDaysAgo.toISOString()} THEN 1 ELSE 0 END)`,
     })
-    .from(users);
+    .from(users)
+    .where(eq(users.isAdminCreated, false));
   
-  // Order stats
+  // Order stats (exclude admin-created)
   const [orderStats] = await db
     .select({
       total: count(),
@@ -88,9 +90,10 @@ app.get('/dashboard', async (c) => {
       disputed: sql<number>`SUM(CASE WHEN ${orders.status} = 'DISPUTED' THEN 1 ELSE 0 END)`,
       revenue: sql<number>`COALESCE(SUM(CASE WHEN ${orders.status} = 'COMPLETED' THEN ${orders.platformRevenue} ELSE 0 END), 0)`,
     })
-    .from(orders);
+    .from(orders)
+    .where(sql`is_admin_created = 0 OR is_admin_created IS NULL`);
   
-  // Monthly revenue
+  // Monthly revenue (exclude admin-created)
   const [monthlyRevenue] = await db
     .select({
       total: sql<number>`COALESCE(SUM(${orders.platformRevenue}), 0)`,
@@ -98,7 +101,8 @@ app.get('/dashboard', async (c) => {
     .from(orders)
     .where(and(
       eq(orders.status, 'COMPLETED'),
-      gte(orders.completedAt, thirtyDaysAgo.toISOString())
+      gte(orders.completedAt, thirtyDaysAgo.toISOString()),
+      sql`is_admin_created = 0 OR is_admin_created IS NULL`
     ));
   
   // Active disputes
@@ -1367,7 +1371,7 @@ app.get('/finance', async (c) => {
       orderCount: count(),
     })
     .from(orders)
-    .where(sql`${orders.status} IN ('COMPLETED', 'IN_PROGRESS', 'DELIVERED')`);
+    .where(sql`${orders.status} IN ('COMPLETED', 'IN_PROGRESS', 'DELIVERED') AND (is_admin_created = 0 OR is_admin_created IS NULL)`);
 
   // --- INCOME: Course Sales ---
   const [courseIncome] = await db
@@ -1447,7 +1451,7 @@ app.get('/finance', async (c) => {
       .where(and(
         gte(orders.createdAt, monthStart),
         lte(orders.createdAt, monthEnd),
-        sql`${orders.status} IN ('COMPLETED', 'IN_PROGRESS', 'DELIVERED')`,
+        sql`${orders.status} IN ('COMPLETED', 'IN_PROGRESS', 'DELIVERED') AND (is_admin_created = 0 OR is_admin_created IS NULL)`,
       ));
 
     const [mPayouts] = await db
@@ -1635,13 +1639,14 @@ app.get('/analytics', async (c) => {
   const db = c.get('db');
   const now = new Date();
 
-  // Overview aggregates
+  // Overview aggregates (exclude admin-created)
   const [userStats] = await db
     .select({
       total: count(),
       sellers: sql<number>`SUM(CASE WHEN ${users.isSeller} = 1 THEN 1 ELSE 0 END)`,
     })
-    .from(users);
+    .from(users)
+    .where(eq(users.isAdminCreated, false));
 
   const [orderStats] = await db
     .select({
@@ -1649,7 +1654,8 @@ app.get('/analytics', async (c) => {
       gmv: sql<number>`COALESCE(SUM(${orders.grossAmount}), 0)`,
       platformRevenue: sql<number>`COALESCE(SUM(CASE WHEN ${orders.status} = 'COMPLETED' THEN ${orders.platformRevenue} ELSE 0 END), 0)`,
     })
-    .from(orders);
+    .from(orders)
+    .where(sql`is_admin_created = 0 OR is_admin_created IS NULL`);
 
   const [payoutStats] = await db
     .select({
@@ -1658,10 +1664,10 @@ app.get('/analytics', async (c) => {
     .from(sellerPayouts)
     .where(eq(sellerPayouts.status, 'COMPLETED'));
 
-  const [serviceStats] = await db.select({ total: count() }).from(services);
+  const [serviceStats] = await db.select({ total: count() }).from(services).where(sql`is_admin_created = 0 OR is_admin_created IS NULL`);
   const [courseStats] = await db.select({ total: count() }).from(courses);
   const [enrollmentStats] = await db.select({ total: count() }).from(courseEnrollments);
-  const [conversationStats] = await db.select({ total: count() }).from(conversations);
+  const [conversationStats] = await db.select({ total: count() }).from(conversations).where(sql`is_admin_created = 0 OR is_admin_created IS NULL`);
 
   const totalOrders = Number(orderStats.total);
   const totalConversations = Number(conversationStats.total);
@@ -1684,12 +1690,12 @@ app.get('/analytics', async (c) => {
         orderCount: count(),
       })
       .from(orders)
-      .where(and(gte(orders.createdAt, monthStart), lte(orders.createdAt, monthEnd)));
+      .where(and(gte(orders.createdAt, monthStart), lte(orders.createdAt, monthEnd), sql`is_admin_created = 0 OR is_admin_created IS NULL`));
 
     const [mUsers] = await db
       .select({ userCount: count() })
       .from(users)
-      .where(and(gte(users.createdAt, monthStart), lte(users.createdAt, monthEnd)));
+      .where(and(gte(users.createdAt, monthStart), lte(users.createdAt, monthEnd), eq(users.isAdminCreated, false)));
 
     monthlyData.push({
       month: monthLabel,
@@ -1700,7 +1706,7 @@ app.get('/analytics', async (c) => {
     });
   }
 
-  // Orders by status
+  // Orders by status (exclude admin-created)
   const statusRows = await db
     .select({
       status: orders.status,
@@ -1708,6 +1714,7 @@ app.get('/analytics', async (c) => {
       totalAmount: sql<number>`COALESCE(SUM(${orders.grossAmount}), 0)`,
     })
     .from(orders)
+    .where(sql`is_admin_created = 0 OR is_admin_created IS NULL`)
     .groupBy(orders.status);
 
   const ordersByStatus = statusRows.map((r) => ({
@@ -2103,14 +2110,9 @@ app.post('/sellers/create', validate(createSellerSchema), async (c) => {
     { name: 'Lost', order: 4, color: '#EF4444' },
   ];
   for (const stage of defaultStages) {
-    await db.insert(pipelineStages).values({
-      id: createId(),
-      userId,
-      name: stage.name,
-      order: stage.order,
-      color: stage.color,
-      isDefault: stage.order === 0,
-    });
+    const slug = stage.name.toLowerCase().replace(/\s+/g, '-');
+    const stageId = createId();
+    await db.run(sql`INSERT INTO pipeline_stages (id, user_id, seller_id, name, slug, "order", color, is_default, created_at, updated_at) VALUES (${stageId}, ${userId}, ${userId}, ${stage.name}, ${slug}, ${stage.order}, ${stage.color}, ${stage.order === 0 ? 1 : 0}, ${now}, ${now})`);
   }
 
   const seller = await db.query.users.findFirst({
@@ -2540,6 +2542,7 @@ app.post('/sellers/managed/:id/services', validate(createServiceSchema), async (
     createdAt: now,
     updatedAt: now,
   });
+  await db.run(sql`UPDATE services SET is_admin_created = 1 WHERE id = ${serviceId}`);
 
   for (const pkg of body.packages) {
     await db.insert(servicePackages).values({
@@ -2630,6 +2633,7 @@ app.post('/reviews/create', validate(createReviewSchema), async (c) => {
     createdAt: now,
     updatedAt: now,
   });
+  await db.run(sql`UPDATE orders SET is_admin_created = 1 WHERE id = ${orderId}`);
 
   const reviewId = createId();
   await db.insert(reviews).values({
@@ -2647,6 +2651,7 @@ app.post('/reviews/create', validate(createReviewSchema), async (c) => {
     createdAt: now,
     updatedAt: now,
   });
+  await db.run(sql`UPDATE reviews SET is_admin_created = 1 WHERE id = ${reviewId}`);
 
   // Recalculate service stats
   const serviceReviews = await db.select({ rating: reviews.rating }).from(reviews).where(eq(reviews.serviceId, body.serviceId));
@@ -2757,6 +2762,7 @@ app.post('/conversations/start', validate(startConversationSchema), async (c) =>
       createdAt: now,
       updatedAt: now,
     });
+    await db.run(sql`UPDATE conversations SET is_admin_created = 1 WHERE id = ${convId}`);
     conversation = await db.query.conversations.findFirst({
       where: eq(conversations.id, convId),
     });
@@ -2773,6 +2779,7 @@ app.post('/conversations/start', validate(startConversationSchema), async (c) =>
       type: 'TEXT',
       createdAt: now,
     });
+    await db.run(sql`UPDATE messages SET is_admin_created = 1 WHERE id = ${msgId}`);
     await db.update(conversations).set({
       lastMessageAt: now,
       lastMessagePreview: body.message.slice(0, 100),
@@ -2815,6 +2822,7 @@ app.post('/conversations/:id/send', validate(sendMessageSchema), async (c) => {
     type: body.type,
     createdAt: now,
   });
+  await db.run(sql`UPDATE messages SET is_admin_created = 1 WHERE id = ${msgId}`);
 
   // Update unread counts based on who sent
   const isBuyer = body.senderId === conversation.buyerId;
@@ -2831,6 +2839,304 @@ app.post('/conversations/:id/send', validate(sendMessageSchema), async (c) => {
   const message = await db.query.messages.findFirst({ where: eq(messages.id, msgId) });
 
   return c.json({ success: true, data: { message } });
+});
+
+// ============ LOGIN AS SELLER ============
+app.post('/sellers/managed/:id/login-as', async (c) => {
+  const { id } = c.req.param();
+  const db = c.get('db');
+
+  const seller = await db.query.users.findFirst({
+    where: and(eq(users.id, id), eq(users.isAdminCreated, true)),
+  });
+  if (!seller) {
+    return c.json({ success: false, error: { code: 'NOT_FOUND', message: 'Admin-created seller not found' } }, 404);
+  }
+
+  const secret = new TextEncoder().encode(c.env.JWT_SECRET);
+  const refreshSecret = new TextEncoder().encode(c.env.JWT_REFRESH_SECRET);
+
+  const accessToken = await new SignJWT({ sub: id })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setIssuedAt()
+    .setExpirationTime('15m')
+    .sign(secret);
+
+  const refreshToken = await new SignJWT({ sub: id })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setIssuedAt()
+    .setExpirationTime('7d')
+    .sign(refreshSecret);
+
+  return c.json({
+    success: true,
+    data: {
+      accessToken,
+      refreshToken,
+      user: { id: seller.id, email: seller.email, username: seller.username, role: seller.role },
+    },
+  });
+});
+
+// ============ BULK DATA GENERATION ============
+const generateDataSchema = z.object({
+  reviews: z.object({ count: z.number().min(0).max(50).default(0), minRating: z.number().min(1).max(5).default(4), maxRating: z.number().min(1).max(5).default(5) }).optional(),
+  orders: z.object({ count: z.number().min(0).max(50).default(0), minAmount: z.number().min(50).max(5000).default(200), maxAmount: z.number().min(50).max(10000).default(2000) }).optional(),
+  conversations: z.object({ count: z.number().min(0).max(30).default(0), messagesPerConversation: z.number().min(1).max(10).default(3) }).optional(),
+  metrics: z.object({ days: z.number().min(7).max(90).default(30) }).optional(),
+});
+
+app.post('/sellers/managed/:id/generate', validate(generateDataSchema), async (c) => {
+  const { id } = c.req.param();
+  const body = getValidatedBody<z.infer<typeof generateDataSchema>>(c);
+  const db = c.get('db');
+  const now = new Date().toISOString();
+
+  // Verify seller exists and is admin-created
+  const seller = await db.query.users.findFirst({
+    where: and(eq(users.id, id), eq(users.isAdminCreated, true)),
+    with: { sellerProfile: true },
+  });
+  if (!seller) {
+    return c.json({ success: false, error: { code: 'NOT_FOUND', message: 'Admin-created seller not found' } }, 404);
+  }
+
+  // Get seller's services
+  const sellerServices = await db.query.services.findMany({
+    where: eq(services.sellerId, id),
+    with: { packages: true },
+  });
+
+  // Get managed users as buyers
+  const managedUsers = await db.query.users.findMany({
+    where: and(eq(users.isAdminCreated, true), sql`${users.id} != ${id}`),
+    limit: 20,
+  });
+
+  if (managedUsers.length === 0) {
+    return c.json({ success: false, error: { code: 'NO_BUYERS', message: 'Create at least one managed user first to act as buyer' } }, 400);
+  }
+
+  const generated = { orders: 0, reviews: 0, conversations: 0, messages: 0, metrics: 0 };
+
+  const reviewComments = [
+    'Absolutely brilliant work! Delivered exactly what I needed.',
+    'Super professional and fast delivery. Highly recommend!',
+    'Great communication throughout the project. Will use again.',
+    'Quality work at a fair price. Very happy with the result.',
+    'Exceeded my expectations. Top-notch service!',
+    'Fantastic experience from start to finish.',
+    'Really impressed with the attention to detail.',
+    'Quick turnaround and excellent quality. 5 stars!',
+    'Very talented freelancer. The work speaks for itself.',
+    'Could not be happier with the outcome. Thank you!',
+    'Professional, reliable, and creative. What more could you ask for?',
+    'Amazing value for money. Will definitely be back.',
+    'Smooth process, great results. Recommended to my friends already.',
+    'One of the best freelancers I have worked with on this platform.',
+    'Delivered ahead of schedule with outstanding quality.',
+  ];
+
+  const msgTemplates = [
+    ['Hi, I am interested in your service. Can you help me?', 'Of course! I would love to help. What do you need?', 'Great, let me share the details with you.'],
+    ['Hello! I saw your profile and your work looks amazing.', 'Thank you so much! How can I assist you today?', 'I have a project I think would be perfect for you.'],
+    ['Hey, quick question about your turnaround time?', 'Usually 2-3 days depending on the scope. What do you have in mind?', 'That works perfectly. Let me place an order.'],
+    ['Hi there! Do you offer revisions?', 'Yes, I include 2 rounds of revisions with every order.', 'Perfect, that gives me confidence. Placing my order now.'],
+    ['Good day! I need help with a project urgently.', 'I can prioritise your project. Tell me more about what you need.', 'Brilliant, sending you all the info now.'],
+  ];
+
+  const pick = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
+  const rand = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
+
+  // Generate orders
+  if (body.orders && body.orders.count > 0 && sellerServices.length > 0) {
+    for (let i = 0; i < body.orders.count; i++) {
+      const service = pick(sellerServices);
+      const buyer = pick(managedUsers);
+      const baseAmount = rand(body.orders.minAmount, body.orders.maxAmount) * 100;
+      const buyerPlatformFee = Math.round(baseAmount * 0.05);
+      const sellerPlatformFee = Math.round(baseAmount * 0.10);
+      const grossAmount = baseAmount + buyerPlatformFee;
+      const platformRevenue = buyerPlatformFee + sellerPlatformFee;
+      const sellerPayoutAmount = baseAmount - sellerPlatformFee;
+      const daysAgo = rand(1, 60);
+      const createdAt = new Date(Date.now() - daysAgo * 86400000).toISOString();
+      const orderId = createId();
+      const orderNumber = `ORD-${Date.now()}-${rand(100, 999)}`;
+
+      await db.insert(orders).values({
+        id: orderId,
+        orderNumber,
+        buyerId: buyer.id,
+        sellerId: id,
+        serviceId: service.id,
+        packageId: service.packages?.[0]?.id || null,
+        baseAmount,
+        buyerPlatformFee,
+        buyerProcessingFee: 0,
+        sellerPlatformFee,
+        grossAmount,
+        platformRevenue,
+        sellerPayoutAmount,
+        currency: 'ZAR',
+        status: 'COMPLETED',
+        deliveryDays: rand(1, 7),
+        paidAt: createdAt,
+        startedAt: createdAt,
+        completedAt: createdAt,
+        createdAt,
+        updatedAt: createdAt,
+      });
+      await db.run(sql`UPDATE orders SET is_admin_created = 1 WHERE id = ${orderId}`);
+      generated.orders++;
+    }
+  }
+
+  // Generate reviews
+  if (body.reviews && body.reviews.count > 0 && sellerServices.length > 0) {
+    for (let i = 0; i < body.reviews.count; i++) {
+      const service = pick(sellerServices);
+      const buyer = pick(managedUsers);
+      const rating = rand(body.reviews.minRating, body.reviews.maxRating);
+      const daysAgo = rand(1, 45);
+      const createdAt = new Date(Date.now() - daysAgo * 86400000).toISOString();
+
+      // Create a backing order for the review
+      const orderId = createId();
+      const baseAmount = rand(200, 1500) * 100;
+      const buyerPlatformFee = Math.round(baseAmount * 0.05);
+      const sellerPlatformFee = Math.round(baseAmount * 0.10);
+
+      await db.insert(orders).values({
+        id: orderId,
+        orderNumber: `ORD-${Date.now()}-${rand(100, 999)}`,
+        buyerId: buyer.id,
+        sellerId: id,
+        serviceId: service.id,
+        packageId: service.packages?.[0]?.id || null,
+        baseAmount,
+        buyerPlatformFee,
+        buyerProcessingFee: 0,
+        sellerPlatformFee,
+        grossAmount: baseAmount + buyerPlatformFee,
+        platformRevenue: buyerPlatformFee + sellerPlatformFee,
+        sellerPayoutAmount: baseAmount - sellerPlatformFee,
+        currency: 'ZAR',
+        status: 'COMPLETED',
+        deliveryDays: 3,
+        paidAt: createdAt,
+        startedAt: createdAt,
+        completedAt: createdAt,
+        createdAt,
+        updatedAt: createdAt,
+      });
+      await db.run(sql`UPDATE orders SET is_admin_created = 1 WHERE id = ${orderId}`);
+
+      const reviewId = createId();
+      await db.insert(reviews).values({
+        id: reviewId,
+        orderId,
+        serviceId: service.id,
+        authorId: buyer.id,
+        recipientId: id,
+        rating: rating * 100,
+        comment: pick(reviewComments),
+        communicationRating: rand(rating - 1 < 1 ? 1 : rating - 1, 5) * 100,
+        qualityRating: rand(rating - 1 < 1 ? 1 : rating - 1, 5) * 100,
+        valueRating: rand(rating - 1 < 1 ? 1 : rating - 1, 5) * 100,
+        isPublic: true,
+        createdAt,
+        updatedAt: createdAt,
+      });
+      await db.run(sql`UPDATE reviews SET is_admin_created = 1 WHERE id = ${reviewId}`);
+      generated.reviews++;
+    }
+  }
+
+  // Generate conversations
+  if (body.conversations && body.conversations.count > 0) {
+    const msgsPerConv = body.conversations.messagesPerConversation;
+    for (let i = 0; i < body.conversations.count; i++) {
+      const buyer = pick(managedUsers);
+      const daysAgo = rand(1, 30);
+      const createdAt = new Date(Date.now() - daysAgo * 86400000).toISOString();
+      const convId = createId();
+      const template = pick(msgTemplates);
+
+      await db.insert(conversations).values({
+        id: convId,
+        buyerId: buyer.id,
+        sellerId: id,
+        status: 'OPEN',
+        lastMessageAt: createdAt,
+        messageCount: Math.min(msgsPerConv, template.length),
+        createdAt,
+        updatedAt: createdAt,
+      });
+      await db.run(sql`UPDATE conversations SET is_admin_created = 1 WHERE id = ${convId}`);
+      generated.conversations++;
+
+      for (let m = 0; m < Math.min(msgsPerConv, template.length); m++) {
+        const msgId = createId();
+        const msgTime = new Date(Date.parse(createdAt) + m * 300000).toISOString();
+        const senderId = m % 2 === 0 ? buyer.id : id;
+        await db.insert(messages).values({
+          id: msgId,
+          conversationId: convId,
+          senderId,
+          content: template[m],
+          type: 'TEXT',
+          createdAt: msgTime,
+        });
+        await db.run(sql`UPDATE messages SET is_admin_created = 1 WHERE id = ${msgId}`);
+        generated.messages++;
+      }
+
+      await db.update(conversations).set({
+        lastMessagePreview: template[Math.min(msgsPerConv, template.length) - 1].slice(0, 100),
+      }).where(eq(conversations.id, convId));
+    }
+  }
+
+  // Generate daily metrics
+  if (body.metrics && body.metrics.days > 0) {
+    for (let d = body.metrics.days; d >= 0; d--) {
+      const date = new Date(Date.now() - d * 86400000).toISOString().slice(0, 10);
+      const metricsId = createId();
+      const views = rand(10, 200);
+      const clicks = rand(Math.floor(views * 0.1), Math.floor(views * 0.4));
+      const impressions = rand(views, views * 3);
+
+      await db.run(sql`INSERT OR IGNORE INTO seller_metrics (id, user_id, date, profile_views, service_views, total_impressions, click_count, conversion_rate, response_rate, response_time_avg, created_at, updated_at) VALUES (${metricsId}, ${id}, ${date}, ${rand(5, 50)}, ${views}, ${impressions}, ${clicks}, ${rand(5, 25)}, ${rand(70, 100)}, ${rand(300, 3600)}, ${now}, ${now})`);
+      generated.metrics++;
+    }
+  }
+
+  // Update seller's denormalized counts
+  if (generated.orders > 0 || generated.reviews > 0) {
+    for (const service of sellerServices) {
+      const [oc] = await db.select({ cnt: count() }).from(orders).where(eq(orders.serviceId, service.id));
+      const [rc] = await db.select({ cnt: count(), avg: sql<number>`COALESCE(AVG(${reviews.rating}), 0)` }).from(reviews).where(eq(reviews.serviceId, service.id));
+      await db.update(services).set({
+        orderCount: Number(oc.cnt),
+        reviewCount: Number(rc.cnt),
+        rating: Math.round(Number(rc.avg)),
+        updatedAt: now,
+      }).where(eq(services.id, service.id));
+    }
+
+    // Update seller profile stats
+    const [totalOrders] = await db.select({ cnt: count() }).from(orders).where(eq(orders.sellerId, id));
+    const [totalReviews] = await db.select({ cnt: count(), avg: sql<number>`COALESCE(AVG(${reviews.rating}), 0)` }).from(reviews).where(eq(reviews.recipientId, id));
+    await db.update(sellerProfiles).set({
+      completedOrders: Number(totalOrders.cnt),
+      reviewCount: Number(totalReviews.cnt),
+      rating: Math.round(Number(totalReviews.avg)),
+      updatedAt: now,
+    }).where(eq(sellerProfiles.userId, id));
+  }
+
+  return c.json({ success: true, data: { generated } });
 });
 
 export default app;
