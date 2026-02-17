@@ -678,34 +678,137 @@ app.get('/payouts', async (c) => {
   const db = c.get('db');
   const page = parseInt(c.req.query('page') || '1');
   const limit = parseInt(c.req.query('limit') || '20');
-  const status = c.req.query('status') || 'PENDING';
+  const status = c.req.query('status');
   const offset = (page - 1) * limit;
   
+  const whereClause = status && status !== 'ALL'
+    ? eq(sellerPayouts.status, status)
+    : undefined;
+  
   const payoutList = await db.query.sellerPayouts.findMany({
-    where: eq(sellerPayouts.status, status),
+    where: whereClause,
     with: {
       seller: {
-        columns: { username: true, email: true },
-        with: { sellerProfile: true },
+        columns: { id: true, username: true, email: true, country: true },
+        with: {
+          sellerProfile: {
+            columns: { kycStatus: true, isVerified: true },
+          },
+          bankDetails: {
+            columns: {
+              id: true, bankName: true, accountNumber: true, branchCode: true,
+              accountType: true, accountHolder: true, isVerified: true,
+            },
+          },
+        },
       },
     },
     orderBy: desc(sellerPayouts.createdAt),
     limit,
     offset,
   });
+
+  // Get total count for pagination
+  const [totalResult] = await db
+    .select({ total: count() })
+    .from(sellerPayouts)
+    .where(whereClause ? whereClause : sql`1=1`);
+  const total = Number(totalResult.total);
   
   return c.json({
     success: true,
-    data: payoutList.map(p => ({
-      id: p.id,
-      seller: p.seller,
-      amount: p.amount / 100,
-      currency: p.currency,
-      status: p.status,
-      bankDetails: p.bankDetailsSnapshot,
-      createdAt: p.createdAt,
-    })),
-    meta: { page, limit },
+    data: payoutList.map(p => {
+      const bank = p.seller?.bankDetails;
+      const snapshot = p.bankDetailsSnapshot as any;
+      return {
+        id: p.id,
+        sellerId: p.seller?.id,
+        seller: {
+          username: p.seller?.username,
+          email: p.seller?.email,
+          country: p.seller?.country,
+          kycStatus: p.seller?.sellerProfile?.kycStatus || 'PENDING',
+          isKycVerified: p.seller?.sellerProfile?.isVerified || false,
+          bankDetails: bank ? {
+            bankName: bank.bankName,
+            accountNumber: `****${bank.accountNumber.slice(-4)}`,
+            branchCode: bank.branchCode,
+            accountType: bank.accountType,
+            accountHolder: bank.accountHolder,
+            isVerified: bank.isVerified,
+          } : snapshot ? {
+            bankName: snapshot.bankName || '',
+            accountNumber: snapshot.accountNumber ? `****${snapshot.accountNumber.slice(-4)}` : '',
+            branchCode: snapshot.branchCode || '',
+            accountType: snapshot.accountType || '',
+            accountHolder: snapshot.accountHolder || '',
+            isVerified: false,
+          } : null,
+        },
+        amount: p.amount / 100,
+        fee: (p.fee || 0) / 100,
+        netAmount: (p.netAmount || p.amount) / 100,
+        currency: p.currency,
+        status: p.status,
+        batchId: p.batchId,
+        bankReference: p.bankReference || p.externalRef,
+        failedReason: p.failedReason,
+        processedAt: p.processedAt,
+        failedAt: p.failedAt,
+        createdAt: p.createdAt,
+      };
+    }),
+    meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
+  });
+});
+
+// Payout summary stats
+app.get('/payouts/summary', async (c) => {
+  const db = c.get('db');
+
+  const [stats] = await db
+    .select({
+      totalPending: sql<number>`COALESCE(SUM(CASE WHEN ${sellerPayouts.status} = 'PENDING' THEN ${sellerPayouts.amount} ELSE 0 END), 0)`,
+      pendingCount: sql<number>`SUM(CASE WHEN ${sellerPayouts.status} = 'PENDING' THEN 1 ELSE 0 END)`,
+      totalProcessing: sql<number>`COALESCE(SUM(CASE WHEN ${sellerPayouts.status} = 'PROCESSING' THEN ${sellerPayouts.amount} ELSE 0 END), 0)`,
+      processingCount: sql<number>`SUM(CASE WHEN ${sellerPayouts.status} = 'PROCESSING' THEN 1 ELSE 0 END)`,
+      totalCompleted: sql<number>`COALESCE(SUM(CASE WHEN ${sellerPayouts.status} IN ('COMPLETED', 'PAID') THEN ${sellerPayouts.amount} ELSE 0 END), 0)`,
+      completedCount: sql<number>`SUM(CASE WHEN ${sellerPayouts.status} IN ('COMPLETED', 'PAID') THEN 1 ELSE 0 END)`,
+      totalFailed: sql<number>`COALESCE(SUM(CASE WHEN ${sellerPayouts.status} = 'FAILED' THEN ${sellerPayouts.amount} ELSE 0 END), 0)`,
+      failedCount: sql<number>`SUM(CASE WHEN ${sellerPayouts.status} = 'FAILED' THEN 1 ELSE 0 END)`,
+    })
+    .from(sellerPayouts);
+
+  // Count sellers with verified KYC and bank details
+  const verifiedSellers = await db.query.sellerProfiles.findMany({
+    where: eq(sellerProfiles.kycStatus, 'VERIFIED'),
+    columns: { userId: true },
+  });
+  const verifiedSellerIds = verifiedSellers.map(s => s.userId);
+
+  let sellersWithBank = 0;
+  if (verifiedSellerIds.length > 0) {
+    for (const uid of verifiedSellerIds) {
+      const bank = await db.query.bankDetails.findFirst({
+        where: eq(bankDetails.userId, uid),
+        columns: { id: true },
+      });
+      if (bank) sellersWithBank++;
+    }
+  }
+
+  return c.json({
+    success: true,
+    data: {
+      pending: { amount: Number(stats.totalPending) / 100, count: Number(stats.pendingCount) || 0 },
+      processing: { amount: Number(stats.totalProcessing) / 100, count: Number(stats.processingCount) || 0 },
+      completed: { amount: Number(stats.totalCompleted) / 100, count: Number(stats.completedCount) || 0 },
+      failed: { amount: Number(stats.totalFailed) / 100, count: Number(stats.failedCount) || 0 },
+      eligibleSellers: {
+        kycVerified: verifiedSellerIds.length,
+        withBankDetails: sellersWithBank,
+      },
+    },
   });
 });
 

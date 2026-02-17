@@ -725,6 +725,8 @@ export const adminApi = {
   // Payouts
   payouts: (params?: { status?: string; page?: number; limit?: number }) =>
     api.get<ApiResponse<{ payouts: unknown[] }>>('/admin/payouts', { params }),
+  payoutSummary: () =>
+    api.get<ApiResponse<any>>('/admin/payouts/summary'),
   processPayout: (payoutId: string, bankReference: string) =>
     api.post<ApiResponse<{ payout: unknown }>>(`/admin/payouts/${payoutId}/action`, { action: 'process', reference: bankReference }),
   rejectPayout: (payoutId: string, reason?: string) =>
