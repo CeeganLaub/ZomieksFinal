@@ -714,6 +714,12 @@ export const adminApi = {
   createReview: (data: { authorId: string; serviceId: string; sellerId: string; rating: number; comment: string; communicationRating?: number; qualityRating?: number; valueRating?: number }) =>
     api.post<ApiResponse<{ review: unknown; order: unknown }>>('/admin/reviews/create', data),
 
+  // Chat simulation
+  startConversation: (data: { buyerId: string; sellerId: string; message?: string }) =>
+    api.post<ApiResponse<{ conversation: unknown; message: unknown }>>('/admin/conversations/start', data),
+  sendMessage: (conversationId: string, data: { senderId: string; content: string; type?: string }) =>
+    api.post<ApiResponse<{ message: unknown }>>(`/admin/conversations/${conversationId}/send`, data),
+
   // Orders & Disputes
   orders: (params?: { status?: string; startDate?: string; endDate?: string; page?: number; limit?: number }) =>
     api.get<ApiResponse<{ orders: unknown[] }>>('/admin/orders', { params }),

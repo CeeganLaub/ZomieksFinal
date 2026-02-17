@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { api } from '../../lib/api';
+import { api, adminApi } from '../../lib/api';
 import { toast } from 'sonner';
 import {
   PlusIcon,
@@ -316,7 +316,14 @@ export default function AdminSellerManagementPage() {
               {/* Tab Content */}
               {activeTab === 'overview' && <OverviewTab seller={selectedSeller} />}
               {activeTab === 'orders' && <OrdersTab orders={selectedSeller.seller.sellerOrders} />}
-              {activeTab === 'conversations' && <ConversationsTab conversations={selectedSeller.seller.sellerConversations} />}
+              {activeTab === 'conversations' && (
+                <ConversationsTab
+                  conversations={selectedSeller.seller.sellerConversations}
+                  sellerId={selectedSeller.seller.id}
+                  managedUsers={managedUsers}
+                  onUpdate={() => loadSellerDetails(selectedSeller.seller.id)}
+                />
+              )}
               {activeTab === 'services' && (
                 <ServicesTab
                   services={selectedSeller.seller.services}
@@ -490,34 +497,150 @@ function OrdersTab({ orders }: { orders: any[] }) {
   );
 }
 
-function ConversationsTab({ conversations }: { conversations: any[] }) {
-  if (!conversations?.length) return <EmptyState message="No conversations yet" />;
+function ConversationsTab({ conversations, sellerId, managedUsers, onUpdate }: { conversations: any[]; sellerId: string; managedUsers: ManagedUser[]; onUpdate: () => void }) {
+  const [showStartChat, setShowStartChat] = useState(false);
+  const [selectedBuyerId, setSelectedBuyerId] = useState('');
+  const [initialMessage, setInitialMessage] = useState('');
+  const [replyConvId, setReplyConvId] = useState<string | null>(null);
+  const [replyContent, setReplyContent] = useState('');
+  const [replySenderId, setReplySenderId] = useState('');
+  const [sending, setSending] = useState(false);
+
+  const handleStartChat = async () => {
+    if (!selectedBuyerId) return;
+    try {
+      setSending(true);
+      await adminApi.startConversation({ buyerId: selectedBuyerId, sellerId, message: initialMessage || undefined });
+      toast.success('Conversation started');
+      setShowStartChat(false);
+      setSelectedBuyerId('');
+      setInitialMessage('');
+      onUpdate();
+    } catch { toast.error('Failed to start conversation'); } finally { setSending(false); }
+  };
+
+  const handleSendMessage = async (convId: string) => {
+    if (!replyContent.trim() || !replySenderId) return;
+    try {
+      setSending(true);
+      await adminApi.sendMessage(convId, { senderId: replySenderId, content: replyContent });
+      toast.success('Message sent');
+      setReplyConvId(null);
+      setReplyContent('');
+      setReplySenderId('');
+      onUpdate();
+    } catch { toast.error('Failed to send message'); } finally { setSending(false); }
+  };
+
   return (
-    <div className="bg-background border rounded-lg divide-y">
-      {conversations.map((c: any) => (
-        <div key={c.id} className="p-4 hover:bg-muted/30 transition-colors">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              {c.buyer?.avatar ? (
-                <img src={c.buyer.avatar} alt="" className="h-8 w-8 rounded-full object-cover" />
-              ) : (
-                <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
-                  {c.buyer?.firstName?.charAt(0) || '?'}
-                </div>
-              )}
-              <div>
-                <p className="text-sm font-medium">{c.buyer?.username || 'Unknown'}</p>
-                <p className="text-xs text-muted-foreground truncate max-w-[300px]">
-                  {c.messages?.[0]?.content || 'No messages'}
-                </p>
-              </div>
-            </div>
-            <div className="text-xs text-muted-foreground">
-              {c._count?.messages || 0} messages
-            </div>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold">Conversations ({conversations?.length || 0})</h3>
+        <button
+          onClick={() => setShowStartChat(true)}
+          className="flex items-center gap-1 px-3 py-1.5 text-xs bg-primary text-primary-foreground rounded-lg hover:bg-primary/90"
+        >
+          <PlusIcon className="h-3.5 w-3.5" /> Start Chat
+        </button>
+      </div>
+
+      {showStartChat && (
+        <div className="bg-muted/50 border rounded-lg p-4 space-y-3">
+          <h4 className="text-sm font-medium">Start New Conversation</h4>
+          <select
+            value={selectedBuyerId}
+            onChange={(e) => setSelectedBuyerId(e.target.value)}
+            className="w-full px-3 py-2 text-sm border rounded-lg bg-background"
+          >
+            <option value="">Select a managed user as buyer...</option>
+            {managedUsers.map((u) => (
+              <option key={u.id} value={u.id}>{u.username} ({u.firstName} {u.lastName})</option>
+            ))}
+          </select>
+          <input
+            value={initialMessage}
+            onChange={(e) => setInitialMessage(e.target.value)}
+            placeholder="Initial message (optional)"
+            className="w-full px-3 py-2 text-sm border rounded-lg bg-background"
+          />
+          <div className="flex gap-2">
+            <button
+              onClick={handleStartChat}
+              disabled={!selectedBuyerId || sending}
+              className="px-3 py-1.5 text-xs bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50"
+            >
+              {sending ? 'Starting...' : 'Start'}
+            </button>
+            <button onClick={() => setShowStartChat(false)} className="px-3 py-1.5 text-xs border rounded-lg hover:bg-muted">Cancel</button>
           </div>
         </div>
-      ))}
+      )}
+
+      {!conversations?.length ? (
+        <EmptyState message="No conversations yet. Click 'Start Chat' to begin one." />
+      ) : (
+        <div className="bg-background border rounded-lg divide-y">
+          {conversations.map((c: any) => (
+            <div key={c.id} className="p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  {c.buyer?.avatar ? (
+                    <img src={c.buyer.avatar} alt="" className="h-8 w-8 rounded-full object-cover" />
+                  ) : (
+                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
+                      {c.buyer?.firstName?.charAt(0) || '?'}
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-sm font-medium">{c.buyer?.username || 'Unknown'}</p>
+                    <p className="text-xs text-muted-foreground truncate max-w-[300px]">
+                      {c.messages?.[0]?.content || 'No messages'}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-muted-foreground">{c._count?.messages || 0} msgs</span>
+                  <button
+                    onClick={() => { setReplyConvId(replyConvId === c.id ? null : c.id); setReplySenderId(''); setReplyContent(''); }}
+                    className="px-2 py-1 text-xs border rounded hover:bg-muted"
+                  >
+                    Reply
+                  </button>
+                </div>
+              </div>
+              {replyConvId === c.id && (
+                <div className="mt-3 pl-11 space-y-2">
+                  <select
+                    value={replySenderId}
+                    onChange={(e) => setReplySenderId(e.target.value)}
+                    className="w-full px-2 py-1.5 text-xs border rounded bg-background"
+                  >
+                    <option value="">Send as...</option>
+                    <option value={sellerId}>Seller (this seller)</option>
+                    {c.buyer?.id && <option value={c.buyer.id}>{c.buyer.username} (buyer)</option>}
+                  </select>
+                  <div className="flex gap-2">
+                    <input
+                      value={replyContent}
+                      onChange={(e) => setReplyContent(e.target.value)}
+                      placeholder="Type a message..."
+                      className="flex-1 px-2 py-1.5 text-xs border rounded bg-background"
+                      onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage(c.id)}
+                    />
+                    <button
+                      onClick={() => handleSendMessage(c.id)}
+                      disabled={!replyContent.trim() || !replySenderId || sending}
+                      className="px-3 py-1.5 text-xs bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:opacity-50"
+                    >
+                      Send
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -6,6 +6,7 @@ import {
   disputes, refunds, sellerPayouts, subscriptions, categories, bankDetails,
   courses, userRoles, conversations, messages, courseEnrollments,
   subscriptionPayments, escrowHolds,
+  sellerMetrics, sellerSubscriptions, reviews, servicePackages, pipelineStages,
 } from '@zomieks/db';
 import { createId } from '@paralleldrive/cuid2';
 import type { Env } from '../types';
@@ -2005,6 +2006,831 @@ app.post('/email/test', async (c) => {
       data: { hasApiKey: !!c.env.RESEND_API_KEY },
     });
   }
+});
+
+// ============ SELLER MANAGEMENT ============
+
+const createSellerSchema = z.object({
+  email: z.string().email(),
+  username: z.string().min(3).max(30).regex(/^[a-z0-9_-]+$/),
+  password: z.string().min(6),
+  firstName: z.string().min(1),
+  lastName: z.string().min(1),
+  displayName: z.string().min(1),
+  professionalTitle: z.string().min(1),
+  description: z.string().min(1),
+  skills: z.array(z.string()).default([]),
+  plan: z.enum(['free', 'pro']),
+  country: z.string().default('South Africa'),
+});
+
+app.post('/sellers/create', validate(createSellerSchema), async (c) => {
+  const body = getValidatedBody<z.infer<typeof createSellerSchema>>(c);
+  const db = c.get('db');
+  const now = new Date().toISOString();
+
+  const existing = await db.query.users.findFirst({
+    where: or(
+      eq(users.email, body.email.toLowerCase()),
+      eq(users.username, body.username.toLowerCase())
+    ),
+  });
+  if (existing) {
+    return c.json({ success: false, error: { code: 'EXISTS', message: 'Email or username already taken' } }, 409);
+  }
+
+  const passwordHash = await hashPasswordPBKDF2(body.password);
+  const userId = createId();
+  const profileId = createId();
+
+  await db.insert(users).values({
+    id: userId,
+    email: body.email.toLowerCase(),
+    username: body.username.toLowerCase(),
+    passwordHash,
+    firstName: body.firstName,
+    lastName: body.lastName,
+    country: body.country,
+    isSeller: true,
+    isEmailVerified: true,
+    isAdminCreated: true,
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  await db.insert(userRoles).values([
+    { id: createId(), userId, role: 'BUYER', createdAt: now },
+    { id: createId(), userId, role: 'SELLER', createdAt: now },
+  ]);
+
+  await db.insert(sellerProfiles).values({
+    id: profileId,
+    userId,
+    displayName: body.displayName,
+    professionalTitle: body.professionalTitle,
+    description: body.description,
+    skills: body.skills,
+    languages: [{ language: 'English', proficiency: 'Native' }],
+    kycStatus: 'VERIFIED',
+    isVerified: true,
+    verifiedAt: now,
+    sellerFeePaid: true,
+    sellerFeePaidAt: now,
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  if (body.plan === 'pro') {
+    const periodEnd = new Date();
+    periodEnd.setFullYear(periodEnd.getFullYear() + 1);
+    await db.insert(sellerSubscriptions).values({
+      id: createId(),
+      sellerProfileId: profileId,
+      status: 'ACTIVE',
+      currentPeriodStart: now,
+      currentPeriodEnd: periodEnd.toISOString(),
+      nextBillingDate: periodEnd.toISOString(),
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
+
+  const defaultStages = [
+    { name: 'New Lead', order: 0, color: '#3B82F6' },
+    { name: 'Contacted', order: 1, color: '#F59E0B' },
+    { name: 'Proposal Sent', order: 2, color: '#8B5CF6' },
+    { name: 'Won', order: 3, color: '#10B981' },
+    { name: 'Lost', order: 4, color: '#EF4444' },
+  ];
+  for (const stage of defaultStages) {
+    await db.insert(pipelineStages).values({
+      id: createId(),
+      userId,
+      name: stage.name,
+      order: stage.order,
+      color: stage.color,
+      isDefault: stage.order === 0,
+    });
+  }
+
+  const seller = await db.query.users.findFirst({
+    where: eq(users.id, userId),
+    with: {
+      sellerProfile: { with: { subscription: true } },
+    },
+  });
+
+  return c.json({ success: true, data: { seller } }, 201);
+});
+
+// List admin-created sellers
+app.get('/sellers/managed', async (c) => {
+  const db = c.get('db');
+  const search = c.req.query('search');
+  const page = Math.max(1, parseInt(c.req.query('page') || '1'));
+  const limit = Math.min(100, Math.max(1, parseInt(c.req.query('limit') || '20')));
+  const offset = (page - 1) * limit;
+
+  let whereClause = and(eq(users.isAdminCreated, true), eq(users.isSeller, true));
+  if (search) {
+    const searchLower = `%${search.toLowerCase()}%`;
+    whereClause = and(
+      whereClause,
+      or(
+        like(sql`LOWER(${users.username})`, searchLower),
+        like(sql`LOWER(${users.email})`, searchLower),
+        like(sql`LOWER(${users.firstName})`, searchLower),
+      )
+    ) as any;
+  }
+
+  const sellerList = await db.query.users.findMany({
+    where: whereClause,
+    orderBy: desc(users.createdAt),
+    limit,
+    offset,
+    with: {
+      sellerProfile: { with: { subscription: true } },
+    },
+  });
+
+  const [totalResult] = await db.select({ total: count() }).from(users).where(whereClause!);
+  const total = Number(totalResult.total);
+
+  // Get counts for each seller
+  const sellers = await Promise.all(sellerList.map(async (s) => {
+    const [svcCount] = await db.select({ c: count() }).from(services).where(eq(services.sellerId, s.id));
+    const [ordCount] = await db.select({ c: count() }).from(orders).where(eq(orders.sellerId, s.id));
+    const [revCount] = await db.select({ c: count() }).from(reviews).where(eq(reviews.recipientId, s.id));
+    return {
+      ...s,
+      _count: {
+        services: Number(svcCount.c),
+        sellerOrders: Number(ordCount.c),
+        receivedReviews: Number(revCount.c),
+      },
+    };
+  }));
+
+  return c.json({
+    success: true,
+    data: { sellers },
+    meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
+  });
+});
+
+// Get admin-created seller details (full dashboard)
+app.get('/sellers/managed/:id', async (c) => {
+  const { id } = c.req.param();
+  const db = c.get('db');
+
+  const seller = await db.query.users.findFirst({
+    where: eq(users.id, id),
+    with: {
+      sellerProfile: { with: { subscription: true } },
+      bankDetails: true,
+    },
+  });
+
+  if (!seller) {
+    return c.json({ success: false, error: { code: 'NOT_FOUND', message: 'Seller not found' } }, 404);
+  }
+
+  // Services with packages and counts
+  const sellerServices = await db.query.services.findMany({
+    where: eq(services.sellerId, id),
+    with: {
+      category: true,
+      packages: true,
+    },
+  });
+  const servicesWithCounts = await Promise.all(sellerServices.map(async (svc) => {
+    const [revCount] = await db.select({ c: count() }).from(reviews).where(eq(reviews.serviceId, svc.id));
+    const [ordCount] = await db.select({ c: count() }).from(orders).where(eq(orders.serviceId, svc.id));
+    return { ...svc, _count: { reviews: Number(revCount.c), orders: Number(ordCount.c) } };
+  }));
+
+  // Last 20 orders
+  const sellerOrders = await db.query.orders.findMany({
+    where: eq(orders.sellerId, id),
+    orderBy: desc(orders.createdAt),
+    limit: 20,
+    with: {
+      buyer: { columns: { username: true, firstName: true, lastName: true } },
+      service: { columns: { title: true } },
+    },
+  });
+
+  // Last 20 conversations
+  const sellerConversations = await db.query.conversations.findMany({
+    where: eq(conversations.sellerId, id),
+    orderBy: desc(conversations.lastMessageAt),
+    limit: 20,
+    with: {
+      buyer: { columns: { id: true, username: true, firstName: true, avatar: true } },
+    },
+  });
+  // Get last message and message count for each conversation
+  const convsWithMessages = await Promise.all(sellerConversations.map(async (conv) => {
+    const lastMsg = await db.query.messages.findFirst({
+      where: eq(messages.conversationId, conv.id),
+      orderBy: desc(messages.createdAt),
+    });
+    const [msgCount] = await db.select({ c: count() }).from(messages).where(eq(messages.conversationId, conv.id));
+    return { ...conv, messages: lastMsg ? [lastMsg] : [], _count: { messages: Number(msgCount.c) } };
+  }));
+
+  // Reviews
+  const sellerReviews = await db.query.reviews.findMany({
+    where: eq(reviews.recipientId, id),
+    orderBy: desc(reviews.createdAt),
+    with: {
+      author: { columns: { username: true, firstName: true, lastName: true, avatar: true } },
+      service: { columns: { title: true } },
+    },
+  });
+
+  // Metrics (last 30 days)
+  const metrics = await db.query.sellerMetrics.findMany({
+    where: eq(sellerMetrics.userId, id),
+    orderBy: desc(sellerMetrics.date),
+    limit: 30,
+  });
+
+  const fullSeller = {
+    ...seller,
+    services: servicesWithCounts,
+    sellerOrders,
+    sellerConversations: convsWithMessages,
+    receivedReviews: sellerReviews,
+  };
+
+  return c.json({ success: true, data: { seller: fullSeller, metrics } });
+});
+
+// Update seller plan
+app.patch('/sellers/managed/:id/plan', async (c) => {
+  const { id } = c.req.param();
+  const { plan } = await c.req.json();
+  const db = c.get('db');
+  const now = new Date().toISOString();
+
+  const profile = await db.query.sellerProfiles.findFirst({
+    where: eq(sellerProfiles.userId, id),
+    with: { subscription: true },
+  });
+
+  if (!profile) {
+    return c.json({ success: false, error: { code: 'NOT_FOUND', message: 'Seller not found' } }, 404);
+  }
+
+  if (plan === 'pro') {
+    if (profile.subscription) {
+      await db.update(sellerSubscriptions)
+        .set({ status: 'ACTIVE', updatedAt: now })
+        .where(eq(sellerSubscriptions.id, profile.subscription.id));
+    } else {
+      const periodEnd = new Date();
+      periodEnd.setFullYear(periodEnd.getFullYear() + 1);
+      await db.insert(sellerSubscriptions).values({
+        id: createId(),
+        sellerProfileId: profile.id,
+        status: 'ACTIVE',
+        currentPeriodStart: now,
+        currentPeriodEnd: periodEnd.toISOString(),
+        nextBillingDate: periodEnd.toISOString(),
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+  } else if (plan === 'free' && profile.subscription) {
+    await db.update(sellerSubscriptions)
+      .set({ status: 'CANCELLED', cancelledAt: now, updatedAt: now })
+      .where(eq(sellerSubscriptions.id, profile.subscription.id));
+  }
+
+  const updatedSeller = await db.query.users.findFirst({
+    where: eq(users.id, id),
+    with: { sellerProfile: { with: { subscription: true } } },
+  });
+
+  return c.json({ success: true, data: { seller: updatedSeller } });
+});
+
+// Update seller profile
+const updateProfileSchema = z.object({
+  displayName: z.string().optional(),
+  professionalTitle: z.string().optional(),
+  description: z.string().optional(),
+  skills: z.array(z.string()).optional(),
+  rating: z.number().optional(),
+  reviewCount: z.number().int().optional(),
+  completedOrders: z.number().int().optional(),
+  responseTimeMinutes: z.number().int().optional(),
+  onTimeDeliveryRate: z.number().optional(),
+  level: z.number().int().optional(),
+  isAvailable: z.boolean().optional(),
+});
+
+app.patch('/sellers/managed/:id/profile', validate(updateProfileSchema), async (c) => {
+  const { id } = c.req.param();
+  const body = getValidatedBody<z.infer<typeof updateProfileSchema>>(c);
+  const db = c.get('db');
+  const now = new Date().toISOString();
+
+  const profile = await db.query.sellerProfiles.findFirst({
+    where: eq(sellerProfiles.userId, id),
+  });
+  if (!profile) {
+    return c.json({ success: false, error: { code: 'NOT_FOUND', message: 'Seller not found' } }, 404);
+  }
+
+  const data: Record<string, any> = { updatedAt: now };
+  if (body.displayName !== undefined) data.displayName = body.displayName;
+  if (body.professionalTitle !== undefined) data.professionalTitle = body.professionalTitle;
+  if (body.description !== undefined) data.description = body.description;
+  if (body.skills !== undefined) data.skills = body.skills;
+  if (body.rating !== undefined) data.rating = body.rating;
+  if (body.reviewCount !== undefined) data.reviewCount = body.reviewCount;
+  if (body.completedOrders !== undefined) data.completedOrders = body.completedOrders;
+  if (body.responseTimeMinutes !== undefined) data.responseTimeMinutes = body.responseTimeMinutes;
+  if (body.onTimeDeliveryRate !== undefined) data.onTimeDeliveryRate = body.onTimeDeliveryRate;
+  if (body.level !== undefined) data.level = body.level;
+  if (body.isAvailable !== undefined) data.isAvailable = body.isAvailable;
+
+  await db.update(sellerProfiles).set(data).where(eq(sellerProfiles.userId, id));
+
+  const updated = await db.query.sellerProfiles.findFirst({
+    where: eq(sellerProfiles.userId, id),
+  });
+
+  return c.json({ success: true, data: { profile: updated } });
+});
+
+// Override seller stats
+const updateStatsSchema = z.object({
+  rating: z.number().optional(),
+  reviewCount: z.number().int().optional(),
+  completedOrders: z.number().int().optional(),
+  responseTimeMinutes: z.number().int().optional(),
+  onTimeDeliveryRate: z.number().optional(),
+  level: z.number().int().optional(),
+});
+
+app.patch('/sellers/managed/:id/stats', validate(updateStatsSchema), async (c) => {
+  const { id } = c.req.param();
+  const body = getValidatedBody<z.infer<typeof updateStatsSchema>>(c);
+  const db = c.get('db');
+  const now = new Date().toISOString();
+
+  const profile = await db.query.sellerProfiles.findFirst({
+    where: eq(sellerProfiles.userId, id),
+  });
+  if (!profile) {
+    return c.json({ success: false, error: { code: 'NOT_FOUND', message: 'Seller not found' } }, 404);
+  }
+
+  const data: Record<string, any> = { updatedAt: now };
+  if (body.rating !== undefined) data.rating = body.rating;
+  if (body.reviewCount !== undefined) data.reviewCount = body.reviewCount;
+  if (body.completedOrders !== undefined) data.completedOrders = body.completedOrders;
+  if (body.responseTimeMinutes !== undefined) data.responseTimeMinutes = body.responseTimeMinutes;
+  if (body.onTimeDeliveryRate !== undefined) data.onTimeDeliveryRate = body.onTimeDeliveryRate;
+  if (body.level !== undefined) data.level = body.level;
+
+  await db.update(sellerProfiles).set(data).where(eq(sellerProfiles.userId, id));
+
+  const updated = await db.query.sellerProfiles.findFirst({
+    where: eq(sellerProfiles.userId, id),
+  });
+
+  return c.json({ success: true, data: { profile: updated } });
+});
+
+// ============ SELLER METRICS ============
+
+const metricsSchema = z.object({
+  date: z.string().optional(),
+  ordersReceived: z.number().int().optional(),
+  ordersCompleted: z.number().int().optional(),
+  ordersCancelled: z.number().int().optional(),
+  grossRevenue: z.number().optional(),
+  platformFees: z.number().optional(),
+  netRevenue: z.number().optional(),
+  avgDeliveryTimeHrs: z.number().int().optional(),
+  onTimeDeliveries: z.number().int().optional(),
+  lateDeliveries: z.number().int().optional(),
+  reviewsReceived: z.number().int().optional(),
+  avgRating: z.number().optional(),
+});
+
+app.post('/sellers/managed/:id/metrics', validate(metricsSchema), async (c) => {
+  const { id } = c.req.param();
+  const body = getValidatedBody<z.infer<typeof metricsSchema>>(c);
+  const db = c.get('db');
+
+  const seller = await db.query.users.findFirst({
+    where: and(eq(users.id, id), eq(users.isSeller, true)),
+  });
+  if (!seller) {
+    return c.json({ success: false, error: { code: 'NOT_FOUND', message: 'Seller not found' } }, 404);
+  }
+
+  const dateStr = body.date || new Date().toISOString().split('T')[0];
+  const metricId = createId();
+
+  const values: Record<string, any> = {
+    id: metricId,
+    userId: id,
+    date: dateStr,
+  };
+  const updateSet: Record<string, any> = {};
+
+  if (body.ordersReceived !== undefined) { values.ordersReceived = body.ordersReceived; updateSet.ordersReceived = body.ordersReceived; }
+  if (body.ordersCompleted !== undefined) { values.ordersCompleted = body.ordersCompleted; updateSet.ordersCompleted = body.ordersCompleted; }
+  if (body.ordersCancelled !== undefined) { values.ordersCancelled = body.ordersCancelled; updateSet.ordersCancelled = body.ordersCancelled; }
+  if (body.grossRevenue !== undefined) { const v = Math.round(body.grossRevenue * 100); values.grossRevenue = v; updateSet.grossRevenue = v; }
+  if (body.platformFees !== undefined) { const v = Math.round(body.platformFees * 100); values.platformFees = v; updateSet.platformFees = v; }
+  if (body.netRevenue !== undefined) { const v = Math.round(body.netRevenue * 100); values.netRevenue = v; updateSet.netRevenue = v; }
+  if (body.avgDeliveryTimeHrs !== undefined) { values.avgDeliveryTimeHrs = body.avgDeliveryTimeHrs; updateSet.avgDeliveryTimeHrs = body.avgDeliveryTimeHrs; }
+  if (body.onTimeDeliveries !== undefined) { values.onTimeDeliveries = body.onTimeDeliveries; updateSet.onTimeDeliveries = body.onTimeDeliveries; }
+  if (body.lateDeliveries !== undefined) { values.lateDeliveries = body.lateDeliveries; updateSet.lateDeliveries = body.lateDeliveries; }
+  if (body.reviewsReceived !== undefined) { values.reviewsReceived = body.reviewsReceived; updateSet.reviewsReceived = body.reviewsReceived; }
+  if (body.avgRating !== undefined) { const v = Math.round(body.avgRating * 100); values.avgRating = v; updateSet.avgRating = v; }
+
+  await db.insert(sellerMetrics).values(values).onConflictDoUpdate({
+    target: [sellerMetrics.userId, sellerMetrics.date],
+    set: updateSet,
+  });
+
+  const metric = await db.query.sellerMetrics.findFirst({
+    where: and(eq(sellerMetrics.userId, id), eq(sellerMetrics.date, dateStr)),
+  });
+
+  return c.json({ success: true, data: { metric } });
+});
+
+app.get('/sellers/managed/:id/metrics', async (c) => {
+  const { id } = c.req.param();
+  const db = c.get('db');
+  const days = parseInt(c.req.query('days') || '30');
+
+  const since = new Date();
+  since.setDate(since.getDate() - days);
+  const sinceStr = since.toISOString().split('T')[0];
+
+  const metrics = await db.query.sellerMetrics.findMany({
+    where: and(eq(sellerMetrics.userId, id), gte(sellerMetrics.date, sinceStr)),
+    orderBy: desc(sellerMetrics.date),
+  });
+
+  return c.json({ success: true, data: { metrics } });
+});
+
+// ============ SELLER SERVICE CREATION ============
+
+const createServiceSchema = z.object({
+  title: z.string().min(1),
+  description: z.string().min(1),
+  categoryId: z.string().min(1),
+  images: z.array(z.string()).default([]),
+  tags: z.array(z.string()).default([]),
+  packages: z.array(z.object({
+    tier: z.enum(['BASIC', 'STANDARD', 'PREMIUM']),
+    name: z.string().min(1),
+    description: z.string().min(1),
+    price: z.number().int().min(1),
+    deliveryDays: z.number().int().min(1),
+    revisions: z.number().int().default(0),
+    features: z.array(z.string()).default([]),
+  })).min(1),
+});
+
+app.post('/sellers/managed/:id/services', validate(createServiceSchema), async (c) => {
+  const { id } = c.req.param();
+  const body = getValidatedBody<z.infer<typeof createServiceSchema>>(c);
+  const db = c.get('db');
+  const now = new Date().toISOString();
+
+  // Generate unique slug
+  let slug = body.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  let suffix = 0;
+  while (true) {
+    const candidate = suffix === 0 ? slug : `${slug}-${suffix}`;
+    const existing = await db.query.services.findFirst({
+      where: and(eq(services.sellerId, id), eq(services.slug, candidate)),
+    });
+    if (!existing) { slug = candidate; break; }
+    suffix++;
+  }
+
+  const serviceId = createId();
+  await db.insert(services).values({
+    id: serviceId,
+    sellerId: id,
+    categoryId: body.categoryId,
+    title: body.title,
+    slug,
+    description: body.description,
+    pricingType: 'ONE_TIME',
+    images: body.images,
+    tags: body.tags,
+    status: 'ACTIVE',
+    isActive: true,
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  for (const pkg of body.packages) {
+    await db.insert(servicePackages).values({
+      id: createId(),
+      serviceId,
+      tier: pkg.tier,
+      name: pkg.name,
+      description: pkg.description,
+      price: pkg.price,
+      deliveryDays: pkg.deliveryDays,
+      revisions: pkg.revisions,
+      features: pkg.features,
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
+
+  const service = await db.query.services.findFirst({
+    where: eq(services.id, serviceId),
+    with: { packages: true, category: true },
+  });
+
+  return c.json({ success: true, data: { service } }, 201);
+});
+
+// ============ REVIEW CREATION ============
+
+const createReviewSchema = z.object({
+  authorId: z.string().min(1),
+  serviceId: z.string().min(1),
+  sellerId: z.string().min(1),
+  rating: z.number().int().min(1).max(5),
+  comment: z.string().min(1),
+  communicationRating: z.number().int().min(1).max(5).optional(),
+  qualityRating: z.number().int().min(1).max(5).optional(),
+  valueRating: z.number().int().min(1).max(5).optional(),
+});
+
+app.post('/reviews/create', validate(createReviewSchema), async (c) => {
+  const body = getValidatedBody<z.infer<typeof createReviewSchema>>(c);
+  const db = c.get('db');
+  const now = new Date().toISOString();
+
+  const [author, seller, service] = await Promise.all([
+    db.query.users.findFirst({ where: eq(users.id, body.authorId) }),
+    db.query.users.findFirst({ where: eq(users.id, body.sellerId) }),
+    db.query.services.findFirst({ where: eq(services.id, body.serviceId) }),
+  ]);
+
+  if (!author || !seller || !service) {
+    return c.json({ success: false, error: { code: 'NOT_FOUND', message: 'Author, seller, or service not found' } }, 404);
+  }
+
+  // Get BASIC package price
+  const basicPkg = await db.query.servicePackages.findFirst({
+    where: and(eq(servicePackages.serviceId, body.serviceId), eq(servicePackages.tier, 'BASIC')),
+  });
+  const baseAmount = basicPkg?.price || 10000;
+  const buyerPlatformFee = Math.round(baseAmount * 0.03);
+  const sellerPlatformFee = Math.round(baseAmount * 0.08);
+  const grossAmount = baseAmount + buyerPlatformFee;
+  const sellerPayoutAmount = baseAmount - sellerPlatformFee;
+  const platformRevenue = buyerPlatformFee + sellerPlatformFee;
+
+  const orderId = createId();
+  const orderNumber = `ORD-${Date.now()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+
+  await db.insert(orders).values({
+    id: orderId,
+    orderNumber,
+    buyerId: body.authorId,
+    sellerId: body.sellerId,
+    serviceId: body.serviceId,
+    packageId: basicPkg?.id || null,
+    baseAmount,
+    buyerPlatformFee,
+    buyerProcessingFee: 0,
+    sellerPlatformFee,
+    grossAmount,
+    platformRevenue,
+    sellerPayoutAmount,
+    currency: 'ZAR',
+    status: 'COMPLETED',
+    deliveryDays: 3,
+    paidAt: now,
+    startedAt: now,
+    completedAt: now,
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  const reviewId = createId();
+  await db.insert(reviews).values({
+    id: reviewId,
+    orderId,
+    serviceId: body.serviceId,
+    authorId: body.authorId,
+    recipientId: body.sellerId,
+    rating: body.rating,
+    comment: body.comment,
+    communicationRating: body.communicationRating || null,
+    qualityRating: body.qualityRating || null,
+    valueRating: body.valueRating || null,
+    isPublic: true,
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  // Recalculate service stats
+  const serviceReviews = await db.select({ rating: reviews.rating }).from(reviews).where(eq(reviews.serviceId, body.serviceId));
+  const avgServiceRating = Math.round(serviceReviews.reduce((sum, r) => sum + r.rating, 0) / serviceReviews.length * 100);
+  const [svcOrderCount] = await db.select({ c: count() }).from(orders).where(eq(orders.serviceId, body.serviceId));
+  await db.update(services).set({
+    rating: avgServiceRating,
+    reviewCount: serviceReviews.length,
+    orderCount: Number(svcOrderCount.c),
+    updatedAt: now,
+  }).where(eq(services.id, body.serviceId));
+
+  // Recalculate seller stats
+  const sellerReviews = await db.select({ rating: reviews.rating }).from(reviews).where(eq(reviews.recipientId, body.sellerId));
+  const avgSellerRating = Math.round(sellerReviews.reduce((sum, r) => sum + r.rating, 0) / sellerReviews.length * 100);
+  const [sellerOrderCount] = await db.select({ c: count() }).from(orders).where(and(eq(orders.sellerId, body.sellerId), eq(orders.status, 'COMPLETED')));
+  await db.update(sellerProfiles).set({
+    rating: avgSellerRating,
+    reviewCount: sellerReviews.length,
+    completedOrders: Number(sellerOrderCount.c),
+    updatedAt: now,
+  }).where(eq(sellerProfiles.userId, body.sellerId));
+
+  const review = await db.query.reviews.findFirst({
+    where: eq(reviews.id, reviewId),
+    with: {
+      author: { columns: { username: true, firstName: true, lastName: true, avatar: true } },
+      service: { columns: { title: true } },
+    },
+  });
+
+  return c.json({ success: true, data: { review, order: { id: orderId, orderNumber } } }, 201);
+});
+
+// ============ MANAGED USERS (buyers for reviews/chat) ============
+
+app.get('/users/managed', async (c) => {
+  const db = c.get('db');
+  const search = c.req.query('search');
+  const page = Math.max(1, parseInt(c.req.query('page') || '1'));
+  const limit = Math.min(100, Math.max(1, parseInt(c.req.query('limit') || '50')));
+  const offset = (page - 1) * limit;
+
+  let whereClause = and(eq(users.isAdminCreated, true), eq(users.isSeller, false));
+  if (search) {
+    const searchLower = `%${search.toLowerCase()}%`;
+    whereClause = and(
+      whereClause,
+      or(
+        like(sql`LOWER(${users.username})`, searchLower),
+        like(sql`LOWER(${users.email})`, searchLower),
+        like(sql`LOWER(${users.firstName})`, searchLower),
+      )
+    ) as any;
+  }
+
+  const userList = await db.select({
+    id: users.id,
+    email: users.email,
+    username: users.username,
+    firstName: users.firstName,
+    lastName: users.lastName,
+    avatar: users.avatar,
+    createdAt: users.createdAt,
+  }).from(users).where(whereClause!).orderBy(desc(users.createdAt)).limit(limit).offset(offset);
+
+  const [totalResult] = await db.select({ total: count() }).from(users).where(whereClause!);
+  const total = Number(totalResult.total);
+
+  const usersWithCounts = await Promise.all(userList.map(async (u) => {
+    const [revCount] = await db.select({ c: count() }).from(reviews).where(eq(reviews.authorId, u.id));
+    return { ...u, _count: { reviews: Number(revCount.c) } };
+  }));
+
+  return c.json({
+    success: true,
+    data: { users: usersWithCounts },
+    meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
+  });
+});
+
+// ============ ADMIN CHAT SIMULATION ============
+
+const startConversationSchema = z.object({
+  buyerId: z.string().min(1),
+  sellerId: z.string().min(1),
+  message: z.string().optional(),
+});
+
+app.post('/conversations/start', validate(startConversationSchema), async (c) => {
+  const body = getValidatedBody<z.infer<typeof startConversationSchema>>(c);
+  const db = c.get('db');
+  const now = new Date().toISOString();
+
+  // Check existing conversation
+  let conversation = await db.query.conversations.findFirst({
+    where: and(eq(conversations.buyerId, body.buyerId), eq(conversations.sellerId, body.sellerId)),
+  });
+
+  if (!conversation) {
+    const convId = createId();
+    await db.insert(conversations).values({
+      id: convId,
+      buyerId: body.buyerId,
+      sellerId: body.sellerId,
+      status: 'OPEN',
+      lastMessageAt: now,
+      createdAt: now,
+      updatedAt: now,
+    });
+    conversation = await db.query.conversations.findFirst({
+      where: eq(conversations.id, convId),
+    });
+  }
+
+  let message = null;
+  if (body.message && conversation) {
+    const msgId = createId();
+    await db.insert(messages).values({
+      id: msgId,
+      conversationId: conversation.id,
+      senderId: body.buyerId,
+      content: body.message,
+      type: 'TEXT',
+      createdAt: now,
+    });
+    await db.update(conversations).set({
+      lastMessageAt: now,
+      lastMessagePreview: body.message.slice(0, 100),
+      messageCount: sql`${conversations.messageCount} + 1`,
+      unreadSellerCount: sql`${conversations.unreadSellerCount} + 1`,
+      updatedAt: now,
+    }).where(eq(conversations.id, conversation.id));
+
+    message = await db.query.messages.findFirst({ where: eq(messages.id, msgId) });
+  }
+
+  return c.json({ success: true, data: { conversation, message } });
+});
+
+const sendMessageSchema = z.object({
+  senderId: z.string().min(1),
+  content: z.string().min(1),
+  type: z.enum(['TEXT', 'IMAGE', 'FILE', 'SYSTEM']).default('TEXT'),
+});
+
+app.post('/conversations/:id/send', validate(sendMessageSchema), async (c) => {
+  const { id } = c.req.param();
+  const body = getValidatedBody<z.infer<typeof sendMessageSchema>>(c);
+  const db = c.get('db');
+  const now = new Date().toISOString();
+
+  const conversation = await db.query.conversations.findFirst({
+    where: eq(conversations.id, id),
+  });
+  if (!conversation) {
+    return c.json({ success: false, error: { code: 'NOT_FOUND', message: 'Conversation not found' } }, 404);
+  }
+
+  const msgId = createId();
+  await db.insert(messages).values({
+    id: msgId,
+    conversationId: id,
+    senderId: body.senderId,
+    content: body.content,
+    type: body.type,
+    createdAt: now,
+  });
+
+  // Update unread counts based on who sent
+  const isBuyer = body.senderId === conversation.buyerId;
+  await db.update(conversations).set({
+    lastMessageAt: now,
+    lastMessagePreview: body.content.slice(0, 100),
+    messageCount: sql`${conversations.messageCount} + 1`,
+    ...(isBuyer
+      ? { unreadSellerCount: sql`${conversations.unreadSellerCount} + 1` }
+      : { unreadBuyerCount: sql`${conversations.unreadBuyerCount} + 1` }),
+    updatedAt: now,
+  }).where(eq(conversations.id, id));
+
+  const message = await db.query.messages.findFirst({ where: eq(messages.id, msgId) });
+
+  return c.json({ success: true, data: { message } });
 });
 
 export default app;
